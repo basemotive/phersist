@@ -1,5 +1,5 @@
 {
-    "name": "basemotive/PHersist",
+    "name": "basemotive/phersist",
     "type": "library",
     "description": "A tiny PHP-ORM",
     "keywords": ["ORM"],

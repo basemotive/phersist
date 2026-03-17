@@ -3,7 +3,7 @@
     "type": "library",
     "description": "A tiny PHP-ORM",
     "keywords": ["ORM"],
-    "homepage": "https://phersist.org/",
+    "homepage": "https://phersist.dev/",
     "license": "LGPL-2.1-or-later",
     "minimum-stability": "dev",
     "authors": [
@@ -15,7 +15,7 @@
         }
     ],
     "require": {
-        "php": ">=8.3.0",
+        "php": ">=8.3.0"
     },
     "autoload": {
         "psr-4" : {

@@ -21,6 +21,11 @@ class ARGenerator {
 		$this->includeDir = $includeDir;
 	}
 
+	public function getNamespace() : string {
+		$namespace = $this->root->hasAttribute('namespace') ? $this->root->getAttribute('namespace') : '';
+		return trim($namespace, '\\').'\\';
+	}
+
 	/**
 	 * Generates the code for all the classes in the XML.
 	 *
@@ -41,6 +46,10 @@ class ARGenerator {
 		$meta = $this->generateMeta($classElement);
 
 		$txt = "<?php\n\n";
+
+		if ($this->root->hasAttribute('namespace'))
+			$txt .= 'namespace '.rtrim($this->root->getAttribute('namespace'), '\\').";\n\n";
+
 		$txt  .= $this->generateDocs($classElement);
 		$txt .= "class $className extends \\PHersist\\ActiveRecord {\n";
 		$txt .= "\tprotected static \$_meta = ".var_export($meta, true).";\n\n";
@@ -161,7 +170,7 @@ class ARGenerator {
 			'maps' => [],
 		];
 
-		// Process the datasets
+		// process the datasets
 		$datasets = $classElement->getElementsByTagName('dataset');
 		foreach ($datasets as $dataset) {
 			$ds_autoload = $dataset->hasAttribute('autoload') && $dataset->getAttribute('autoload')=='true';
@@ -173,7 +182,7 @@ class ARGenerator {
 				'props' => [],
 			];
 
-			// Process the properties within the dataset
+			// process the properties within the dataset
 			$properties = $dataset->getElementsByTagName('property');
 			foreach ($properties as $property) {
 				$prop_name = $property->getAttribute('name');
@@ -199,7 +208,7 @@ class ARGenerator {
 
 				// Special types - TODO Can we make this more generic?
 				if ($prop_type == 'Class') {
-					$metaprop['class'] = $property->getAttribute('class');
+					$metaprop['class'] = $this->getNamespace().$property->getAttribute('class');
 				} elseif ($prop_type == 'TimestampText') {
 					$metaprop['update_on'] = $property->getAttribute('update_on');
 					if ($property->hasAttribute('date_format'))
@@ -220,7 +229,7 @@ class ARGenerator {
 		foreach ($relations as $relation) {
 			$metarel = [
 				'type' => $relation->getAttribute('type'),
-				'class' => $relation->getAttribute('class'),
+				'class' => $this->getNamespace().$relation->getAttribute('class'),
 				'table' => $relation->getAttribute('table'),
 				'local_id' => $relation->getAttribute('local_id'),
 				'remote_id' => $relation->getAttribute('remote_id'),
@@ -275,7 +284,7 @@ class ARGenerator {
 		return $styleConverter::translate($property, $base);
 	}
 
-	private \DOMDocument $doc;
-	private \DOMElement $root;
+	private DOMDocument $doc;
+	private DOMElement $root;
 	private ?string $includeDir;
 }

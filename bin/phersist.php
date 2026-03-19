@@ -8,7 +8,16 @@
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
-$autoloader = require(__DIR__ . '/../vendor/autoload.php');
+$autoloadFiles = [
+	// when installed through composer
+	__DIR__ . '/../../../autoload.php',
+	// for local development
+	__DIR__ . '/../vendor/autoload.php',
+];
+$autoloader = null;
+foreach ($autoloadFiles as $autoloadFile)
+	if (file_exists($autoloadFile))
+		$autoloader = require($autoloadFile);
 
 use PHersist\Generator\ARGenerator;
 use PHersist\Generator\MySQLGenerator;

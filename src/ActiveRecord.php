@@ -56,7 +56,7 @@ class ActiveRecord implements \ArrayAccess {
 	 * Magic method that makes this object whole after restoring it.
 	 */
 	public function __wakeup() : void {
-		$this->relationTypes = array();
+		$this->relationTypes = [];
 
 		// Get the database from the pool
 		$this->_PDO = DB\DBConnectionManager::getPDO(static::$_meta['database'])
@@ -85,9 +85,9 @@ class ActiveRecord implements \ArrayAccess {
 		if (count($this->_changed)==0 && $this->id!=null)
 			return;
 
-		// Map of form 'tablename' => array('key' => 'prop', ...)
+		// Map of form 'tablename' => [ 'key' => 'prop', ... ]
 		// We always automatically add our base table here, so it gets processed first for new objects
-		$tableUpdates = array(static::$_meta['table'] => array());
+		$tableUpdates = [ static::$_meta['table'] => [] ];
 
 		// In the first iteration, we process the properties that belong to datasets
 		foreach ($this->_changed as $key) {
@@ -102,7 +102,7 @@ class ActiveRecord implements \ArrayAccess {
 
 			// Stuff the values in the $tableUpdates for later when we update the DB
 			$table = $dataset['table'];
-			if (!isset($tableUpdates[$table])) $tableUpdates[$table] = array();
+			if (!isset($tableUpdates[$table])) $tableUpdates[$table] = [];
 			$tableUpdates[$table] = array_merge($tableUpdates[$table], $fieldvalues);
 		}
 
@@ -116,7 +116,7 @@ class ActiveRecord implements \ArrayAccess {
 
 					// Stuff the values in the $tableUpdates for later when we update the DB
 					$table = $dataset['table'];
-					if (!isset($tableUpdates[$table])) $tableUpdates[$table] = array();
+					if (!isset($tableUpdates[$table])) $tableUpdates[$table] = [];
 					$tableUpdates[$table] = array_merge($tableUpdates[$table], $fieldvalues);
 				}
 			}
@@ -315,7 +315,7 @@ class ActiveRecord implements \ArrayAccess {
 		// If the key is for a relation, fetch that relation
 		if (isset(static::$_meta['relations'][$key])) {
 			if ($this->id == null) { // Don't try to restore anything for new objects
-				$objects = array();
+				$objects = [];
 			} else {
 				$relation = static::$_meta['relations'][$key];
 				$relationType = $this->_getRelationType($relation['type']);
@@ -354,7 +354,7 @@ class ActiveRecord implements \ArrayAccess {
 		$idfield = static::$_meta['id'];
 
 		// Determine which properties we need to fetch
-		$fieldnames = array();
+		$fieldnames = [];
 		foreach ($dataset['props'] as $prop)
 			$fieldnames = array_merge($fieldnames, $prop['fieldnames']);
 		$fieldnames = array_unique($fieldnames);

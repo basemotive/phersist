@@ -27,7 +27,7 @@ class ARRelationTypeNN extends ARRelationType {
 		$extraFields = '';
 		if ($rel['load_objects'])
 			foreach ($meta['datasets'] as $dataset) if ($dataset['autoload']) {
-				$extraFieldList = array();
+				$extraFieldList = [];
 				foreach ($dataset['props'] as $prop)
 					$extraFieldList = array_merge($extraFieldList, $prop['fieldnames']);
 				foreach (array_unique($extraFieldList) as $extraField)

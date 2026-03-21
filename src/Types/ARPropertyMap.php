@@ -207,7 +207,7 @@ class ARPropertyMap {
 			$key = $keys[$i];
 			if ($i < count($keys)-1) {
 				// Not the last key; make sure the key-path is available
-				if (!isset($arr[$key])) $arr[$key] = array();
+				if (!isset($arr[$key])) $arr[$key] = [];
 				$arr = &$arr[$key];
 			} else {
 				if ($value === null)
@@ -248,7 +248,6 @@ class ARPropertyMap {
 					return $result;
 				} else {
 					// It's a submap
-					//$result = isset($arr[$key]) ? $arr[$key] : array();
 					return new ARPropertyMapArrayImpl($this, $keys);
 				}
 			}

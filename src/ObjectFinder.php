@@ -96,7 +96,7 @@ class ObjectFinder {
 		$extraFields='';
 		if ($this->full) {
 			foreach ($meta['datasets'] as $dataset) if ($dataset['autoload']) {
-				$extraFieldList = array();
+				$extraFieldList = [];
 				foreach ($dataset['props'] as $prop)
 					$extraFieldList = array_merge($extraFieldList, $prop['fieldnames']);
 				foreach (array_unique($extraFieldList) as $extraField)
@@ -124,7 +124,7 @@ class ObjectFinder {
 		// base table, and not properties/values we imported from other tables
 		// We should dereference the tables here and prepend the mapped table names
 		if (count($this->orderBys)>0) {
-			$orderBysTranslated = array();
+			$orderBysTranslated = [];
 			foreach ($this->orderBys as $orderBy) {
 
 				$property = $orderBy['property'];
@@ -242,13 +242,13 @@ class ObjectFinder {
 				$joinOn = $derefData['on'];
 				$currentClassName = $derefData['class_name'];
 
-				$this->tables[$currentContext] = array(
+				$this->tables[$currentContext] = [
 					'source_table' => $sourceTable,
 					'table_name' => $tableName,
 					'table_alias' => $tableAlias,
 					'join_on' => $joinOn,
 					'class_name' => $currentClassName,
-				);
+				];
 			} else {
 				$this->error("Cannot dereference $currentClassName::$propertyName");
 			}
@@ -262,7 +262,7 @@ class ObjectFinder {
 	 * caches them, so that only one instance of each type is created every time.
 	 */
 	private static function _getPropertyType(string $type) : Types\ARPropertyType {
-		static $propertyTypes = array();
+		static $propertyTypes = [];
 		$fullType = __NAMESPACE__."\\Types\\ARPropertyType$type";
 		if (!isset($propertyTypes[$fullType]))
 			$propertyTypes[$fullType] = new $fullType();
@@ -323,10 +323,10 @@ class ObjectFinder {
 		if (!$this->hasProperty($propname))
 			$this->error("Does not have property $propname");
 
-		$this->orderBys[] = array(
+		$this->orderBys[] = [
 			'property' => $propname,
 			'direction' => $direction,
-		);
+		];
 		return $this;
 	}
 
@@ -473,7 +473,7 @@ class OFWhereExpression extends OFExpression {
 	 * caches them, so that only one instance of each type is created every time.
 	 */
 	private static function _getPropertyType(string $type) : Types\ARPropertyType {
-		static $propertyTypes = array();
+		static $propertyTypes = [];
 		$fullType = __NAMESPACE__."\\Types\\ARPropertyType$type";
 		if (!isset($propertyTypes[$fullType]))
 			$propertyTypes[$fullType] = new $fullType();

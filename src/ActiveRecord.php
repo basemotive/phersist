@@ -112,7 +112,7 @@ class ActiveRecord implements \ArrayAccess {
 			foreach ($dataset['props'] as $key => $prop) {
 				$type = $this->_getPropertyType($prop['type']);
 				if ($type->requiresAutoUpdate($prop)) {
-					$fieldvalues = $type->toDB($prop, $this->_data[$key]);
+					$fieldvalues = $type->toDB($prop, $this->_data[$key] ?? null);
 
 					// Stuff the values in the $tableUpdates for later when we update the DB
 					$table = $dataset['table'];
@@ -304,6 +304,8 @@ class ActiveRecord implements \ArrayAccess {
 			if ($this->id == null) { // Don't try to restore anything for new objects
 				// TODO It may be a good idea to have default values defined in the XML, for when they
 				//      should not be empty strings
+				// TODO Also check the field type and decide what default value to set
+				// TODO Maybe also set default values for new objects
 				$this->_data[$key] = '';
 			} else
 				$this->_restoreDataset($dataset);

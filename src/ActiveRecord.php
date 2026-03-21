@@ -597,7 +597,4 @@ class ActiveRecord implements \ArrayAccess {
 
 	/** The cache */
 	protected static $_cache;
-
-	// temporary
-	public function getPDO() : ?\PDO { return $this->_PDO; }
 }

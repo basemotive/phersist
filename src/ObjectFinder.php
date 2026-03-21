@@ -310,10 +310,6 @@ class ObjectFinder {
 		return $this->className;
 	}
 
-	public function getPDO() : ?\PDO {
-		return $this->PDO;
-	}
-
 	public function generateValueName() : string {
 		static $counter = 1;
 		return 'field'.$counter++;

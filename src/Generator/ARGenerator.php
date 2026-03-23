@@ -13,12 +13,11 @@ use DOMElement;
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
 class ARGenerator {
-	public function __construct(string $xml, ?string $includeDir = null) {
+	public function __construct(string $xml) {
 		$this->doc = new DOMDocument();
 		$this->doc->loadXML($xml);
 
 		$this->root = $this->doc->documentElement;
-		$this->includeDir = $includeDir;
 	}
 
 	public function getNamespace() : string {
@@ -44,31 +43,26 @@ class ARGenerator {
 	private function generateClass(DOMElement $classElement) : string {
 		$className = $classElement->getAttribute('name');
 		$meta = $this->generateMeta($classElement);
+		$namespace = $this->root->hasAttribute('namespace') ? rtrim($this->root->getAttribute('namespace'), '\\') : null;
 
 		$txt = "<?php\n\n";
 
-		if ($this->root->hasAttribute('namespace'))
-			$txt .= 'namespace '.rtrim($this->root->getAttribute('namespace'), '\\').";\n\n";
+		if ($namespace != null)
+			$txt .= "namespace {$namespace};\n\n";
 
 		$txt  .= $this->generateDocs($classElement);
 		$txt .= "class $className extends \\PHersist\\ActiveRecord {\n";
-		$txt .= "\tprotected static \$_meta = ".var_export($meta, true).";\n\n";
 
-		// Import the include code for this class, which is required because PHP cannot include
-		// extra class methods from a file.
-		if ($this->includeDir !== null && file_exists("{$this->includeDir}/$className.include.php")) {
-			$filedata = trim(file_get_contents("{$this->includeDir}/$className.include.php"));
-
-			if (substr($filedata,0,5) == '<?php') $filedata = substr($filedata,5);
-			if (substr($filedata, strlen($filedata)-2) == '?>') $filedata = substr($filedata, 0, strlen($filedata)-2);
-			$filedata = trim($filedata);
-
-			$txt .= "\t// --- START Content from {$className}.include.php\n";
-			$txt .= "\n";
-			foreach (explode("\n", $filedata) as $line) $txt .= "\t$line\n";
-			$txt .= "\n";
-			$txt .= "\t// --- END Content from {$className}.include.php\n";
+		// If a Trait exists for this class, use it
+		if ($classElement->hasAttribute('trait')) {
+			$txt .= "\tuse {$classElement->getAttribute('trait')};\n\n";
+		} elseif (trait_exists("{$namespace}\\{$className}Trait")) {
+			$txt .= "\tuse {$namespace}\\{$className}Trait;\n\n";
 		}
+
+		// Write the $_meta variable that holds the information the ActiveRecord
+		// needs to function
+		$txt .= "\tprotected static \$_meta = ".$this->exportArray($meta, 1).";\n\n";
 
 		$txt .= "}\n";
 		$txt .= "?>";
@@ -77,6 +71,12 @@ class ARGenerator {
 	}
 
     /**
+     * Generates a DocBlock for this class.
+     *
+     * The docblock helps code analyzers like PHPStan know which properties
+     * this class has, since they work through the __get and __set magic
+     * methods and thus cannot be directly analyzed.
+     *
      * @param DOMElement $classElement
      * @return string the docblock for the given class
      */
@@ -294,7 +294,43 @@ class ARGenerator {
 		return $styleConverter::translate($term, $name);
 	}
 
+	/**
+	 * Exports a (nested) array as clean PHP syntax using square bracket notation
+	 * with proper indentation, as an alternative to var_export().
+	 *
+	 * @param array $array the array to export
+	 * @param int $depth the current indentation depth (1 = inside class body)
+	 * @return string the exported array as a PHP code string
+	 */
+	private function exportArray(array $array, int $depth = 0) : string {
+		if (count($array) === 0)
+			return '[]';
+
+		$indent = str_repeat("\t", $depth);
+		$innerIndent = str_repeat("\t", $depth + 1);
+
+		$isList = array_is_list($array);
+
+		$lines = [];
+		foreach ($array as $key => $value) {
+			$exportedValue = match(true) {
+				is_array($value)  => $this->exportArray($value, $depth + 1),
+				is_bool($value)   => ($value ? 'true' : 'false'),
+				is_null($value)   => 'null',
+				is_int($value)    => (string)$value,
+				is_float($value)  => var_export($value, true),
+				default           => "'".addcslashes((string)$value, "'\\")."'",
+			};
+
+			if ($isList)
+				$lines[] = "{$innerIndent}{$exportedValue}";
+			else
+				$lines[] = "{$innerIndent}'{$key}' => {$exportedValue}";
+		}
+
+		return "[\n".implode(",\n", $lines)."\n{$indent}]";
+	}
+
 	private DOMDocument $doc;
 	private DOMElement $root;
-	private ?string $includeDir;
 }

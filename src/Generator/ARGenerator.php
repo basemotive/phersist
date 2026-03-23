@@ -152,11 +152,11 @@ class ARGenerator {
 	private function generateMeta(DOMElement $classElement) : array {
 		$className = $classElement->getAttribute('name');
 		$id = $classElement->hasAttribute('id') ?
-			$classElement->getAttribute('id') : $this->getAuto($className, 'id');
+			$classElement->getAttribute('id') : $this->getAuto('id', $className);
 		$database = $classElement->hasAttribute('database') ?
 			$classElement->getAttribute('database') : $this->root->getAttribute('database');
 		$table = $classElement->hasAttribute('table') ?
-			$classElement->getAttribute('table') : $this->getAuto($className, 'table');
+			$classElement->getAttribute('table') : $this->getAuto('table', $className);
 		$softdelete = $classElement->hasAttribute('softdelete') && $classElement->getAttribute('softdelete')=='true';
 
 		// The base data for the class
@@ -192,12 +192,8 @@ class ARGenerator {
 				if ($prop_fieldnames_str == '' && $property->hasAttribute('fieldname'))
 					$prop_fieldnames_str = $property->getAttribute('fieldname');
 				if ($prop_fieldnames_str == '')
-					$prop_fieldnames_str = $this->getAuto($prop_name, 'fieldname');
+					$prop_fieldnames_str = $this->getAuto('fieldname', $prop_name);
 
-				/*
-				$prop_fieldnames_str = $property->hasAttribute('fieldnames') ?
-					$property->getAttribute('fieldnames') : $this->getAuto($prop_name, 'fieldname');
-				*/
 				$prop_type = $property->hasAttribute('type') ?
 					$property->getAttribute('type') : 'Text';
 
@@ -275,13 +271,27 @@ class ARGenerator {
 	/**
 	 * Uses a table style converter to convert class and property names into table and column names.
 	 *
-	 * @param string $base
-	 * @param string $property
-	 * @return string
+	 * @param string $term what kind of term to translate: table | id | fieldname
+	 * @param string $name the name to translate
+	 * @return string the converted name
  	 */
-	private function getAuto(string $base, string $property) : string {
+	private function getAuto(string $term, string $name) : string {
 		$styleConverter = __NAMESPACE__.'\\TS'.$this->root->getAttribute('tablestyle');
-		return $styleConverter::translate($property, $base);
+
+		if (!class_exists($styleConverter))
+			die("ERROR: Cannot find table style converter class {$styleConverter}\n");
+
+		if ($term == 'id') {
+			// the root element property 'id_style' if it existscan be 'long' or
+			// 'short', with the default being 'short', which means the main primary
+			// key field for tables will be named 'id', whereas the long version uses
+			// the converted class name + '_id'
+			$idStyle = $this->root->hasAttribute('id_style') ? $this->root->getAttribute('id_style') : 'short';
+			if ($idStyle == 'short')
+				return 'id';
+		}
+
+		return $styleConverter::translate($term, $name);
 	}
 
 	private DOMDocument $doc;

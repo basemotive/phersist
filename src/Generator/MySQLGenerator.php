@@ -46,6 +46,12 @@ class MySQLGenerator {
 					$result .= " AUTO_INCREMENT";
 					$primaryKey = $field;
 				}
+				if (isset($field['defaultValue'])) {
+					if (is_string($field['defaultValue']))
+						$result .= " DEFAULT '{$field['defaultValue']}'";
+					else
+						$result .= " DEFAULT {$field['defaultValue']}";
+				}
 				$result .= ",\n";
 
 				if ($field['primaryKey'])
@@ -73,19 +79,21 @@ class MySQLGenerator {
 	private function generateClass(DOMElement $classElement) : array {
 		$className = $classElement->getAttribute('name');
 		$idField = $classElement->hasAttribute('id') ?
-			$classElement->getAttribute('id') : $this->getAuto($className, 'id');
+			$classElement->getAttribute('id') : $this->getAuto('id', $className);
 		$database = $classElement->hasAttribute('database') ?
 			$classElement->getAttribute('database') : $this->root->getAttribute('database');
 		$table = $classElement->hasAttribute('table') ?
-			$classElement->getAttribute('table') : $this->getAuto($className, 'table');
+			$classElement->getAttribute('table') : $this->getAuto('table', $className);
 		$softdelete = $classElement->hasAttribute('softdelete') && $classElement->getAttribute('softdelete')=='true';
 
 		$result = [];
+		$softdeleteSatisfied = false;
 
 		// process the datasets
 		$datasets = $classElement->getElementsByTagName('dataset');
 		foreach ($datasets as $dataset) {
 			$datasetTable = $dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $table;
+			$autoload = $dataset->hasAttribute('autoload') && $dataset->getAttribute('autoload') == 'true';
 
 			if (!isset($result[$datasetTable]))
 				$result[$datasetTable] = [];
@@ -109,7 +117,7 @@ class MySQLGenerator {
 				} elseif ($property->hasAttribute('fieldnames')) {
 					$fieldNames = explode(',', $property->getAttribute('fieldnames'));
 				} else {
-					$fieldNames = [ $this->getAuto($propName, 'fieldname') ];
+					$fieldNames = [ $this->getAuto('fieldname', $propName) ];
 				}
 
 				if ($propType == 'Text') {
@@ -156,6 +164,19 @@ class MySQLGenerator {
 						'primaryKey' => false,
 					];
 				}
+			}
+
+			// add a deleted field for softdelete
+			if ($softdelete && !$softdeleteSatisfied) {
+				$result[$datasetTable][] = [
+					'fieldName' => 'deleted',
+					'fieldType' => 'INT UNSIGNED',
+					'required' => true,
+					'primaryKey' => false,
+					'defaultValue' => 0,
+				];
+
+				$softdeleteSatisfied = true;
 			}
 		}
 
@@ -251,13 +272,27 @@ class MySQLGenerator {
 	/**
 	 * Uses a table style converter to convert class and property names into table and column names.
 	 *
-	 * @param string $base
-	 * @param string $property
-	 * @return string
+	 * @param string $term what kind of term to translate: table | id | fieldname
+	 * @param string $name the name to translate
+	 * @return string the converted name
  	 */
-	private function getAuto(string $base, string $property) : string {
+	private function getAuto(string $term, string $name) : string {
 		$styleConverter = __NAMESPACE__.'\\TS'.$this->root->getAttribute('tablestyle');
-		return $styleConverter::translate($property, $base);
+
+		if (!class_exists($styleConverter))
+			die("ERROR: Cannot find table style converter class {$styleConverter}\n");
+
+		if ($term == 'id') {
+			// the root element property 'id_style' if it existscan be 'long' or
+			// 'short', with the default being 'short', which means the main primary
+			// key field for tables will be named 'id', whereas the long version uses
+			// the converted class name + '_id'
+			$idStyle = $this->root->hasAttribute('id_style') ? $this->root->getAttribute('id_style') : 'short';
+			if ($idStyle == 'short')
+				return 'id';
+		}
+
+		return $styleConverter::translate($term, $name);
 	}
 
 	private DOMDocument $doc;

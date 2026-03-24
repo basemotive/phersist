@@ -50,8 +50,11 @@ class ARGenerator {
 		if ($namespace != null)
 			$txt .= "namespace {$namespace};\n\n";
 
+		$txt .= "use PHersist\ActiveRecord;\n";
+		$txt .= "\n";
+
 		$txt  .= $this->generateDocs($classElement);
-		$txt .= "class $className extends \\PHersist\\ActiveRecord {\n";
+		$txt .= "class $className extends ActiveRecord {\n";
 
 		// If a Trait exists for this class, use it
 		if ($classElement->hasAttribute('trait')) {

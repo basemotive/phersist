@@ -92,7 +92,6 @@ class ARGenerator {
 		$datasets = $classElement->getElementsByTagName('dataset');
 		if ($datasets->length >0) {
 			$result .= " *\n";
-			//$result .= " * Properties:\n";
 			foreach ($datasets as $dataset) {
 				$properties = $dataset->getElementsByTagName('property');
 				foreach ($properties as $property) {
@@ -124,8 +123,6 @@ class ARGenerator {
 
 		$relations = $classElement->getElementsByTagName('relation');
 		if ($relations->length > 0) {
-			//$result .= " *\n";
-			//$result .= " * Relations:\n";
 			foreach ($relations as $relation) {
 				$rl_name = $relation->getAttribute('name');
 				$rl_class = $relation->getAttribute('class');
@@ -146,8 +143,10 @@ class ARGenerator {
 	}
 
 	/**
-	 * Generates the metadata for a class. The ActiveRecord code will look at this data which
-	 * is defined in every subclass, and change its behaviour accordingly.
+	 * Generates the metadata for a class.
+	 *
+	 * The metadata defines the properties, relations and maps for any object,
+	 * and it's used to dynamically write database queries.
 	 *
 	 * @param DOMElement $classElement the class element in the XML tree
 	 * @return array the metadata
@@ -173,7 +172,7 @@ class ARGenerator {
 			'maps' => [],
 		];
 
-		// process the datasets
+		// The datasets
 		$datasets = $classElement->getElementsByTagName('dataset');
 		foreach ($datasets as $dataset) {
 			$ds_autoload = $dataset->hasAttribute('autoload') && $dataset->getAttribute('autoload')=='true';
@@ -185,7 +184,7 @@ class ARGenerator {
 				'props' => [],
 			];
 
-			// process the properties within the dataset
+			// The properties within the dataset
 			$properties = $dataset->getElementsByTagName('property');
 			foreach ($properties as $property) {
 				$prop_name = $property->getAttribute('name');
@@ -214,7 +213,7 @@ class ARGenerator {
 						$metaprop['date_format'] = $property->getAttribute('date_format');
 				}
 
-				// if this property is required
+				// If this property is required
 				$metaprop['required'] = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
 
 				$metads['props'][$prop_name] = $metaprop;
@@ -223,7 +222,7 @@ class ARGenerator {
 			$meta['datasets'][] = $metads;
 		}
 
-		// Process the relations
+		// The relations
 		$relations = $classElement->getElementsByTagName('relation');
 		foreach ($relations as $relation) {
 			$metarel = [
@@ -246,6 +245,7 @@ class ARGenerator {
 			$meta['relations'][$relation->getAttribute('name')] = $metarel;
 		}
 
+		// The maps
 		$maps = $classElement->getElementsByTagName('map');
 		foreach ($maps as $map) {
 			$metamap = [
@@ -285,7 +285,7 @@ class ARGenerator {
 			die("ERROR: Cannot find table style converter class {$styleConverter}\n");
 
 		if ($term == 'id') {
-			// the root element property 'id_style' if it existscan be 'long' or
+			// the root element property 'id_style' if it exists can be 'long' or
 			// 'short', with the default being 'short', which means the main primary
 			// key field for tables will be named 'id', whereas the long version uses
 			// the converted class name + '_id'

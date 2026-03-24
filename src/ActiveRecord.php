@@ -20,26 +20,24 @@ class ActiveRecord implements \ArrayAccess {
 	/**
 	 * Creates a new persistent object.
 	 * @param ?int $id the object-id for the given type in the database
-	 * @param ?array $row some data from the database to set into the properties
 	 */
-	public function __construct(?int $id = null, ?array $row = null) {
-		// This is a basic sanity check; user instantiated the wrong object
+	public function __construct(?int $id = null) {
+		// This is a basic sanity check; user instantiated the wrong class
 		if (static::$_meta == null)
 			$this->_error('No metadata available');
-
-		$this->_data[static::$_meta['id']] = $id;
 
 		// Get the database from the pool
 		$this->_PDO = DB\DBConnectionManager::getPDO(static::$_meta['database'])
 			or $this->_error("No database '".static::$_meta['database']."'");
 
-		// If we already got values for our autoload dataset, then handle them
-		if ($row != null) {
-			foreach (static::$_meta['datasets'] as $datasetkey => $dataset) if ($dataset['autoload']) {
-				$this->_assignDatasetValues($dataset, $row);
-				break;
-			}
-		}
+		$this->_data[static::$_meta['id']] = $id;
+	}
+
+	/**
+	 * Self-evict this instance from the ObjectCache when it is GC'd.
+	 */
+	public function __destruct() {
+		ObjectCache::evict($this);
 	}
 
 	/**
@@ -259,6 +257,9 @@ class ActiveRecord implements \ArrayAccess {
 			$stmt->execute();
 		}
 
+		// Self-evict this instance from the ObjectCache
+		ObjectCache::evict($this);
+
 		$this->_data[static::$_meta['id']] = null;
 	}
 
@@ -277,17 +278,25 @@ class ActiveRecord implements \ArrayAccess {
 	 *
 	 * @param string $class the className
 	 * @param int $id the id (should be numeric)
+	 * @param ?array $row some data from the database to set into the properties
 	 * @return ?object the ActiveRecord instance, or null if no $id given
 	 */
-	public static function fetchObject(string $class, ?int $id) : ?object {
+	public static function fetchObject(string $class, ?int $id, ?array $row = null) : ?object {
 		if ($id === null)
 			return null;
 
-		$object = self::getCachedObject($class, $id);
-		if ($object == null) {
-			$object = new $class($id);
-			self::cacheObject($object);
+		$object = ObjectCache::get($class, $id);
+		if ($object == null)
+			ObjectCache::put($object = new $class($id));
+
+		// If we got values for our autoload dataset, then handle them
+		if ($row != null) {
+			foreach ($class::$_meta['datasets'] as $datasetkey => $dataset) if ($dataset['autoload']) {
+				$object->_assignDatasetValues($dataset, $row);
+				break;
+			}
 		}
+
 		return $object;
 	}
 
@@ -382,6 +391,10 @@ class ActiveRecord implements \ArrayAccess {
 	 */
 	private function _assignDatasetValues(array $dataset, array $row) : void {
 		foreach ($dataset['props'] as $propname => $prop) {
+			// Don't do anything with this property if the user has already changed it
+			if (in_array($propname, $this->_changed))
+				continue;
+
 			// Retrieve the field values for this property
 			// (although, we could just supply the $row instead! TODO: decide)
 			$fieldvalues = [];
@@ -392,9 +405,8 @@ class ActiveRecord implements \ArrayAccess {
 			$type = $this->_getPropertyType($prop['type']);
 			$value = $type->fromDB($prop, $fieldvalues);
 
-			// Set the value (unless it was already locally changed)
-			if (!in_array($propname, $this->_changed))
-				$this->_data[$propname] = $value;
+			// Set the value
+			$this->_data[$propname] = $value;
 		}
 	}
 
@@ -542,43 +554,6 @@ class ActiveRecord implements \ArrayAccess {
 		throw new \Exception(get_class($this) .':'.$this->id .': ' . $message);
 	}
 
-	/* ---------- caching ----------- */
-
-	/**
-	 * Enables or disables the object cache for ALL ActiveRecord instances.
-	 *
-	 * @param bool $useCache whether or not to cache ActiveRecord instances
-	 */
-	public static function setUseCache(bool $useCache) : void {
-		if ($useCache && self::$_cache == null) self::$_cache = new ObjectCache();
-		elseif (!$useCache) self::$_cache = null;
-	}
-
-	/**
-	 * Retrieves a cached object.
-	 *
-	 * @param string $objectClass the class of the object
-	 * @param mixed $objectId the ID of the object (should be a number)
-	 * @return ?ActiveRecord the object instance if found
-	 */
-	public static function getCachedObject(string $objectClass, mixed $objectId) : ?ActiveRecord {
-		$object = self::$_cache != null ? self::$_cache->get($objectClass, $objectId) : null;
-		if ($object == null) self::$_cache_misses++; else self::$_cache_hits++;
-		return $object;
-	}
-
-	/**
-	 * Puts an object in the cache.
-	 *
-	 * @param ActiveRecord $object the object to cache
-	 */
-	public static function cacheObject(ActiveRecord $object) : void{
-		if (self::$_cache != null) self::$_cache->put($object);
-	}
-
-	public static $_cache_hits = 0;
-	public static $_cache_misses = 0;
-
 	/* ---------- the ArrayAccess methods ----------- */
 
 	function offsetExists($key) : bool { return $key == 'id' || $this->_keyExists($key); }
@@ -594,7 +569,4 @@ class ActiveRecord implements \ArrayAccess {
 
 	/** The PDO database connection */
 	protected ?\PDO $_PDO;
-
-	/** The cache */
-	protected static $_cache;
 }

@@ -25,7 +25,6 @@ class ObjectFinder {
 		$this->PDO = DB\DBConnectionManager::getPDO($meta['database'])
 			or $this->error("No database '".$meta['database']."'");
 
-		//$c = new $className();
 		$this->rootExpression = new OFCombinedExpression('and', $this);
 	}
 
@@ -167,9 +166,13 @@ class ObjectFinder {
 			$stmt->bindValue(':'.$key, $value, \PDO::PARAM_STR);
 		$stmt->execute();
 		while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-			$id = $row[$idField];
-			$cn = $this->className;
-			$objects[] = new $cn($id, $this->full?$row:null);
+			// we use the fetchObject method instead of the constructor so the
+			// ActiveRecord can handle the caching
+			$objects[] = ActiveRecord::fetchObject(
+				$this->className,
+				$row[$idField],
+				$this->full ? $row : null
+			);
 		}
 
 		return $objects;

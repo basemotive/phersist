@@ -2,25 +2,30 @@
 
 namespace PHersist;
 
-// TODO
-// Now that PHP8 has the WeakMap class, this ObjectCache should make use of
-// that.
+use WeakReference;
 
 /**
+ * Holds weak references to objects retrieved from the database.
+ *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
 class ObjectCache {
-	private $data = [];
+	/** @var array<string, WeakReference> */
+	private static array $cache = [];
 
-	public function put(?ActiveRecord $object) : void {
-		if ($object == null || $object->id == '') return;
-		$this->data[get_class($object).':'.$object->id] = $object;
+	public static function put(?ActiveRecord $object) : void {
+		if ($object == null || $object->id == null) return;
+		self::$cache[get_class($object).':'.$object->id] = WeakReference::create($object);
 	}
 
-	public function get(string $objectClass, mixed $objectId) : ?ActiveRecord {
-		$cache_id = "$objectClass:$objectId";
-		return isset($this->data[$cache_id]) ? $this->data[$cache_id] : null;
+	public static function get(string $objectClass, int $objectId) : ?ActiveRecord {
+		return (self::$cache["{$objectClass}:{$objectId}"] ?? null)?->get();
 	}
+
+	public static function evict(?ActiveRecord $object) : void {
+		if ($object == null || $object->id == null) return;
+        unset(self::$cache[get_class($object).':'.$object->id]);
+    }
 }

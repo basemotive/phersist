@@ -22,7 +22,7 @@ class ARPropertyTypeTimestampText extends ARPropertyType {
 		// We may need to update the date field because of creation or modification of the object.
 		if ($this->requiresAutoUpdate($prop)) {
 			// The date format may be specified in the metadata, otherwise use default
-			$dateFormat = isset($prop['date_format']) ? $prop['date_format'] : 'YmdHi';
+			$dateFormat = isset($prop['date_format']) ? $prop['date_format'] : 'Y-m-d H:i:s';
 			$value = date($dateFormat);
 		}
 		return [ $prop['fieldnames'][0] => $value ];

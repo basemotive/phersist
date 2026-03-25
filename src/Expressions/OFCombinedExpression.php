@@ -3,7 +3,6 @@
 namespace PHersist\Expressions;
 
 use PHersist\ObjectFinder;
-use PHersist\ActiveRecord;
 
 /**
  * An expression that may contain sub-expressions using 'and' or 'or'.
@@ -73,7 +72,7 @@ class OFCombinedExpression extends OFExpression {
 	 *
 	 * This exists for convenience in method chaining.
 	 *
-	 * @return array<int,ActiveRecord>
+	 * @return array
 	 */
 	public function fetch(mixed $limit=0) : array {
 		return $this->of->fetch($limit);

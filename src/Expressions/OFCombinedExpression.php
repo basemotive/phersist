@@ -74,7 +74,7 @@ class OFCombinedExpression extends OFExpression {
 	 *
 	 * @return array
 	 */
-	public function fetch(mixed $limit=0) : array {
+	public function fetch(mixed $limit='') : array {
 		return $this->of->fetch($limit);
 	}
 

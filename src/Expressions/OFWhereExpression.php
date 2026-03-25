@@ -6,14 +6,32 @@ use PHersist\ObjectFinder;
 use PHersist\ActiveRecord;
 use PHersist\Types\ARPropertyType;
 
+/**
+ * Defines an expression that checks an object's property value against a fixed
+ * value.
+ *
+ * These OFExpression classes are created by the ObjectFinder and provide an
+ * intuitive way to build queries to select sets of objects.
+ *
+ * @author Stefan Mensink <stefan@basemotive.nl>
+ * @copyright Basemotive VOF - https://www.basemotive.nl/
+ * // SPDX-License-Identifier: LGPL-2.1-or-later
+ */
 class OFWhereExpression extends OFExpression {
-	protected $allowedOperators = [ '=', 'is', '>', '<', '>=', '<=', '!=', 'LIKE', 'NOT LIKE' ];
+	protected $allowedOperators = [ '=', 'IS', '>', '<', '>=', '<=', '!=', 'LIKE', 'NOT LIKE' ];
 
+	/**
+	 * @internal
+	 */
 	public function __construct(string $property, string $operator, mixed $value, ObjectFinder $of) {
+		// this check is disabled for now because hasProperty cannot handle
+		// properties that need to be dereferenced like otherObject->prop
 		//if (!$of->hasProperty($property))
 			//$of->error("Object does not have property $property");
-		if (!in_array($operator, $this->allowedOperators))
+		if (!in_array(strtoupper($operator), $this->allowedOperators))
 			$of->error("Operator '{$operator}' unknown");
+		// TODO check if operator can work with the property's type
+		// TODO if the property is required, checking for NULL is nonsense
 
 		$this->property = $property;
 		$this->operator = $operator;
@@ -22,6 +40,7 @@ class OFWhereExpression extends OFExpression {
 	}
 
 	/**
+	 * @internal
 	 * @return array
 	 */
 	public function evaluate() : array {
@@ -89,7 +108,7 @@ class OFWhereExpression extends OFExpression {
 	 */
 	private static function _getPropertyType(string $type) : ARPropertyType {
 		static $propertyTypes = [];
-		$fullType = __NAMESPACE__."\\Types\\ARPropertyType$type";
+		$fullType = "\\PHersist\\Types\\ARPropertyType{$type}";
 		if (!isset($propertyTypes[$fullType]))
 			$propertyTypes[$fullType] = new $fullType();
 		return $propertyTypes[$fullType];

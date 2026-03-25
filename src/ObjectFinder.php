@@ -11,13 +11,22 @@ use PHersist\Expressions\OFCombinedExpression;
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
  * // SPDX-License-Identifier: LGPL-2.1-or-later
- *
- * TODO Improve and formalize method chaining
  */
 class ObjectFinder {
+	/** @var string for ascending order */
 	const string DIRECTION_ASC = 'asc';
+	/** @var string for descending order */
 	const string DIRECTION_DESC = 'desc';
 
+	/**
+	 * Creates a new ObjectFinder instance.
+	 *
+	 * @see ObjectFinder::create() for a more convenient way to create
+	 *   ObjectFinder instances if you want to use method chaining
+	 *
+	 * @param string $className the name of the class to find
+	 * @param bool $full if you want to retrieve the full records
+	 */
 	public function __construct(string $className, bool $full = false) {
 		$this->className = $className;
 		$this->full = $full;
@@ -29,6 +38,64 @@ class ObjectFinder {
 
 		$this->rootExpression = new OFCombinedExpression('and', $this);
 	}
+
+	/**
+	 * Creates a new ObjectFinder instance and returns it.
+	 *
+	 * Recommended over the constructor if you want to use method chaining.
+	 *
+	 * @param string $className the name of the class to find
+	 * @param bool $full if you want to retrieve the full records
+	 * @return ObjectFinder a new ObjectFinder instance
+	 */
+	public static function create(string $className, bool $full = false) : ObjectFinder {
+		return new ObjectFinder($className, $full);
+	}
+
+	// ---------------------------------------------------------------------------
+	// Building a query
+	// ---------------------------------------------------------------------------
+
+	public function where(string $property, string $operator, mixed $value) : OFCombinedExpression {
+		return $this->rootExpression->where($property, $operator, $value);
+	}
+
+	public function addAnd() : OFCombinedExpression {
+		return $this->rootExpression->addAnd();
+	}
+
+	public function addOr() : OFCombinedExpression {
+		return $this->rootExpression->addOr();
+	}
+
+	/**
+	 * Indicates results should be ordered by a certain property.
+	 *
+	 * This function may be called multiple times for different properties, where
+	 * subsequent calls have a lower priority for ordering.
+	 *
+	 * @see ObjectFinder::DIRECTION_ASC
+	 * @see ObjectFinder::DIRECTION_DESC
+	 *
+	 * @param string $propname the name of the property to order by
+	 * @param string $direction the direction to order in, either
+	 *   ObjectFinder::DIRECTION_ASC or ObjectFinder::DIRECTION_DESC
+	 * @return ObjectFinder this instance, so methods may be chained
+	 */
+	public function orderBy(string $propname, string $direction = ObjectFinder::DIRECTION_ASC) : ObjectFinder {
+		if (!$this->hasProperty($propname))
+			$this->error("Does not have property $propname");
+
+		$this->orderBys[] = [
+			'property' => $propname,
+			'direction' => $direction,
+		];
+		return $this;
+	}
+
+	// ---------------------------------------------------------------------------
+	// Getting results
+	// ---------------------------------------------------------------------------
 
 	public function count() : int {
 		list($where, $queryValues) = $this->rootExpression->evaluate();
@@ -182,8 +249,13 @@ class ObjectFinder {
 		return empty($objects) ? null : $objects[0];
 	}
 
+	// ---------------------------------------------------------------------------
+	// Internal stuff
+	// ---------------------------------------------------------------------------
+
 	/**
 	 * @return array<string, mixed>
+	 * @internal
 	 */
 	public function addContext(string $context) : array {
 		//echo "Add context: [$context]\n";
@@ -216,7 +288,7 @@ class ObjectFinder {
 				continue;
 			}
 
-			//echo "Dereferencing: $currentClassName::$propertyName\n";
+			// We're trying to dereference $currentClassName::$propertyName
 
 			// Find the property information from the metadata
 			$meta = ActiveRecord::_getMeta($currentClassName);
@@ -265,15 +337,6 @@ class ObjectFinder {
 		return $propertyTypes[$fullType];
 	}
 
-	protected $tables = [];
-
-	public function where(string $property, string $operator, mixed $value) : OFCombinedExpression {
-		return $this->rootExpression->where($property, $operator, $value);
-	}
-
-	public function addAnd() : OFCombinedExpression { return $this->rootExpression->addAnd(); }
-	public function addOr() : OFCombinedExpression { return $this->rootExpression->addOr(); }
-
 	/**
 	 * Check if $className or the current set class has the property.
 	 *
@@ -302,31 +365,49 @@ class ObjectFinder {
 		throw new \Exception("ObjectFinder({$this->className}): $message");
 	}
 
-	public function getClassName() : string {
-		return $this->className;
-	}
-
+	/**
+	 * Generates a unique value name for code that generates partial SQL queries.
+	 *
+	 * If the code generates something like where `tablename`.`fieldname` =
+	 * :valueName the valueName needs to be unique, so it's generated here.
+	 *
+	 * @see OFWhereExpression::evaluate() where it is used
+	 * @internal only used by the OFWhereExpression class
+	 *
+	 * @return string a unique name for a value name for an SQL query
+	 */
 	public function generateValueName() : string {
 		static $counter = 1;
 		return 'field'.$counter++;
 	}
 
-	public function orderBy(string $propname, string $direction = ObjectFinder::DIRECTION_ASC) : ObjectFinder {
-		if (!$this->hasProperty($propname))
-			$this->error("Does not have property $propname");
+	/**
+	 * @internal
+	 */
+	public function getClassName() : string {
+        return $this->className;
+    }
 
-		$this->orderBys[] = [
-			'property' => $propname,
-			'direction' => $direction,
-		];
-		return $this;
-	}
+	/**
+	 * @var array tables we need for the query
+	 * @see ObjectFinder::addContext() where it is populated
+	 * @see ObjectFinder::count() where it is used
+	 * @see ObjectFinder::fetch() where it is used
+	 */
+	protected $tables = [];
 
-	// the name of the class we want to fetch objects for
+	/** @var string the name of the class we want to fetch objects for */
 	protected ?string $className = null;
-	// if we want the full set of properties to be loaded immediately
+
+	/** @var bool if we want the full set of properties to be retrieved */
 	protected bool $full = false;
+
+	/** @var ?\PDO the database connection */
 	protected ?\PDO $PDO = null;
+
+	/** @var ?OFCombinedExpression the root of the current expression */
 	protected ?OFCombinedExpression $rootExpression = null;
+
+	/** @var array which properties to order by and in wich direction */
 	protected array $orderBys = [];
 }

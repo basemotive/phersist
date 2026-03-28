@@ -10,10 +10,12 @@ namespace PHersist\Generator;
  * Examples:
  * - class 'Page' maps to table 'pages'
  * - class 'ForumMessage' maps to table 'forum_messages'
+ * - class 'XMLDocument' maps to table 'xml_documents'
  * - class 'Page' has id-field 'page_id'
  * - class 'ForumMessage' has id-field 'forum_message_id'
  * - fieldname 'name' maps to 'name'
  * - fieldname 'creationDate' maps to 'creation_date'
+ * - fieldname 'isXML' maps to 'is_xml'
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -64,10 +66,28 @@ class TSSnakeCase {
 	 */
 	private static function fixup(string $name) : string {
 		$result = '';
-		for ($i=0; $i<strlen($name); $i++) {
+		for ($i = 0; $i < strlen($name); $i++) {
 			$chr = substr($name, $i, 1);
-			$result .= strtolower($chr) != $chr ? ($i != 0 ? '_' : '').strtolower($chr) : $chr;
+			$lower = strtolower($chr);
+
+			// Add underscore if:
+			// 1. This is not the first character AND
+			// 2. Current character is uppercase AND
+			// 3. Either previous character is lowercase OR (next char is lowercase and
+			//    we're in a sequence of caps)
+			if ($i !== 0 && $chr !== $lower) {
+				$prevChar = substr($name, $i - 1, 1);
+				$nextChar = $i + 1 < strlen($name) ? substr($name, $i + 1, 1) : '';
+
+				// Add underscore if previous is lowercase (transition from lower to upper)
+				// OR if next is lowercase and previous is uppercase (end of acronym)
+				if (strtolower($prevChar) === $prevChar || ($nextChar && strtolower($nextChar) === $nextChar && strtolower($prevChar) !== $prevChar))
+					$result .= '_';
+			}
+
+			$result .= $lower;
 		}
+
 		return $result;
 	}
 

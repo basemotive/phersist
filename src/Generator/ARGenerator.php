@@ -193,11 +193,19 @@ class ARGenerator {
 					$prop_fieldnames_str = $property->getAttribute('fieldnames');
 				if ($prop_fieldnames_str == '' && $property->hasAttribute('fieldname'))
 					$prop_fieldnames_str = $property->getAttribute('fieldname');
-				if ($prop_fieldnames_str == '')
-					$prop_fieldnames_str = $this->getAuto('fieldname', $prop_name);
 
 				$prop_type = $property->hasAttribute('type') ?
 					$property->getAttribute('type') : 'Text';
+
+				if ($prop_fieldnames_str == '') {
+					if ($prop_type == 'Class') {
+						$prop_fieldnames_str = $this->getAuto('relation_id', $prop_name);
+					} elseif ($prop_type == 'DynamicClass') {
+						$prop_fieldnames_str = $this->getAuto('relation_combo', $prop_name);
+					} else {
+						$prop_fieldnames_str = $this->getAuto('fieldname', $prop_name);
+					}
+				}
 
 				$metaprop = [
 					'type' => $prop_type,

@@ -44,8 +44,11 @@ class TSSnakeCase {
 				return $singular . 'es';
 			else
 				return $singular . 's';
-		} elseif ($term == 'id') {
+		} elseif ($term == 'id' || $term == 'relation_id') {
 			return self::fixup($name).'_id';
+		} elseif ($term == 'relation_combo') {
+			$fixedName = self::fixup($name);
+			return "{$fixedName}_type,{$fixedName}_id";
 		} elseif ($term == 'fieldname') {
 			return self::fixup($name);
 		} else {

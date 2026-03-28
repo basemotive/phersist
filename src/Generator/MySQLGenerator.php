@@ -116,8 +116,16 @@ class MySQLGenerator {
 					$fieldNames = [ $property->getAttribute('fieldname') ];
 				} elseif ($property->hasAttribute('fieldnames')) {
 					$fieldNames = explode(',', $property->getAttribute('fieldnames'));
-				} else {
-					$fieldNames = [ $this->getAuto('fieldname', $propName) ];
+				}
+
+				if ($fieldNames == null) {
+					if ($propType == 'Class') {
+						$fieldNames = [ $this->getAuto('relation_id', $propName) ];
+					} elseif ($propType == 'DynamicClass') {
+						$fieldNames = explode(',', $this->getAuto('relation_combo', $propName));
+					} else {
+						$fieldNames = [ $this->getAuto('fieldname', $propName) ];
+					}
 				}
 
 				if ($propType == 'Text') {

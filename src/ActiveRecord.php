@@ -538,8 +538,6 @@ class ActiveRecord implements \ArrayAccess {
 		return $this->relationTypes[$fullType];
 	}
 
-	private $relationTypes = [];
-
 	/**
 	 * Retrieves the metadata for a specific class.
 	 *
@@ -565,6 +563,9 @@ class ActiveRecord implements \ArrayAccess {
 	function offsetGet($key) : mixed { return $this->__get($key); }
 	function offsetSet($key, $value) : void { $this->__set($key, $value); }
 	function offsetUnset($offset) : void { $this->_error("Cannot unset property on ActiveRecord"); }
+
+	/** Basically a cache for relation types */
+	private $relationTypes = [];
 
 	/** Contains the data for this object */
 	private $_data = [];

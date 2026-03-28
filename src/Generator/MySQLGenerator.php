@@ -291,7 +291,7 @@ class MySQLGenerator {
 			die("ERROR: Cannot find table style converter class {$styleConverter}\n");
 
 		if ($term == 'id') {
-			// the root element property 'id_style' if it existscan be 'long' or
+			// the root element property 'id_style' if it exists can be 'long' or
 			// 'short', with the default being 'short', which means the main primary
 			// key field for tables will be named 'id', whereas the long version uses
 			// the converted class name + '_id'

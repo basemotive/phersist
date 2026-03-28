@@ -196,8 +196,9 @@ class ActiveRecord implements \ArrayAccess {
 
 	/**
 	 * Checks if this object exists in the database.
-	 * Useful for checking references to objects that may be deleted, though this is typically
-	 * a case you want to prevent.
+	 *
+	 * Useful for checking references to objects that may have been deleted,
+	 * though this is typically a case you want to prevent.
 	 *
 	 * @return bool if this object exists in the database
 	 */

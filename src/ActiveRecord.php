@@ -31,6 +31,9 @@ class ActiveRecord implements \ArrayAccess {
 			or $this->_error("No database '".static::$_meta['database']."'");
 
 		$this->_data[static::$_meta['id']] = $id;
+
+		if ($id != null)
+			ObjectCache::put($this);
 	}
 
 	/**
@@ -285,9 +288,7 @@ class ActiveRecord implements \ArrayAccess {
 		if ($id === null)
 			return null;
 
-		$object = ObjectCache::get($class, $id);
-		if ($object == null)
-			ObjectCache::put($object = new $class($id));
+		$object = ObjectCache::get($class, $id) ?? new $class($id);
 
 		// If we got values for our autoload dataset, then handle them
 		if ($row != null) {

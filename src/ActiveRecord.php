@@ -62,6 +62,9 @@ class ActiveRecord implements \ArrayAccess {
 		// Get the database from the pool
 		$this->_PDO = DB\DBConnectionManager::getPDO(static::$_meta['database'])
 			or $this->_error("No database '".static::$_meta['database']."'");
+
+		if ($this->id != null)
+			ObjectCache::put($this);
 	}
 
 	public function __get(string $key) : mixed {

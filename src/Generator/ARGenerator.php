@@ -60,7 +60,7 @@ class ARGenerator {
 		if ($classElement->hasAttribute('trait')) {
 			$txt .= "\tuse {$classElement->getAttribute('trait')};\n\n";
 		} elseif (trait_exists("{$namespace}\\{$className}Trait")) {
-			$txt .= "\tuse {$namespace}\\{$className}Trait;\n\n";
+			$txt .= "\tuse {$className}Trait;\n\n";
 		}
 
 		// Write the $_meta variable that holds the information the ActiveRecord

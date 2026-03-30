@@ -18,6 +18,10 @@ class ObjectFinder {
 	/** @var string for descending order */
 	const string DIRECTION_DESC = 'desc';
 
+	// ---------------------------------------------------------------------------
+	// Setup
+	// ---------------------------------------------------------------------------
+
 	/**
 	 * Creates a new ObjectFinder instance.
 	 *
@@ -50,6 +54,17 @@ class ObjectFinder {
 	 */
 	public static function create(string $className, bool $full = false) : ObjectFinder {
 		return new ObjectFinder($className, $full);
+	}
+
+	/**
+	 * Set if deleted records should also be restored.
+	 *
+	 * @param bool $includeDeletedRecords if deleted records should also be restored
+	 * @return ObjectFinder this instance, so methods may be chained
+	 */
+	public function includeDeletedRecords(bool $includeDeletedRecords) : ObjectFinder {
+		$this->includeDeletedRecords = $includeDeletedRecords;
+		return $this;
 	}
 
 	// ---------------------------------------------------------------------------
@@ -105,7 +120,7 @@ class ObjectFinder {
 		$idField = $meta['id']; // The id field for the related type
 
 		// Don't count/restore objects that have been softdeleted
-		if ($meta['softdelete']) {
+		if ($meta['softdelete'] && !$this->includeDeletedRecords) {
 			if (trim($where) != '') $where .= ' and ';
 			$where .= "`$baseTable`.`deleted` = '0'";
 		}
@@ -145,7 +160,7 @@ class ObjectFinder {
 		$idField = $meta['id']; // The id field for the related type
 
 		// Don't count/restore objects that have been softdeleted
-		if ($meta['softdelete']) {
+		if ($meta['softdelete'] && !$this->includeDeletedRecords) {
 			if (trim($where) != '') $where .= ' and ';
 			$where .= "`$baseTable`.`deleted` = '0'";
 		}
@@ -387,6 +402,9 @@ class ObjectFinder {
 	public function getClassName() : string {
         return $this->className;
     }
+
+    /** @var bool if deleted records should also be restored */
+    protected bool $includeDeletedRecords = false;
 
 	/**
 	 * @var array tables we need for the query

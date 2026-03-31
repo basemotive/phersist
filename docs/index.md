@@ -26,7 +26,3 @@ Then inspect:
 
 - [sample-model.xml](../examples/basic/sample-model.xml)
 - [sample-model.sql](../examples/basic/sample-model.sql)
-
-## Additional reference
-
-- [Model XML documentation](model-xml-new.md)

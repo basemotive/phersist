@@ -2,6 +2,8 @@
 
 namespace PHersist\DB;
 
+use PDO;
+
 /**
  * Manages the database connections.
  *
@@ -13,27 +15,45 @@ namespace PHersist\DB;
  */
 class DBConnectionManager {
 
-	public static function newMySQLConnection(string $id, string $host, string $username, string $password, string $name, string $encoding='UTF8') : \PDO {
-		$PDO = new \PDO (
-			'mysql:host='.$host.';dbname='.$name.'',
+	/**
+	 * Connects to a MySQL or MariaDB instance.
+	 *
+	 * @param string $id the identifier used in the database property on the
+	 *   project node in your XML
+	 * @param string $host the hostname to connect to
+	 * @param string $username the username to connect as
+	 * @param string $password the password for the username
+	 * @param string $encoding the encoding to use for the connection; utf8mb4 is
+	 *   recommended
+	 * @return PDO the database connection
+	 */
+	public static function newMySQLConnection(string $id, string $host, string $username, string $password, string $name, string $charset = 'utf8mb4') : PDO {
+		$PDO = new PDO (
+			"mysql:host={$host};dbname={$name};charset={$charset}",
 			$username,
 			$password,
 			[
-				//\PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES \''.$encoding.'\'',
-				//\PDO::MYSQL_ATTR_INIT_COMMAND => 'SET CHARACTER SET \''.$encoding.'\'',
-				\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-				\PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC
+				PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+				PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 			]
 		);
-		$PDO->exec("SET NAMES '{$encoding}'");
-		$PDO->exec("SET CHARACTER SET '{$encoding}'");
 		self::$connectionsPDO[$id] = $PDO;
 		return $PDO;
 	}
 
-	public static function newSQLSrvLConnection(string $id, string $host, string $username, string $password, string $name, string $encoding='UTF8') : \PDO {
+	/**
+	 * The SQL Server (MSSQL) support is VERY experimental. Don't use it!
+	 *
+	 * @param string $id the identifier used in the database property on the
+	 *   project node in your XML
+	 * @param string $host the hostname to connect to
+	 * @param string $username the username to connect as
+	 * @param string $password the password for the username
+	 * @return PDO the database connection
+	 */
+	public static function newSQLSrvLConnection(string $id, string $host, string $username, string $password, string $name) : PDO {
 		$PDO = new MySQLtoMSSQLPDO (
-			'sqlsrv:Server='.$host.';Database='.$name.';TrustServerCertificate=yes',
+			"sqlsrv:Server={$host};Database={$name};TrustServerCertificate=yes",
 			$username,
 			$password
 		);
@@ -41,15 +61,31 @@ class DBConnectionManager {
 		return $PDO;
 	}
 
-	public static function newSQLiteConnection(string $id, string $filename) : \PDO {
-		$PDO = new \PDO ("sqlite:{$filename}");
+	/**
+	 * Opens an SQLite file-based database.
+	 *
+	 * @param string $id the identifier used in the database property on the
+	 *   project node in your XML
+	 * @param string $filename the name of the file that contains the database
+	 * @return PDO the database connection
+	 */
+	public static function newSQLiteConnection(string $id, string $filename) : PDO {
+		$PDO = new PDO ("sqlite:{$filename}");
 		self::$connectionsPDO[$id] = $PDO;
 		return $PDO;
 	}
 
-	public static function getPDO(string $id) : ?\PDO {
-		return isset(self::$connectionsPDO[$id]) ? self::$connectionsPDO[$id] : null;
+	/**
+	 * Retrieves an existing database connection
+	 *
+	 * @param string $id the identifier used in the database property on the
+	 *   project node in your XML
+	 * @return PDO the database connection, or null if it doesn't exit
+	 */
+	public static function getPDO(string $id) : ?PDO {
+		return self::$connectionsPDO[$id] ?? null;
 	}
 
-	private static $connectionsPDO = [];
+	/** @var array the registered database connections */
+	private static array $connectionsPDO = [];
 }

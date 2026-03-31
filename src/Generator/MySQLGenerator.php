@@ -64,7 +64,10 @@ class MySQLGenerator {
 			else
 				$result = rtrim($result, ",\n")."\n";
 
-			$result .= ");\n\n";
+			$result .= ") ENGINE=InnoDB\n";
+			$result .= "  DEFAULT CHARSET=utf8mb4\n";
+			$result .= "  COLLATE=utf8mb4_unicode_ci;\n";
+			$result .= "\n";
 		}
 
 		return $result;

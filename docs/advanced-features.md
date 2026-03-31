@@ -70,11 +70,13 @@ Typical flow:
 
 1. `ObjectFinder::create(ClassName::class)`
 2. Add filters with `where(...)`
-3. Optionally group with `addAnd()` / `addOr()`
-4. Add ordering with `orderBy(...)`
-5. Finish with `fetch()`, `fetchOne()`, or `count()`
+3. For grouped logic, call `addAnd()` or `addOr()`, then add grouped `where(...)` clauses
+4. If you need to continue at the parent expression level, call `end()`
+5. Add ordering with `orderBy(...)`
+6. Finish with `fetch()`, `fetchOne()`, or `count()`
 
-This makes complex queries expressive while staying compact and maintainable.
+Use `end()` when you need to close a group and keep building conditions at the level above it.  
+If you do not need to add more parent-level expressions, `end()` is optional because expression objects pass through terminal and ordering methods (such as `orderBy(...)`, `fetch(...)`, `fetchOne()`, and `count()`) to the `ObjectFinder`.
 
 ### Soft-delete awareness in finder chains
 

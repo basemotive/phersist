@@ -120,6 +120,7 @@ Common methods:
 
 - `where($property, $operator, $value)`
 - `addAnd()`, `addOr()` for grouped conditions
+- `end()` to close the current group and return to the parent level
 - `orderBy($property, ObjectFinder::DIRECTION_ASC|ObjectFinder::DIRECTION_DESC)`
 - `fetch($limit = '')`
 - `fetchOne()`
@@ -178,10 +179,31 @@ A clean pattern for most queries:
 
 1. `ObjectFinder::create(Class::class)`
 2. add one or more `where(...)`
-3. optionally add `orderBy(...)`
-4. finish with `fetch()`, `fetchOne()`, or `count()`
+3. optionally create grouped conditions with `addAnd()` / `addOr()`
+4. if you need to continue at the parent level after a group, call `end()`
+5. optionally add `orderBy(...)`
+6. finish with `fetch()`, `fetchOne()`, or `count()`
 
-Because methods are chainable, you can keep query logic readable and close to business intent.
+When you enter a grouped expression with `addAnd()` or `addOr()`, subsequent `where(...)` calls are added to that group.  
+Use `end()` when you want to return to the parent expression and add more parent-level conditions.
+
+You do not need to call `end()` if you are done building conditions at the grouped level, because grouped expressions pass through methods like `orderBy(...)`, `fetch(...)`, `fetchOne()`, and `count()` to the `ObjectFinder`.
+
+Example with practical `OR` grouping and a parent-level condition after `end()`:
+
+    <?php
+
+    $messages = ObjectFinder::create(ForumMessage::class)
+        ->where('forum', '=', $forum)
+        ->addOr()
+            ->where('title', 'LIKE', '%release%')
+            ->where('messageSummary', 'LIKE', '%release%')
+        ->end()
+        ->where('user->email', 'LIKE', '%@example.org')
+        ->orderBy('createdAt', ObjectFinder::DIRECTION_DESC)
+        ->fetch(20);
+
+Because methods are chainable, you can keep complex query logic readable and close to business intent.
 
 ---
 

@@ -11,7 +11,9 @@ For runtime patterns and advanced behavior, see [Using the model in PHP](using-m
 
 Install PHersist with Composer:
 
-    composer require basemotive/phersist
+```sh
+composer require basemotive/phersist
+```
 
 ---
 
@@ -20,17 +22,21 @@ Install PHersist with Composer:
 PHersist generates classes into your own namespace.  
 Make sure your `composer.json` contains a PSR-4 mapping, for example:
 
-    {
-      "autoload": {
-        "psr-4": {
-          "MyApp\\Model\\": "src/Model/"
-        }
-      }
+```json
+{
+  "autoload": {
+    "psr-4": {
+      "MyApp\\Model\\": "src/Model/"
     }
+  }
+}
+```
 
 Then refresh autoload metadata:
 
-    composer dump-autoload
+```sh
+composer dump-autoload
+```
 
 ---
 
@@ -38,14 +44,16 @@ Then refresh autoload metadata:
 
 Create `model/model.xml`:
 
-    <project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model" id_style="short">
-        <class name="User">
-            <dataset autoload="true">
-                <property name="email" required="true"/>
-                <property name="name" required="true"/>
-            </dataset>
-        </class>
-    </project>
+```xml
+<project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model" id_style="short">
+    <class name="User">
+        <dataset autoload="true">
+            <property name="email" required="true"/>
+            <property name="name" required="true"/>
+        </dataset>
+    </class>
+</project>
+```
 
 What these project attributes mean:
 
@@ -60,15 +68,21 @@ What these project attributes mean:
 
 Generate model classes:
 
-    vendor/bin/phersist --xml=model/model.xml
+```sh
+vendor/bin/phersist --xml=model/model.xml
+```
 
 Generate classes plus MySQL schema:
 
-    vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql
+```sh
+vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql
+```
 
 Generate schema only:
 
-    vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql --skip-classes
+```sh
+vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql --skip-classes
+```
 
 ---
 

@@ -1,0 +1,179 @@
+<project database="babble" tablestyle="SnakeCase" namespace="Babble\Model">
+	<!-- this is an example for a fictional forum software named Babble -->
+
+	<!--
+		Class definitions in this file are translated into actual PHP classes
+		that extend the ActiveRecord class from PHersist, which makes it easy
+		to persist objects to the database.
+
+		the project properties are for:
+		- database: the database identifier to use in PHP; in the app you need to create a new connection using the DBConnectionManager class before you can use persistent objects.
+		- tablestyle: defines how class names and property names translate to table names and column names respectively; it's assumed you use camel case in the definitions here, like "ForumMessage" for a class and "messageTitle" for a property, which would translate to the table forum_messages and the column name message_title respectively
+		- namespace: the PHP namespace to use for generated classes
+	-->
+
+	<!--
+		Note that not all property types used in this example may have been implemented yet.
+	-->
+
+	<!--
+		A class node may have these properties:
+		- name: (required) the name of the class that's generated
+		- id: the name of the ID-field (which is the primary key)
+		- database: the database name, if it is different than the default one in the project
+		- table: the table name, if it is different from the auto-generated one based on the tablestyle defined in the project node
+		- softdelete: if true, the table will have a "deleted int unsigned not null default 0" column and a ->delete() call on the object does not delete the table row but just sets the deleted column to 1; in general, usage of this is not recommended
+	-->
+	<class name="Forum">
+		<!--
+			Every dataset can be restored in one go, from a set of columns. When a property from a dataset is accessed but was not restored yet, all the properties in that dataset will be restored. Of course, for new objects nothing will ever be restored.
+			When a dataset has the autoload="true" property, they are retrieved from the database by default when retrieving objects in bulk with the ObjectFinder class.
+			A dataset node may also have these properties:
+			- table_name: the table these properties are found in
+		-->
+		<dataset autoload="true">
+			<!--
+				The property node can have these properties:
+				- name: (required) the name of the class property that will be created; this value will be mapped to a default column name based on the tablestyle defined in the project node
+				- required: (default false) if the property is required when storing the object to the database
+				- type: the property type, like Text, Int, Class, DynamicClass TimestampText
+				- fieldname/fieldnames: overrides the generated column name from the name based on the tablestyle defined in the project node; for most types only one column is needed, but the DynamicClass type needs both a column for the class name and the object id
+			-->
+			<property name="name" required="true"/>
+			<property name="description" required="false"/>
+		</dataset>
+		<!--
+			A relation node defines an N-N or 1-N relation for the class.
+			It's properties are:
+			- name: what the property should be named in the class
+			- type: only "NN" is allowed for now, used for both N-N and 1-N relations
+			- class: the classes for the list of objects we're retrieving (or storing)
+			- table: the database table the relationship is defined in
+			- local_id: when selecting from the table, the column name where we seek the current objects id in
+			- remote_id: in the table, here the id's for related objects are stored
+			- table_owner: basically if we can (or are allowed to) write to this table; when restoring relations from the target class's base table, this should obviously be false because it would be a derived relation
+			- load_objects: if we should load the dataset(s) with autoload="true" for the related objects, or just create skeleton objects with just the id; if this is set to false we get the classic 1+N queries situation when the user actually wants to use the properties in restored objects
+			- order_field: how to order the result set (using SQL)
+			- local_type: (optional) if defined, it is the fieldname in which we want to find the class name of the local object; relevant for derived relations where the other object has a property of DynamicClass that may point to this class AND classes of different types
+		-->
+		<relation
+            name="messages"
+            type="NN"
+            class="ForumMessage"
+            table="forum_messages"
+            local_id="forum_id"
+            remote_id="id"
+            table_owner="false"
+            load_objects="true"
+            order_field="created_at"
+        />
+	</class>
+
+	<!--
+		The functionality of PHersist objects can be extended using traits.
+		If the classpath was correctly set up through composer, and there already
+		was a Trait available with the name "{$className}Trait" in the same namespace
+		as the class, the use statement for the trait will automatically be generated
+		in.
+		If it cannot be found through the autoloader or the Trait is named
+		differently, a trait property may be upplied in the class element like
+		trait="ForumMessageTrait" and that will be used instead. Traits defined
+		through the trait property should include the namespace, if it differs from
+		the project's namespace.
+		As an example, the ForumMessage has a trait called ForumMessageTrait that has
+		a function called createdAtRelative that returns how long ago the message was
+		created in natural language.
+	-->
+	<class name="ForumMessage">
+		<dataset autoload="true">
+			<!--
+				properties of type "Class" need the class property to be set to another class defined within the same model; in the database this field would be called user_id and be of time UNSIGNED INT, and can either be NULL or NOT NULL depending if required is set to "true"
+			-->
+			<property name="forum" type="Class" class="Forum" required="true"/>
+			<!-- parent message is only needed for replies, and thus not required here -->
+			<property name="parentMessage" type="Class" class="ForumMessage" required="false"/>
+			<property name="title" required="true"/>
+			<property name="messageSummary" required="true"/>
+			<!--
+				the update_on property is for the TimestampText type, can have either the value "create" or "update" and means the value is set to the current datetime when creating or updating the object in the database, respectively
+			-->
+			<property name="createdAt" type="TimestampText" required="true" update_on="create"/>
+			<property name="modifiedAt" type="TimestampText" required="false"/>
+			<property name="user" type="Class" class="User" required="true"/>
+		</dataset>
+		<dataset>
+			<!--
+				this dataset contains the message content for a forum message, and does not have the autoload property set to "true", because we may not want to retrieve the entire message content when loading a long list of messages; we can load that when the user clicks on that message
+			-->
+			<property name="messageContent" required="true"/>
+		</dataset>
+		<relation
+            name="replies"
+            type="NN"
+            class="ForumMessage"
+            table="forum_messages"
+            local_id="parent_message_id"
+            remote_id="id"
+            table_owner="false"
+            load_objects="true"
+        />
+        <!--
+        	This is a true N-N relation with a connecting table. Forum messages can have multiple tags, and the same tag can be used for multiple forum messages.
+         	The forum_message_tags table would have two columns, forum_message_id and tag_id, both of the type UNSIGNED INT NOT NULL.
+          	Making the table_owner true is fine here; we'd only affect the relationship.
+        -->
+        <relation
+        	name="tags"
+         	type="NN"
+          	class="Tag"
+           	table="forum_message_tags"
+            local_id="forum_message_id"
+            remote_id="tag_id"
+            table_owner="true"
+            load_objects="true"
+        />
+        <!--
+        	This is a map.
+         	Maps are later accessed like $object->prop['keyname'] = $value;
+          	Multiple keys are possible so if there were a key named 'language' before the 'key' key, one could do $object->prop['english']['greeting'] = 'Hello';
+            Multiple values are also possible; that would create a keymap where the 'value'
+            would become the key for that map, then the next one would be the value, and
+            this can go on. If you have 3 values defined, 'a', 'b' and 'c', then you would
+            get a map [ 'a' => [ 'b' => 'c' ] ].
+           	The XML properties are:
+            - name: what the property on the object is going to be called
+            - table: the table name
+            - id: (optional, auto-generated) the id-field in the table
+            - type: (optional, if the prop_map contains properties for multiple classes) the field name where the current class name is stored
+        -->
+        <map name="prop" table="prop_map" id="id" type="object_type">
+            <key name="key"/> <!-- name -->
+            <value name="value"/>
+        </map>
+	</class>
+
+	<class name="Tag">
+		<dataset autoload="true">
+			<property name="tagName"/>
+		</dataset>
+	</class>
+
+	<class name="User">
+		<dataset autoload="true">
+			<property name="email"/>
+			<property name="password"/>
+			<property name="name"/>
+		</dataset>
+		<!--
+			A map for the userSettings if they're not the defaults.
+			These can be things like:
+			- "theme" = "light"
+			- "loginTimeout" = "1 hour"
+		-->
+		<map name="userSettings" table="prop_map" id="id" type="object_type">
+			<key name="key"/>
+			<value name="value"/>
+		</map>
+	</class>
+
+</project>

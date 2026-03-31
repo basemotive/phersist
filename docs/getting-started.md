@@ -84,18 +84,20 @@ Before using generated objects, create and register a connection using one of th
 
 MySQL example:
 
-    <?php
+```php
+<?php
 
-    use PHersist\DB\DBConnectionManager;
+use PHersist\DB\DBConnectionManager;
 
-    DBConnectionManager::newMySQLConnection(
-        'myapp',
-        '127.0.0.1',
-        'db_user',
-        'db_password',
-        'myapp',
-        'UTF8'
-    );
+DBConnectionManager::newMySQLConnection(
+    'myapp',
+    '127.0.0.1',
+    'db_user',
+    'db_password',
+    'myapp',
+    'UTF8'
+);
+```
 
 For other backends, use:
 
@@ -106,14 +108,16 @@ For other backends, use:
 
 ## 7) Create and store your first object
 
-    <?php
+```php
+<?php
 
-    use MyApp\Model\User;
+use MyApp\Model\User;
 
-    $user = new User();
-    $user->email = 'joe@example.org';
-    $user->name = 'Joe Example';
-    $user->commit();
+$user = new User();
+$user->email = 'joe@example.org';
+$user->name = 'Joe Example';
+$user->commit();
+```
 
 After `commit()`, the object has a primary key in `$user->id`.
 
@@ -121,18 +125,20 @@ After `commit()`, the object has a primary key in `$user->id`.
 
 ## 8) Query with ObjectFinder
 
-    <?php
+```php
+<?php
 
-    use PHersist\ObjectFinder;
-    use MyApp\Model\User;
+use PHersist\ObjectFinder;
+use MyApp\Model\User;
 
-    $user = ObjectFinder::create(User::class)
-        ->where('email', '=', 'joe@example.org')
-        ->fetchOne();
+$user = ObjectFinder::create(User::class)
+    ->where('email', '=', 'joe@example.org')
+    ->fetchOne();
 
-    if ($user !== null) {
-        echo $user->name . PHP_EOL;
-    }
+if ($user !== null) {
+    echo $user->name . PHP_EOL;
+}
+```
 
 `ObjectFinder` supports fluent query chains (`where`, `orderBy`, `fetch`, `fetchOne`, `count`).
 

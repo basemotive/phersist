@@ -32,23 +32,25 @@ With `ObjectCache` enabled, PHersist can reuse an already-loaded instance for th
 
 Enable it early in bootstrap code:
 
-    <?php
+```php
+<?php
 
-    use PHersist\DB\DBConnectionManager;
-    use PHersist\ObjectCache;
+use PHersist\DB\DBConnectionManager;
+use PHersist\ObjectCache;
 
-    DBConnectionManager::newMySQLConnection(
-        'myapp',
-        '127.0.0.1',
-        'db_user',
-        'db_password',
-        'myapp',
-        'UTF8'
-    );
-    ObjectCache::setEnabled(true);
+DBConnectionManager::newMySQLConnection(
+    'myapp',
+    '127.0.0.1',
+    'db_user',
+    'db_password',
+    'myapp',
+    'UTF8'
+);
+ObjectCache::setEnabled(true);
 
-    // Optional later:
-    // ObjectCache::setEnabled(false);
+// Optional later:
+// ObjectCache::setEnabled(false);
+```
 
 ### When to use it
 

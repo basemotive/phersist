@@ -13,22 +13,28 @@ For caching and performance features, see [Advanced features](advanced-features.
 
 Create `model/model.xml`:
 
-    <project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model" id_style="short">
-        <class name="Product">
-            <dataset autoload="true">
-                <property name="name" required="true"/>
-                <property name="price" type="Int"/>
-            </dataset>
-        </class>
-    </project>
+```xml
+<project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model" id_style="short">
+    <class name="Product">
+        <dataset autoload="true">
+            <property name="name" required="true"/>
+            <property name="price" type="Int"/>
+        </dataset>
+    </class>
+</project>
+```
 
 Generate PHP classes:
 
-    vendor/bin/phersist --xml=model/model.xml
+```sh
+vendor/bin/phersist --xml=model/model.xml
+```
 
 Generate classes + SQL schema:
 
-    vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql
+```sh
+vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql
+```
 
 ---
 
@@ -36,9 +42,11 @@ Generate classes + SQL schema:
 
 Every model starts with a single `<project>` root:
 
-    <project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model" id_style="short">
-        <!-- classes -->
-    </project>
+```xml
+<project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model" id_style="short">
+    <!-- classes -->
+</project>
+```
 
 ### Attributes
 
@@ -64,9 +72,11 @@ You can always override per class with `<class id="...">`.
 
 Each `<class>` generates one PHP class extending `\PHersist\ActiveRecord`.
 
-    <class name="ForumMessage" table="forum_messages" id="id">
-        ...
-    </class>
+```xml
+<class name="ForumMessage" table="forum_messages" id="id">
+    ...
+</class>
+```
 
 ### Attributes
 
@@ -92,15 +102,19 @@ A sample implementation is available in `examples/basic/ForumMessageTrait.php`, 
 
 If the trait cannot be auto-detected, or if you want a different trait name, set the `trait` attribute explicitly on the class:
 
-    <class name="ForumMessage" trait="ForumMessageTrait">
-        ...
-    </class>
+```xml
+<class name="ForumMessage" trait="ForumMessageTrait">
+    ...
+</class>
+```
 
 If the trait is in another namespace, provide the fully qualified name:
 
-    <class name="ForumMessage" trait="Babble\Model\ForumMessageTrait">
-        ...
-    </class>
+```xml
+<class name="ForumMessage" trait="Babble\Model\ForumMessageTrait">
+    ...
+</class>
+```
 
 This lets you keep custom behavior outside generated files while still having it available directly on generated PHersist objects.
 
@@ -110,14 +124,16 @@ This lets you keep custom behavior outside generated files while still having it
 
 Properties are grouped into datasets. A dataset is loaded in one query.
 
-    <dataset autoload="true">
-        <property name="title" required="true"/>
-        <property name="summary"/>
-    </dataset>
+```xml
+<dataset autoload="true">
+    <property name="title" required="true"/>
+    <property name="summary"/>
+</dataset>
 
-    <dataset>
-        <property name="messageContent" required="true"/>
-    </dataset>
+<dataset>
+    <property name="messageContent" required="true"/>
+</dataset>
+```
 
 ### Attributes
 
@@ -137,9 +153,11 @@ When one property in a non-autoload dataset is accessed, the full dataset is res
 
 Properties define class fields and column mapping.
 
-    <property name="email" required="true"/>
-    <property name="viewCount" type="Int"/>
-    <property name="author" type="Class" class="User" fieldname="author_id"/>
+```xml
+<property name="email" required="true"/>
+<property name="viewCount" type="Int"/>
+<property name="author" type="Class" class="User" fieldname="author_id"/>
+```
 
 ### Attributes
 
@@ -161,18 +179,24 @@ Properties define class fields and column mapping.
 ### `Text`
 Default string-like field.
 
-    <property name="description" type="Text"/>
+```xml
+<property name="description" type="Text"/>
+```
 
 ### `Int`
 Integer field (schema can be signed/unsigned).
 
-    <property name="price" type="Int"/>
-    <property name="score" type="Int" signed="false"/>
+```xml
+<property name="price" type="Int"/>
+<property name="score" type="Int" signed="false"/>
+```
 
 ### `Class`
 Reference to another class in the model.
 
-    <property name="forum" type="Class" class="Forum" required="true"/>
+```xml
+<property name="forum" type="Class" class="Forum" required="true"/>
+```
 
 Extra attribute:
 
@@ -183,11 +207,15 @@ Extra attribute:
 ### `DynamicClass`
 Polymorphic reference: class + id pair.
 
-    <property name="target" type="DynamicClass"/>
+```xml
+<property name="target" type="DynamicClass"/>
+```
 
 Optional override:
 
-    <property name="target" type="DynamicClass" fieldnames="target_class,target_id"/>
+```xml
+<property name="target" type="DynamicClass" fieldnames="target_class,target_id"/>
+```
 
 Extra attribute:
 
@@ -198,8 +226,10 @@ Extra attribute:
 ### `TimestampText`
 Datetime field with optional auto-updating.
 
-    <property name="createdAt" type="TimestampText" update_on="create"/>
-    <property name="modifiedAt" type="TimestampText" update_on="modify"/>
+```xml
+<property name="createdAt" type="TimestampText" update_on="create"/>
+<property name="modifiedAt" type="TimestampText" update_on="modify"/>
+```
 
 Extra attributes:
 
@@ -214,16 +244,18 @@ Extra attributes:
 
 PHersist currently uses `type="NN"` for both one-to-many and many-to-many patterns.
 
-    <relation
-        name="tags"
-        type="NN"
-        class="Tag"
-        table="forum_message_tags"
-        local_id="forum_message_id"
-        remote_id="tag_id"
-        table_owner="true"
-        load_objects="true"
-    />
+```xml
+<relation
+    name="tags"
+    type="NN"
+    class="Tag"
+    table="forum_message_tags"
+    local_id="forum_message_id"
+    remote_id="tag_id"
+    table_owner="true"
+    load_objects="true"
+/>
+```
 
 ### Attributes
 
@@ -253,10 +285,12 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 
 Maps provide key/value data attached to an object through a table.
 
-    <map name="settings" table="user_settings" id="user_id" type="object_type">
-        <key name="key_name"/>
-        <value name="value_text"/>
-    </map>
+```xml
+<map name="settings" table="user_settings" id="user_id" type="object_type">
+    <key name="key_name"/>
+    <value name="value_text"/>
+</map>
+```
 
 ### `<map>` attributes
 
@@ -333,17 +367,19 @@ A full, realistic model is provided in [sample-model.xml](../examples/basic/samp
 
 ## Generation commands
 
-    # Generate PHP classes
-    vendor/bin/phersist --xml=model/model.xml
+```sh
+# Generate PHP classes
+vendor/bin/phersist --xml=model/model.xml
 
-    # Generate classes + MySQL schema
-    vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql
+# Generate classes + MySQL schema
+vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql
 
-    # Generate only MySQL schema
-    vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql --skip-classes
+# Generate only MySQL schema
+vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql --skip-classes
 
-    # Include custom class snippets
-    vendor/bin/phersist --xml=model/model.xml --includesdir=model/includes
+# Include custom class snippets
+vendor/bin/phersist --xml=model/model.xml --includesdir=model/includes
+```
 
 ---
 

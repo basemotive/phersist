@@ -17,18 +17,20 @@ Before using generated classes, create and register the database connection thro
 
 Example (`<project database="myapp" ...>`) using MySQL:
 
-    <?php
+```php
+<?php
 
-    use PHersist\DB\DBConnectionManager;
+use PHersist\DB\DBConnectionManager;
 
-    DBConnectionManager::newMySQLConnection(
-        'myapp',
-        '127.0.0.1',
-        'db_user',
-        'db_password',
-        'myapp',
-        'UTF8'
-    );
+DBConnectionManager::newMySQLConnection(
+    'myapp',
+    '127.0.0.1',
+    'db_user',
+    'db_password',
+    'myapp',
+    'UTF8'
+);
+```
 
 For other backends, use `DBConnectionManager::newSQLiteConnection(...)` or `DBConnectionManager::newSQLSrvLConnection(...)`.
 
@@ -40,40 +42,48 @@ Every generated model class extends `\PHersist\ActiveRecord`.
 
 ### Create and insert
 
-    <?php
+```php
+<?php
 
-    use MyApp\Model\User;
+use MyApp\Model\User;
 
-    $user = new User();
-    $user->email = 'joe@example.org';
-    $user->name = 'Joe Example';
-    $user->commit();
+$user = new User();
+$user->email = 'joe@example.org';
+$user->name = 'Joe Example';
+$user->commit();
+```
 
 After `commit()`, the object receives its primary key (`$user->id`).
 
 ### Load and update
 
-    <?php
+```php
+<?php
 
-    $user = new User(123);   // id-based object
-    $user->name = 'Joseph Example';
-    $user->commit();
+$user = new User(123);   // id-based object
+$user->name = 'Joseph Example';
+$user->commit();
+```
 
 ### Delete
 
-    <?php
+```php
+<?php
 
-    $user->delete();
+$user->delete();
+```
 
 If the class uses `softdelete="true"`, this sets `deleted = 1` instead of removing the row.
 
 ### Check existence
 
-    <?php
+```php
+<?php
 
-    if ($user->exists()) {
-        // row is present
-    }
+if ($user->exists()) {
+    // row is present
+}
+```
 
 ### Extending generated objects with Traits
 
@@ -87,12 +97,14 @@ This keeps custom behavior out of generated files while still making methods ava
 
 Example using `ForumMessageTrait::createdAtRelative()`:
 
-    <?php
+```php
+<?php
 
-    use Babble\Model\ForumMessage;
+use Babble\Model\ForumMessage;
 
-    $message = new ForumMessage(123);
-    echo $message->createdAtRelative() . PHP_EOL;
+$message = new ForumMessage(123);
+echo $message->createdAtRelative() . PHP_EOL;
+```
 
 You can also set an explicit trait in model XML with the class `trait` attribute when needed.
 
@@ -132,44 +144,52 @@ Supported operators include:
 
 ### Simple lookup
 
-    <?php
+```php
+<?php
 
-    use PHersist\ObjectFinder;
-    use MyApp\Model\User;
+use PHersist\ObjectFinder;
+use MyApp\Model\User;
 
-    $user = ObjectFinder::create(User::class)
-        ->where('email', '=', 'joe@example.org')
-        ->fetchOne();
+$user = ObjectFinder::create(User::class)
+    ->where('email', '=', 'joe@example.org')
+    ->fetchOne();
+```
 
 ### Filter + ordering + limit
 
-    <?php
+```php
+<?php
 
-    use PHersist\ObjectFinder;
-    use MyApp\Model\ForumMessage;
+use PHersist\ObjectFinder;
+use MyApp\Model\ForumMessage;
 
-    $messages = ObjectFinder::create(ForumMessage::class)
-        ->where('title', 'LIKE', '%release%')
-        ->orderBy('createdAt', ObjectFinder::DIRECTION_DESC)
-        ->fetch(20);
+$messages = ObjectFinder::create(ForumMessage::class)
+    ->where('title', 'LIKE', '%release%')
+    ->orderBy('createdAt', ObjectFinder::DIRECTION_DESC)
+    ->fetch(20);
+```
 
 ### Count rows
 
-    <?php
+```php
+<?php
 
-    $count = ObjectFinder::create(User::class)
-        ->where('name', 'LIKE', 'A%')
-        ->count();
+$count = ObjectFinder::create(User::class)
+    ->where('name', 'LIKE', 'A%')
+    ->count();
+```
 
 ### Query through references
 
 You can dereference object properties in conditions:
 
-    <?php
+```php
+<?php
 
-    $messages = ObjectFinder::create(ForumMessage::class)
-        ->where('user->email', '=', 'joe@example.org')
-        ->fetch();
+$messages = ObjectFinder::create(ForumMessage::class)
+    ->where('user->email', '=', 'joe@example.org')
+    ->fetch();
+```
 
 ---
 
@@ -191,17 +211,19 @@ You do not need to call `end()` if you are done building conditions at the group
 
 Example with practical `OR` grouping and a parent-level condition after `end()`:
 
-    <?php
+```php
+<?php
 
-    $messages = ObjectFinder::create(ForumMessage::class)
-        ->where('forum', '=', $forum)
-        ->addOr()
-            ->where('title', 'LIKE', '%release%')
-            ->where('messageSummary', 'LIKE', '%release%')
-        ->end()
-        ->where('user->email', 'LIKE', '%@example.org')
-        ->orderBy('createdAt', ObjectFinder::DIRECTION_DESC)
-        ->fetch(20);
+$messages = ObjectFinder::create(ForumMessage::class)
+    ->where('forum', '=', $forum)
+    ->addOr()
+        ->where('title', 'LIKE', '%release%')
+        ->where('messageSummary', 'LIKE', '%release%')
+    ->end()
+    ->where('user->email', 'LIKE', '%@example.org')
+    ->orderBy('createdAt', ObjectFinder::DIRECTION_DESC)
+    ->fetch(20);
+```
 
 Because methods are chainable, you can keep complex query logic readable and close to business intent.
 
@@ -224,18 +246,22 @@ Relations behave as list-like properties.
 
 ### Read relation values
 
-    <?php
+```php
+<?php
 
-    foreach ($forum->messages as $message) {
-        echo $message->title . PHP_EOL;
-    }
+foreach ($forum->messages as $message) {
+    echo $message->title . PHP_EOL;
+}
+```
 
 ### Write owned N-N relations
 
-    <?php
+```php
+<?php
 
-    $message->tags = [$tag1, $tag2];
-    $message->commit();
+$message->tags = [$tag1, $tag2];
+$message->commit();
+```
 
 For `table_owner="true"` relations, commit replaces relation rows for that owning object.  
 For derived relations (`table_owner="false"`), treat them as read-only views.
@@ -250,18 +276,22 @@ Map properties are key/value structures exposed via array access.
 
 ### Read and write map data
 
-    <?php
+```php
+<?php
 
-    $theme = $user->settings['theme'] ?? 'default';
-    $user->settings['theme'] = 'dark';
-    $user->commit();
+$theme = $user->settings['theme'] ?? 'default';
+$user->settings['theme'] = 'dark';
+$user->commit();
+```
 
 ### Remove a map entry
 
-    <?php
+```php
+<?php
 
-    $user->settings['theme'] = null;
-    $user->commit();
+$user->settings['theme'] = null;
+$user->commit();
+```
 
 Important: assign map entries by key. Do not replace the map property itself with direct `=` assignment.
 
@@ -274,12 +304,14 @@ For classes with `softdelete="true"`:
 - normal finder queries exclude deleted rows
 - include them explicitly with `includeDeletedRecords(true)`
 
-    <?php
+```php
+<?php
 
-    $user = ObjectFinder::create(User::class)
-        ->includeDeletedRecords(true)
-        ->where('email', '=', 'joe@example.org')
-        ->fetchOne();
+$user = ObjectFinder::create(User::class)
+    ->includeDeletedRecords(true)
+    ->where('email', '=', 'joe@example.org')
+    ->fetchOne();
+```
 
 ---
 

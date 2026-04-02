@@ -142,6 +142,6 @@ class ARRelationTypeNN extends ARRelationType {
 			foreach ($objects as $object) $object->delete();
 		}
 
-		$this->store($rel, null);
+		$this->store($rel, []);
 	}
 }

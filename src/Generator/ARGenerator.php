@@ -102,6 +102,8 @@ class ARGenerator {
 					$phpType = 'string';
 					if ($prop_type == 'Class')
 						$phpType = $property->getAttribute('class');
+					elseif ($prop_type == 'Int')
+						$phpType = 'int';
 
 					if (!$property->hasAttribute('required') || $property->getAttribute('required') != 'true')
 						$phpType = "?{$phpType}";

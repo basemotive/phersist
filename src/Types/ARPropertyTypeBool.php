@@ -4,24 +4,24 @@ namespace PHersist\Types;
 use PHersist\ActiveRecord;
 
 /**
- * The Int property type is maps a single field to an object property. Valuues
- * should be checked to be of type int.
+ * The Bool property type is maps a single field to an object property. Valuues
+ * should be checked to be of type bool.
  * TODO introduce value checking to PHersist
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
-class ARPropertyTypeInt extends ARPropertyType {
+class ARPropertyTypeBool extends ARPropertyType {
 	public function __construct(?ActiveRecord $activeRecord = null) {
 		parent::__construct($activeRecord);
 	}
 
 	public function fromDB(array $prop, array $values) : mixed {
-		return $values[$prop['fieldnames'][0]];
+		return $values[$prop['fieldnames'][0]] != 0 ? true : false;
 	}
 
 	public function toDB(array $prop, mixed $value) : array {
-		return [ $prop['fieldnames'][0] => $value ];
+		return [ $prop['fieldnames'][0] => $value ? 1 : 0 ];
 	}
 }

@@ -1,6 +1,7 @@
 <?php
 
-namespace PHersist\Types;
+namespace PHersist\Properties;
+
 use PHersist\ActiveRecord;
 
 /**

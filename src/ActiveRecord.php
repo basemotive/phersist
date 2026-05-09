@@ -340,7 +340,7 @@ class ActiveRecord implements \ArrayAccess {
 
 		// If the key is for a map, fetch that map
 		if (isset(static::$_meta['maps'][$key])) {
-			$map = new \PHersist\Types\ARPropertyMap($this->_PDO, $this, static::$_meta['maps'][$key]);
+			$map = new \PHersist\Properties\ARPropertyMap($this->_PDO, $this, static::$_meta['maps'][$key]);
 			$this->_data[$key] = $map->getArrayAccess();
 		}
 	}

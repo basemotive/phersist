@@ -36,7 +36,7 @@ class MySQLGenerator {
 		foreach ($tables as $tableName => $fields) {
 			$primaryKey = false;
 
-			$result .= "DROP TABLE IF NOT EXISTS `{$tableName}`\n";
+			$result .= "DROP TABLE IF EXISTS `{$tableName}`;\n";
 			$result .= "CREATE TABLE `{$tableName}` (\n";
 			foreach ($fields as $field) {
 				$result .= "\t`{$field['fieldName']}` {$field['fieldType']}";

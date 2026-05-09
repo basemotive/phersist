@@ -23,7 +23,7 @@ class DBConnectionManager {
 	 * @param string $host the hostname to connect to
 	 * @param string $username the username to connect as
 	 * @param string $password the password for the username
-	 * @param string $encoding the encoding to use for the connection; utf8mb4 is
+	 * @param string $charset the charset to use for the connection; utf8mb4 is
 	 *   recommended
 	 * @return PDO the database connection
 	 */

@@ -102,7 +102,7 @@ class ARPropertyMap {
 				// We have multiple values, so use each of them
 				foreach ($this->map['values'] as $valueKey) {
 					$val = isset($value[$valueKey]) ? $value[$valueKey] : '';
-					$line[] = $val;
+					$line = $val;
 				}
 				$line = rtrim($line, ',').')';
 				$result[] = $line;

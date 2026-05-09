@@ -36,6 +36,14 @@ class MySQLGenerator {
 		foreach ($tables as $tableName => $fields) {
 			$primaryKey = false;
 
+			// Collect indexes: group fields by indexName
+			$indexes = [];
+			foreach ($fields as $field) {
+				if (isset($field['indexName'])) {
+					$indexes[$field['indexName']][] = $field['fieldName'];
+				}
+			}
+
 			$result .= "DROP TABLE IF EXISTS `{$tableName}`;\n";
 			$result .= "CREATE TABLE `{$tableName}` (\n";
 			foreach ($fields as $field) {
@@ -56,6 +64,12 @@ class MySQLGenerator {
 
 				if ($field['primaryKey'])
 					$result .= "\n";
+			}
+
+			// Emit indexes
+			foreach ($indexes as $indexName => $indexFields) {
+				$fieldList = implode('`, `', $indexFields);
+				$result .= "\tINDEX `{$indexName}` (`{$fieldList}`),\n";
 			}
 
 			// cut the last comma if there's no primary key
@@ -111,6 +125,7 @@ class MySQLGenerator {
 			$properties = $dataset->getElementsByTagName('property');
 			foreach ($properties as $property) {
 				$propName = $property->getAttribute('name');
+				$propNameTS = $this->getAuto('fieldname', $propName);
 				$propType = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
 				$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
 
@@ -153,6 +168,7 @@ class MySQLGenerator {
 						'fieldType' => 'INT UNSIGNED',
 						'required' => $required,
 						'primaryKey' => false,
+						'indexName' => 'idx_' . $propNameTS,
 					];
 				} elseif ($propType == 'DynamicClass') {
 					$result[$datasetTable][] = [
@@ -160,12 +176,14 @@ class MySQLGenerator {
 						'fieldType' => 'TEXT',
 						'required' => $required,
 						'primaryKey' => false,
+						'indexName' => 'idx_' . $propNameTS,
 					];
 					$result[$datasetTable][] = [
 						'fieldName' => $fieldNames[1],
 						'fieldType' => 'INT UNSIGNED',
 						'required' => $required,
 						'primaryKey' => false,
+						'indexName' => 'idx_' . $propNameTS,
 					];
 				} elseif ($propType == 'TimestampText') {
 					$result[$datasetTable][] = [
@@ -199,6 +217,9 @@ class MySQLGenerator {
 			$remoteID = $relation->getAttribute('remote_id');
 			$tableOwner = $relation->getAttribute('table_owner') == 'true';
 
+			$localTypeTS = $this->getAuto('table', $className);
+			$remoteTypeTS = $this->getAuto('table', $relation->getAttribute('class'));
+
 			// only create table if it doesn't exist yet, because it may have been
 			// already created from the reverse relation in another class
 			// also, only create tables if we're the table owner, because if it's
@@ -228,7 +249,8 @@ class MySQLGenerator {
 					];
 				}
 
-				// TODO we may want to put indexes on the ID-fields for faster queries
+				$result[$tableName][0]['indexName'] = 'idx_' . $localTypeTS;
+				$result[$tableName][1]['indexName'] = 'idx_' . $remoteTypeTS;
 			}
 		}
 
@@ -263,6 +285,7 @@ class MySQLGenerator {
 					'fieldType' => 'TEXT',
 					'required' => true,
 					'primaryKey' => false,
+					'indexName' => 'idx_' . $keyElement->getAttribute('name'),
 				];
 
 			$valueElements = $map->getElementsByTagName('value');
@@ -274,7 +297,7 @@ class MySQLGenerator {
 				'primaryKey' => false,
 			];
 
-			// TODO add some indexes for faster lookups
+			$result[$tableName][$objectTypeField ? 1 : 0]['indexName'] = 'idx_' . $idField;
 		}
 
 		return $result;

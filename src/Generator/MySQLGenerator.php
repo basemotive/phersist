@@ -49,16 +49,20 @@ class MySQLGenerator {
 			foreach ($fields as $field) {
 				$result .= "\t`{$field['fieldName']}` {$field['fieldType']}";
 				if ($field['required'])
-					$result .= " NOT NULL";
+					$result .= ' NOT NULL';
+				else
+					$result .= ' NULL';
 				if ($field['primaryKey']) {
-					$result .= " AUTO_INCREMENT";
+					$result .= ' AUTO_INCREMENT';
 					$primaryKey = $field;
 				}
 				if (isset($field['defaultValue'])) {
 					if (is_string($field['defaultValue']))
 						$result .= " DEFAULT '{$field['defaultValue']}'";
-					else
+					elseif (is_int($field['defaultValue']))
 						$result .= " DEFAULT {$field['defaultValue']}";
+					elseif (is_bool($field['defaultValue']))
+						$result .= ' DEFAULT '.($field['defaultValue'] ? 1 : 0);
 				}
 				$result .= ",\n";
 
@@ -147,29 +151,52 @@ class MySQLGenerator {
 				}
 
 				if ($propType == 'Text') {
-					$result[$datasetTable][] = [
+					$fieldSpec = [
 						'fieldName' => $fieldNames[0],
 						'fieldType' => 'TEXT',
 						'required' => $required,
 						'primaryKey' => false,
 					];
+					if ($property->hasAttribute('default'))
+						$fieldSpec['defaultValue'] = $property->getAttribute('default');
+					elseif ($fieldSpec['required'])
+						$fieldSpec['defaultValue'] = '';
+					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Int') {
 					// signed ints by default
 					$signed = !$property->hasAttribute('signed') || $property->getAttribute('signed') == 'true';
-					$result[$datasetTable][] = [
+					$fieldSpec = [
 						'fieldName' => $fieldNames[0],
 						'fieldType' => 'INT' . ($signed ? '' : ' UNSIGNED'),
 						'required' => $required,
 						'primaryKey' => false,
 					];
+					if ($property->hasAttribute('default'))
+						$fieldSpec['defaultValue'] = intval($property->getAttribute('default'));
+					elseif ($fieldSpec['required'])
+						$fieldSpec['defaultValue'] = 0;
+					$result[$datasetTable][] = $fieldSpec;
+				} elseif ($propType == 'Bool') {
+					$fieldSpec = [
+						'fieldName' => $fieldNames[0],
+						'fieldType' => 'INT(1) UNSIGNED',
+						'required' => $required,
+						'primaryKey' => false,
+					];
+					if ($property->hasAttribute('default'))
+						$fieldSpec['defaultValue'] = $property->getAttribute('default') == 'true';
+					elseif ($fieldSpec['required'])
+						$fieldSpec['defaultValue'] = false;
+					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Class') {
-					$result[$datasetTable][] = [
+					$fieldSpec = [
 						'fieldName' => $fieldNames[0],
 						'fieldType' => 'INT UNSIGNED',
 						'required' => $required,
 						'primaryKey' => false,
 						'indexName' => 'idx_' . $propNameTS,
 					];
+					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'DynamicClass') {
 					$result[$datasetTable][] = [
 						'fieldName' => $fieldNames[0],

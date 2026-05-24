@@ -168,6 +168,7 @@ Properties define class fields and column mapping.
 | `required` | no | `false` | If `true`, must not be null. |
 | `fieldname` | no | auto | Custom single-column field name. |
 | `fieldnames` | no | auto | Custom comma-separated multi-column names (used by multi-field types). |
+| `default` | no | — | Default column value. Applies to `Text`, `Int`, and `Bool` properties. For `required` fields that have no explicit `default`, PHersist inserts an implicit default automatically: `''` for `Text`, `0` for `Int`, and `0` (false) for `Bool`. |
 
 > `fieldnames` is optional for `DynamicClass`.  
 > If omitted, PHersist generates two field names automatically in the form `propname_class,propname_id` (translated with the configured table style).
@@ -177,19 +178,47 @@ Properties define class fields and column mapping.
 ## Property types
 
 ### `Text`
-Default string-like field.
+Default string-like field. Maps to a `TEXT` column.
 
 ```xml
 <property name="description" type="Text"/>
+<property name="title" type="Text" required="true" default="Untitled"/>
 ```
 
+Default value behaviour:
+- If `default` is set, that string value is used as the column default.
+- If the field is `required` and no `default` is given, an implicit default of `''` (empty string) is added.
+
 ### `Int`
-Integer field (schema can be signed/unsigned).
+Integer field. Maps to an `INT` column (signed by default, `INT UNSIGNED` when `signed="false"`).
 
 ```xml
 <property name="price" type="Int"/>
 <property name="score" type="Int" signed="false"/>
+<property name="viewCount" type="Int" required="true" default="0"/>
 ```
+
+Extra attribute:
+
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `signed` | no | `true` | Set to `false` to emit `INT UNSIGNED`. |
+
+Default value behaviour:
+- If `default` is set, the integer equivalent of that value is used as the column default.
+- If the field is `required` and no `default` is given, an implicit default of `0` is added.
+
+### `Bool`
+Boolean field. Maps to an `INT(1) UNSIGNED` column, storing `1` for true and `0` for false.
+
+```xml
+<property name="active" type="Bool"/>
+<property name="visible" type="Bool" required="true" default="true"/>
+```
+
+Default value behaviour:
+- If `default` is set, use `"true"` to default to `1` or any other value to default to `0`.
+- If the field is `required` and no `default` is given, an implicit default of `0` (false) is added.
 
 ### `Class`
 Reference to another class in the model.

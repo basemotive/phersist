@@ -8,7 +8,7 @@ Welcome to the PHersist docs.
   Install PHersist, configure autoloading, connect your database, and generate your first model classes.
 
 - [Creating a model from an XML file](creating-model-from-xml.md)  
-  Full reference for the model XML format (`<project>`, `<class>`, `<dataset>`, `<property>`, `<relation>`, and `<map>`), including table style and id field configuration.
+  Full reference for the model XML format (`<project>`, `<class>`, `<dataset>`, `<property>`, `<relation>`, and `<map>`), including property types (`Text`, `Int`, `Bool`, `Class`, `DynamicClass`, `TimestampText`), default values, table style, and id field configuration.
 
 - [Using the model in PHP](using-model-in-php.md)  
   Work with generated classes, create/update/delete records, use relations and maps, and query with `ObjectFinder`.

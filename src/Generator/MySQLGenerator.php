@@ -58,7 +58,7 @@ class MySQLGenerator {
 				}
 				if (isset($field['defaultValue'])) {
 					if (is_string($field['defaultValue']))
-						$result .= " DEFAULT '{$field['defaultValue']}'";
+						$result .= " DEFAULT ('{$field['defaultValue']}')";
 					elseif (is_int($field['defaultValue']))
 						$result .= " DEFAULT {$field['defaultValue']}";
 					elseif (is_bool($field['defaultValue']))

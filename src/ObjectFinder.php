@@ -14,9 +14,9 @@ use PHersist\Expressions\OFCombinedExpression;
  */
 class ObjectFinder {
 	/** @var string for ascending order */
-	const string DIRECTION_ASC = 'asc';
+	const DIRECTION_ASC = 'asc';
 	/** @var string for descending order */
-	const string DIRECTION_DESC = 'desc';
+	const DIRECTION_DESC = 'desc';
 
 	// ---------------------------------------------------------------------------
 	// Setup

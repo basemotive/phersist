@@ -142,6 +142,14 @@ class ARGenerator {
 			}
 		}
 
+		// The maps
+		$maps = $classElement->getElementsByTagName('map');
+		foreach ($maps as $map) {
+			$map_name = $map->getAttribute('name');
+
+			$result .= " * @property \PHersist\Properties\ARPropertyMap \${$map_name} map\n";
+		}
+
 		$result .= " */\n";
 		return $result;
 	}

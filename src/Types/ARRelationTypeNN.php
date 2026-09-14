@@ -41,7 +41,12 @@ class ARRelationTypeNN extends ARRelationType {
 			$query .= " inner join `$baseTable` on `{$rel['table']}`.`{$rel['remote_id']}` = `$baseTable`.`$idField`";
 		$query .= " where `{$rel['table']}`.`{$rel['local_id']}` = :id";
 		if (isset($rel['local_type']) && $rel['local_type'] != '') {
-			$myClass = get_class($this->activeRecord);
+			$myClass =
+				$rel['use_namespace']
+				?
+				get_class($this->activeRecord)
+				:
+				(new \ReflectionClass($this->activeRecord))->getShortName();
 			$query .= " and `{$rel['table']}`.`{$rel['local_type']}` = :myClass";
 		} else {
 			$myClass = false;
@@ -91,7 +96,12 @@ class ARRelationTypeNN extends ARRelationType {
 		// First, we delete the old relation
 		$query = "delete from `{$rel['table']}` where `{$rel['local_id']}` = :id";
 		if (isset($rel['local_type']) && $rel['local_type'] != '') {
-			$myClass = get_class($this->activeRecord);
+			$myClass =
+				$rel['use_namespace']
+				?
+				get_class($this->activeRecord)
+				:
+				(new \ReflectionClass($this->activeRecord))->getShortName();
 			$query .= " and `{$rel['table']}`.`{$rel['local_type']}` = :myClass";
 		} else {
 			$myClass = false;
@@ -127,7 +137,10 @@ class ARRelationTypeNN extends ARRelationType {
 			$stmt->bindValue(":{$rel['local_id']}", $this->activeRecord->id, \PDO::PARAM_STR);
 			$stmt->bindValue(":{$rel['remote_id']}", $object->id, \PDO::PARAM_STR);
 			if (isset($rel['local_type']))
-				$stmt->bindValue(":{$rel['local_type']}", get_class($this->activeRecord), \PDO::PARAM_STR);
+				if ($rel['use_namespace'])
+					$stmt->bindValue(":{$rel['local_type']}", get_class($this->activeRecord), \PDO::PARAM_STR);
+				else
+					$stmt->bindValue(":{$rel['local_type']}", (new \ReflectionClass($this->activeRecord))->getShortName(), \PDO::PARAM_STR);
 			if (isset($rel['order_field'])) {
 				$stmt->bindValue(":{$rel['order_field']}", $counter, \PDO::PARAM_STR);
 				$counter++;

@@ -226,7 +226,13 @@ class ARGenerator {
 
 				// Special types - TODO Can we make this more generic?
 				if ($prop_type == 'Class') {
-					$metaprop['class'] = $this->getNamespace().$property->getAttribute('class');
+					$propertyClass = $property->getAttribute('class');
+					if (strpos($propertyClass, '\\') === false)
+						$propertyClass = $this->getNamespace().$property->getAttribute('class');
+					else
+						$propertyClass = ltrim($propertyClass, '\\');
+
+					$metaprop['class'] = $propertyClass;
 				} elseif ($prop_type == 'TimestampText') {
 					$metaprop['update_on'] = $property->getAttribute('update_on');
 					if ($property->hasAttribute('date_format'))
@@ -245,9 +251,15 @@ class ARGenerator {
 		// The relations
 		$relations = $classElement->getElementsByTagName('relation');
 		foreach ($relations as $relation) {
+			$relationClass = $relation->getAttribute('class');
+			if (strpos($relationClass, '\\') === false)
+				$relationClass = $this->getNamespace().$relationClass;
+			else
+				$relationclass = ltrim($relationClass, '\\');
+
 			$metarel = [
 				'type' => $relation->getAttribute('type'),
-				'class' => $this->getNamespace().$relation->getAttribute('class'),
+				'class' => $relationClass,
 				'table' => $relation->getAttribute('table'),
 				'local_id' => $relation->getAttribute('local_id'),
 				'remote_id' => $relation->getAttribute('remote_id'),
@@ -259,8 +271,12 @@ class ARGenerator {
 			if ($relation->hasAttribute('order_field'))
 				$metarel['order_field'] = $relation->getAttribute('order_field');
 
-			if ($relation->hasAttribute('local_type'))
+			if ($relation->hasAttribute('local_type')) {
+				// relation table field that holds the class name of the local object
 				$metarel['local_type'] = $relation->getAttribute('local_type');
+				// use namespace of class for the local_type field (default false)
+				$metarel['use_namespace'] = $relation->getAttribute('use_namespace') === 'true';
+			}
 
 			$meta['relations'][$relation->getAttribute('name')] = $metarel;
 		}
@@ -275,6 +291,8 @@ class ARGenerator {
 				'activeRecordKey' => $map->getAttribute('name'),
 				'keys' => [],
 				'values' => [],
+				// use namespace of class for the type field (default false)
+				'use_namespace' => $map->getAttribute('use_namespace') === 'true',
 			];
 
 			$keys = $map->getElementsByTagName('key');

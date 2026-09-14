@@ -301,12 +301,46 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 | `order_field` | no | SQL order column when restoring relation. |
 | `cascade_delete` | no | Delete related objects when owner is deleted. |
 | `local_type` | no | Type column for polymorphic filtering with dynamic local references. |
+| `use_namespace` | no | Controls what value is stored in `local_type`. `false` (default): store the short class name (e.g. `ForumMessage`). `true`: store the fully-qualified class name (e.g. `MyApp\Model\ForumMessage`). Only used when `local_type` is set. |
 
 ### Common patterns
 
 - **1-N derived relation**: `table_owner="false"` against related class table.
 - **N-N relation with join table**: `table_owner="true"` and dedicated join table.
 - **Polymorphic reverse relation**: add `local_type` when class discriminator is needed.
+
+### Polymorphic relations and `use_namespace`
+
+When `local_type` is set, PHersist writes the owner class name into that column so a shared relation table can store rows from different classes.  
+By default (`use_namespace="false"`), the **short class name** is stored — just the final segment without namespace:
+
+```xml
+<relation
+    name="comments"
+    type="NN"
+    class="Comment"
+    table="comments"
+    local_id="owner_id"
+    remote_id="comment_id"
+    local_type="owner_type"
+    table_owner="true"
+    load_objects="true"
+/>
+```
+
+Here the `owner_type` column will contain `ForumMessage`, not `MyApp\Model\ForumMessage`.  
+This keeps the stored values short and human-readable, and avoids tying your database data to a specific PHP namespace.
+
+Set `use_namespace="true"` only when you need the fully-qualified name — for example to match values an external system has already stored:
+
+```xml
+<relation
+    name="comments"
+    ...
+    local_type="owner_type"
+    use_namespace="true"
+/>
+```
 
 ---
 
@@ -329,11 +363,35 @@ Maps provide key/value data attached to an object through a table.
 | `table` | yes | — | Backing table. |
 | `id` | no | auto | Owner ID column name. |
 | `type` | no | none | Optional class discriminator column for shared map tables. |
+| `use_namespace` | no | `false` | Controls what value is stored in the `type` column. `false` (default): store the short class name (e.g. `User`). `true`: store the fully-qualified class name (e.g. `MyApp\Model\User`). Only used when `type` is set. |
 
 ### `<key>` and `<value>`
 
 - One or more `<key>` elements define key hierarchy.
 - One or more `<value>` elements define stored payload columns.
+
+### Shared map tables and `use_namespace`
+
+When multiple classes share the same map table, the `type` column acts as a class discriminator to filter rows belonging to each class.  
+By default (`use_namespace="false"`), the **short class name** is stored — just the final segment without namespace:
+
+```xml
+<map name="settings" table="object_settings" id="owner_id" type="owner_type">
+    <key name="setting_key"/>
+    <value name="setting_value"/>
+</map>
+```
+
+Here the `owner_type` column will contain `User`, not `MyApp\Model\User`.  
+This keeps stored values short and decoupled from your PHP namespace.
+
+Set `use_namespace="true"` only when the fully-qualified name is required — for example to be compatible with values an external system has already stored:
+
+```xml
+<map name="settings" table="object_settings" id="owner_id" type="owner_type" use_namespace="true">
+    ...
+</map>
+```
 
 ---
 

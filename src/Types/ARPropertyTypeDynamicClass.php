@@ -32,15 +32,18 @@ class ARPropertyTypeDynamicClass extends ARPropertyType {
 		$id = $value==null ? null : $value->id;
 		// Note / TODO:
 		//
-		// References to null are not handled very graciously. They are currently simply stored
-		// as empty strings, but it would be neater if they were actual database NULLs.
-		// However, the underlying query builders never assume that, and basically just add
-		// the quotes and do the escaping, making null checks problematic.
+		// References to null are not handled very graciously. They are currently
+		// simply stored as empty strings, but it would be neater if they were actual
+		// database NULLs. However, the underlying query builders never assume that,
+		// and basically just add the quotes and do the escaping, making null checks
+		// problematic.
+		// Shifting quoting and escaping to the ARPropertyType classes could fix this,
+		// but may add other problems.
+		// The query builders could also be modified to handle null values as actuall
+		// NULLs, but this may introduce side problems.
 		//
-		// Shifting quoting and escaping to the ARPropertyType classes could fix this, but
-		// may add other problems.
-		// The query builders could also be modified to handle null values as actuall NULLs, but
-		// this may introduce side problems.
+		// The stored class name is fully qualified here. This is because we would be
+		// unable to instantiate it without the namespace.
 		return [
 			$prop['fieldnames'][0] => $class_name,
 			$prop['fieldnames'][1] => $id

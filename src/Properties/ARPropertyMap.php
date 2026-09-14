@@ -92,8 +92,12 @@ class ARPropertyMap {
 			$line = [];
 
 			$line[] = $this->activeRecord->id;
-			if ($this->map['type'] !== false)
-				$line[] = get_class($this->activeRecord);
+			if ($this->map['type'] !== false) {
+				if ($this->map['use_namespace'])
+					$line[] = get_class($this->activeRecord);
+				else
+					$line[] = (new \ReflectionClass($this->activeRecord))->getShortName();
+			}
 			foreach ($keyList as $key)
 				$line[] = $key;
 
@@ -138,7 +142,10 @@ class ARPropertyMap {
 		$values['id'] = $this->activeRecord->id;
 		if ($this->map['type'] !== false) {
 			$query .= " and `{$this->map['type']}` = :className";
-			$values['className'] = get_class($this->activeRecord);
+			if ($this->map['use_namespace'])
+				$values['className'] = get_class($this->activeRecord);
+			else
+				$values['className'] = (new \ReflectionClass($this->activeRecord))->getShortName();
 		}
 
 		$stmt = $this->PDO->prepare($query);
@@ -165,7 +172,10 @@ class ARPropertyMap {
 		$qValues['id'] = $this->activeRecord->id;
 		if ($this->map['type'] !== false) {
 			$query .= " and `{$this->map['type']}` = :className";
-			$qValues['className'] = get_class($this->activeRecord);
+			if ($this->map['use_namespace'])
+				$qValues['className'] = get_class($this->activeRecord);
+			else
+				$qValues['className'] = (new \ReflectionClass($this->activeRecord))->getShortName();
 		}
 		$stmt = $this->PDO->prepare($query);
 		foreach ($qValues as $key => $value) {

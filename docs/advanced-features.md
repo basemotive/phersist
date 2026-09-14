@@ -147,7 +147,45 @@ This keeps generated names predictable and reduces manual naming overrides.
 
 ---
 
-## 7) XMLAutoloader in development workflows
+## 7) Polymorphic discriminator columns and `use_namespace`
+
+Both polymorphic relations (`local_type`) and shared map tables (`type`) write a class name into a database column to distinguish rows from different object types.  
+The `use_namespace` attribute on `<relation>` and `<map>` controls which form of the class name is stored.
+
+### Default: short class name (`use_namespace="false"`)
+
+When `use_namespace` is absent or `false`, PHersist stores only the **short class name** — the final segment of the PHP class, without any namespace prefix:
+
+| Class | Stored value |
+|---|---|
+| `MyApp\Model\ForumMessage` | `ForumMessage` |
+| `MyApp\Model\User` | `User` |
+
+This is the recommended default because:
+
+- values stay short and readable in the database
+- data is not tied to a specific PHP namespace, making refactoring or moving classes painless
+- discriminator columns remain easy to inspect and filter in raw SQL
+
+### Optional: fully-qualified class name (`use_namespace="true"`)
+
+Set `use_namespace="true"` when you need the full namespace in the column, for example when integrating with an external system that already stores fully-qualified names, or when two classes in different namespaces share the same short name:
+
+| Class | Stored value |
+|---|---|
+| `MyApp\Model\ForumMessage` | `MyApp\Model\ForumMessage` |
+| `MyApp\Model\User` | `MyApp\Model\User` |
+
+### Where it applies
+
+- **`<relation local_type="...">` + `use_namespace`**: affects the discriminator column written during store/delete/restore of a polymorphic NN relation.
+- **`<map type="...">` + `use_namespace`**: affects the discriminator column written during commit/delete/restore of a shared map table.
+
+See the [XML reference](creating-model-from-xml.md) for the exact attribute syntax.
+
+---
+
+## 8) XMLAutoloader in development workflows
 
 `XMLAutoloader` can generate/evaluate classes from XML at runtime, which is convenient during rapid model iteration.
 
@@ -158,7 +196,7 @@ Recommended use:
 
 ---
 
-## 8) Operational checklist
+## 9) Operational checklist
 
 - Keep finder chains explicit and readable.
 - Use `count()` for counts instead of fetching rows just to count in PHP.

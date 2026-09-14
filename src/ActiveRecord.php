@@ -68,7 +68,7 @@ class ActiveRecord implements \ArrayAccess {
 	}
 
 	public function __get(string $key) : mixed {
-		if ($key == 'id') return $this->_data[static::$_meta['id']];
+		if ($key == 'id') return $this->_data[static::$_meta['id']] ?? null;
 
 		// Determine if the key exists in metadata
 		if (!$this->_keyExists($key))

@@ -15,6 +15,7 @@ namespace PHersist;
  * @property ?int $id the object's primary key
  */
 class ActiveRecord implements \ArrayAccess {
+	/** @var ?array<string, mixed> $_meta */
 	protected static ?array $_meta;
 
 	/**

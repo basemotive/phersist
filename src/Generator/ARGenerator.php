@@ -65,7 +65,7 @@ class ARGenerator {
 
 		// Write the $_meta variable that holds the information the ActiveRecord
 		// needs to function
-		$txt .= "/** @var array<string, mixed>|null \$_meta */\n";
+		$txt .= "\t/** @var ?array<string, mixed> \$_meta */\n";
 		$txt .= "\tprotected static ?array \$_meta = ".$this->exportArray($meta, 1).";\n\n";
 
 		$txt .= "}\n";

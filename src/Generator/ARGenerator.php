@@ -65,7 +65,8 @@ class ARGenerator {
 
 		// Write the $_meta variable that holds the information the ActiveRecord
 		// needs to function
-		$txt .= "\tprotected static \$_meta = ".$this->exportArray($meta, 1).";\n\n";
+		$txt .= "/** @var array<string, mixed>|null \$_meta */\n";
+		$txt .= "\tprotected static ?array \$_meta = ".$this->exportArray($meta, 1).";\n\n";
 
 		$txt .= "}\n";
 		$txt .= "?>";
@@ -100,12 +101,15 @@ class ARGenerator {
 						$property->getAttribute('type') : 'Text';
 
 					$phpType = 'string';
-					if ($prop_type == 'Class')
-						$phpType = $property->getAttribute('class');
-					elseif ($prop_type == 'Int')
+					if ($prop_type == 'Class') {
+						$phpType = trim($property->getAttribute('class'), '\\');
+						if (strpos($phpType, '\\') !== false)
+							$phpType = "\\{$phpType}";
+					} elseif ($prop_type == 'Int') {
 						$phpType = 'int';
-					elseif ($prop_type == 'Bool')
+					} elseif ($prop_type == 'Bool') {
 						$phpType = 'bool';
+					}
 
 					if (!$property->hasAttribute('required') || $property->getAttribute('required') != 'true')
 						$phpType = "?{$phpType}";
@@ -129,7 +133,9 @@ class ARGenerator {
 		if ($relations->length > 0) {
 			foreach ($relations as $relation) {
 				$rl_name = $relation->getAttribute('name');
-				$rl_class = $relation->getAttribute('class');
+				$rl_class = trim($relation->getAttribute('class'), '\\');
+				if (strpos($rl_class, '\\') !== false)
+					$rl_class = "\\{$rl_class}";
 
 				$result .= " * @property {$rl_class}[] \${$rl_name} relation";
 				if ($relation->hasAttribute('order_field'))

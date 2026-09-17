@@ -15,7 +15,7 @@ namespace PHersist;
  * @property ?int $id the object's primary key
  */
 class ActiveRecord implements \ArrayAccess {
-	protected static $_meta;
+	protected static ?array $_meta;
 
 	/**
 	 * Creates a new persistent object.

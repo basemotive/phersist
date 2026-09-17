@@ -27,7 +27,7 @@ class XMLAutoloader {
 	}
 
 	private function loader(string $className) : void {
-		$phpcode = $this->generator->generate($className);
+		$phpcode = $this->generator->generateForClass($className);
 
 		// If the class was not found in the XML, the generator returns nothing
 		if ($phpcode == '')
@@ -41,5 +41,5 @@ class XMLAutoloader {
 		eval($phpcode);
 	}
 
-	private $generator;
+	private ARGenerator $generator;
 }

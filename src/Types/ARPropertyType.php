@@ -28,8 +28,8 @@ abstract class ARPropertyType {
 	 * Translates a value or multiple values from the database to a property on
 	 * an ActiveRecord instance.
 	 *
-	 * @param array $prop the property definition from the metadata
-	 * @param array $values the database values to construct the property from
+	 * @param array<string, mixed> $prop the property definition from the metadata
+	 * @param array<string, mixed> $values the database values to construct the property from
 	 * @return mixed the value that was translated from the database
 	 */
 	public abstract function fromDB(array $prop, array $values) : mixed;
@@ -38,9 +38,9 @@ abstract class ARPropertyType {
 	 * Translates a property on an ActiveRecord instance into one or more column
 	 * values for in the database table.
 	 *
-	 * @param array $prop the property definition from the metadata
+	 * @param array<string, mixed> $prop the property definition from the metadata
 	 * @param mixed $value the value from the object
-	 * @return array the values to put in the database
+	 * @return array<string, mixed> the values to put in the database
 	 */
 	public abstract function toDB(array $prop, mixed $value) : array;
 
@@ -48,9 +48,9 @@ abstract class ARPropertyType {
 	 * Translates the value to database fields for a search. Usually this
 	 * can be expected to be the same as toDB, but it can be overloaded.
 	 *
-	 * @param array $prop the property definition from the metadata
+	 * @param array<string, mixed> $prop the property definition from the metadata
 	 * @param mixed $value the value from the object
-	 * @return array the values to use for searching the database
+	 * @return array<string, mixed> the values to use for searching the database
 	 */
 	public function toDBSearch(array $prop, mixed $value) : array {
 		return $this->toDB($prop, $value);
@@ -59,19 +59,19 @@ abstract class ARPropertyType {
 	/**
 	 * Helps build the query needed to dereference when searching for objects.
 	 *
-	 * @param array $prop the property definition from the metadata
+	 * @param array<string, mixed> $prop the property definition from the metadata
 	 * @param string $sourceTable the table name for this object
-	 * @return array|false data for the ObjectFinder, or false if the property
+	 * @return array<string, mixed>|false data for the ObjectFinder, or false if the property
 	 *   cannot be dereferenced
 	 */
-	public function dereference(array $prop, $sourceTable) : array|false {
+	public function dereference(array $prop, string $sourceTable) : array|false {
 		return false;
 	}
 
 	/**
 	 * Checks if this property must be auto-updated.
 	 *
-	 * @param array $prop the property definition from the metadata
+	 * @param array<string, mixed> $prop the property definition from the metadata
 	 * @return bool if this property must be auto-updated.
 	 */
 	public function requiresAutoUpdate(array $prop) : bool {

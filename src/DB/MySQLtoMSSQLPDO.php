@@ -16,18 +16,19 @@ namespace PHersist\DB;
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
 class MySQLtoMSSQLPDO extends \PDO {
-    public function __construct($dsn, $username = null, $password = null, $options = []) {
-        parent::__construct($dsn, $username, $password, $options);
-    }
+	/** @param array<int, mixed> $options */
+	public function __construct(string $dsn, ?string $username = null, ?string $password = null, array $options = []) {
+		parent::__construct($dsn, $username, $password, $options);
+	}
 
-    public function prepare($query, $options = []) : \PDOStatement|false {
-        $query = $this->convertMySQLToMSSQL($query);
-        return parent::prepare($query, $options);
-    }
+	/** @param array<int, mixed> $options */
+	public function prepare($query, array $options = []) : \PDOStatement|false {
+		return parent::prepare($this->convertMySQLToMSSQL($query), $options);
+	}
 
-    public function query($query, ...$args) : \PDOStatement|false {
-        $query = $this->convertMySQLToMSSQL($query);
-        return parent::query($query, ...$args);
+	public function query(string $query, mixed ...$args) : \PDOStatement|false {
+		$query = $this->convertMySQLToMSSQL($query);
+		return parent::query($query, ...$args);
     }
 
     public function exec($query) : int|false {

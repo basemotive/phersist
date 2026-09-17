@@ -14,7 +14,7 @@ namespace PHersist\Expressions;
  */
 abstract class OFExpression {
 	/**
-	 * @return array
+	 * @return array{string, array<string, mixed>}
 	 */
 	abstract public function evaluate() : array;
 }

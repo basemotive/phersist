@@ -150,7 +150,7 @@ class ObjectFinder {
 	}
 
 	/**
-	 * @return array
+	 * @return array<mixed>
 	 */
 	public function fetch(mixed $limit='') : array {
 		list($where, $queryValues) = $this->rootExpression->evaluate();
@@ -407,12 +407,12 @@ class ObjectFinder {
     protected bool $includeDeletedRecords = false;
 
 	/**
-	 * @var array tables we need for the query
+	 * @var array<string, array<string, mixed>> tables we need for the query
 	 * @see ObjectFinder::addContext() where it is populated
 	 * @see ObjectFinder::count() where it is used
 	 * @see ObjectFinder::fetch() where it is used
 	 */
-	protected $tables = [];
+	protected array $tables = [];
 
 	/** @var string the name of the class we want to fetch objects for */
 	protected ?string $className = null;
@@ -426,6 +426,6 @@ class ObjectFinder {
 	/** @var ?OFCombinedExpression the root of the current expression */
 	protected ?OFCombinedExpression $rootExpression = null;
 
-	/** @var array which properties to order by and in wich direction */
+	/** @var list<array<string, string>> which properties to order by and in which direction */
 	protected array $orderBys = [];
 }

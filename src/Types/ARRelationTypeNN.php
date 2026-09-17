@@ -15,6 +15,10 @@ class ARRelationTypeNN extends ARRelationType {
 		parent::__construct($PDO, $activeRecord);
 	}
 
+	/**
+	 * @param array<string, mixed> $rel
+	 * @return list<object>
+	 */
 	public function restore(array $rel) : array {
 		$objects = [];
 
@@ -77,7 +81,11 @@ class ARRelationTypeNN extends ARRelationType {
 		return $objects;
 	}
 
-	public function store($rel, array $objects) : void {
+	/**
+	 * @param array<string, mixed> $rel
+	 * @param list<object> $objects
+	 */
+	public function store(array $rel, array $objects) : void {
 		$className = $rel['class']; // The related type class name
 		$meta = \PHersist\ActiveRecord::_getMeta($className);
 		$baseTable = $meta['table']; // The base table for the related type
@@ -149,6 +157,9 @@ class ARRelationTypeNN extends ARRelationType {
 		}
 	}
 
+	/**
+	 * @param array<string, mixed> $rel
+	 */
 	public function delete(array $rel) : void {
 		if ($rel['cascade_delete']) {
 			$objects = $this->restore($rel);

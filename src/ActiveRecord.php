@@ -286,7 +286,7 @@ class ActiveRecord implements \ArrayAccess {
 	 *
 	 * @param string $class the className
 	 * @param int $id the id (should be numeric)
-	 * @param ?array $row some data from the database to set into the properties
+	 * @param ?array<string, mixed> $row some data from the database to set into the properties
 	 * @return ?object the ActiveRecord instance, or null if no $id given
 	 */
 	public static function fetchObject(string $class, ?int $id, ?array $row = null) : ?object {
@@ -350,7 +350,7 @@ class ActiveRecord implements \ArrayAccess {
 	 * Retrieves the dataset that has the requested key.
 	 *
 	 * @param $key the key we want the dataset for
-	 * @return ?array the dataset, if it exists
+	 * @return ?array<string, mixed> the dataset, if it exists
 	 */
 	private function _getDatasetFor(string $key) : ?array {
 		foreach (static::$_meta['datasets'] as $datasetkey => $dataset)
@@ -362,7 +362,7 @@ class ActiveRecord implements \ArrayAccess {
 	/**
 	 * Restores the properties from a specific dataset
 	 *
-	 * @param array $dataset the dataset to restore
+	 * @param array<string, mixed> $dataset the dataset to restore
 	 */
 	private function _restoreDataset(array $dataset) : void {
 		$table = $dataset['table'];
@@ -391,8 +391,8 @@ class ActiveRecord implements \ArrayAccess {
 	/**
 	 * Puts each value for the dataset into the local data store.
 	 *
-	 * @param array $dataset the dataset definition
-	 * @param array $row the values retrieved from the database
+	 * @param array<string, mixed> $dataset the dataset definition
+	 * @param array<string, mixed> $row the values retrieved from the database
 	 * @return void
 	 */
 	private function _assignDatasetValues(array $dataset, array $row) : void {
@@ -523,6 +523,7 @@ class ActiveRecord implements \ArrayAccess {
 		return $this->propertyTypes[$fullType];
 	}
 
+	/** @var array<string, Types\ARPropertyType> */
 	private array $propertyTypes = [];
 
 	/**
@@ -542,10 +543,10 @@ class ActiveRecord implements \ArrayAccess {
 	/**
 	 * Retrieves the metadata for a specific class.
 	 *
-	 * @param $className the name of the class
-	 * @return array the meta for that class
+	 * @param string $className the name of the class
+	 * @return array<string, mixed> the meta for that class
 	 */
-	public static function _getMeta($className) : array {
+	public static function _getMeta(string $className) : array {
 		return $className::$_meta;
 	}
 
@@ -565,14 +566,14 @@ class ActiveRecord implements \ArrayAccess {
 	function offsetSet($key, $value) : void { $this->__set($key, $value); }
 	function offsetUnset($offset) : void { $this->_error("Cannot unset property on ActiveRecord"); }
 
-	/** Basically a cache for relation types */
-	private $relationTypes = [];
+	/** @var array<string, Types\ARRelationType> */
+	private array $relationTypes = [];
 
-	/** Contains the data for this object */
-	private $_data = [];
+	/** @var array<string, mixed> */
+	private array $_data = [];
 
-	/** Contains the list of fields that have changed */
-	private $_changed = [];
+	/** @var list<string> */
+	private array $_changed = [];
 
 	/** The PDO database connection */
 	protected ?\PDO $_PDO;

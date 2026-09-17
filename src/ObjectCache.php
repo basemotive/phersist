@@ -12,7 +12,7 @@ use WeakReference;
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
 class ObjectCache {
-	/** @var array<string, WeakReference> */
+	/** @var array<string, WeakReference<ActiveRecord>> */
 	private static array $cache = [];
 
 	private static bool $enabled = false;

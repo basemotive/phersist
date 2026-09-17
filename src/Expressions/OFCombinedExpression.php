@@ -43,7 +43,7 @@ class OFCombinedExpression extends OFExpression {
 	}
 
 	/**
-	 * @return array
+	 * @return array{string, array<string, mixed>}
 	 */
 	public function evaluate() : array {
 		$parts = [];
@@ -72,7 +72,7 @@ class OFCombinedExpression extends OFExpression {
 	 *
 	 * This exists for convenience in method chaining.
 	 *
-	 * @return array
+	 * @return array<mixed>
 	 */
 	public function fetch(mixed $limit='') : array {
 		return $this->of->fetch($limit);
@@ -99,5 +99,6 @@ class OFCombinedExpression extends OFExpression {
 	private string $operator;
 	private ObjectFinder $of;
 	private ?OFCombinedExpression $parent;
-	private $items = [];
+	/** @var list<OFExpression> */
+	private array $items = [];
 }

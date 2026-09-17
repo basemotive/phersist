@@ -15,7 +15,7 @@ class ARPropertyMap {
 	/**
 	 * @param \PDO $PDO the database connection
 	 * @param ActiveRecord $activeRecord the object that contains the map
-	 * @param array $map the metadata for the map
+	 * @param array<string, mixed> $map the metadata for the map
 	 */
 	public function __construct(\PDO $PDO, ActiveRecord $activeRecord, array $map) {
 		$this->PDO = $PDO;
@@ -79,9 +79,9 @@ class ARPropertyMap {
 	}
 
 	/**
-	 * @param array|string $map
-	 * @param array $keyList
-	 * @return array
+	 * @param array<mixed>|string $map
+	 * @param list<mixed> $keyList
+	 * @return list<mixed>
 	 */
 	private function getQuerySets(array|string $map, array $keyList) : array {
 		$result = [];
@@ -203,8 +203,8 @@ class ARPropertyMap {
 	}
 
 	/**
-	 * @param array $keys
-	 * @param array|string|null $value
+	 * @param list<mixed> $keys
+	 * @param array<mixed>|string|null $value
 	 * @param bool $set_changed
 	 */
 	public function setForArray(array $keys, array|string|null $value, bool $set_changed = true) : void {
@@ -235,7 +235,7 @@ class ARPropertyMap {
 	}
 
 	/**
-	 * @param array $keys
+	 * @param list<mixed> $keys
 	 * @return mixed
 	 */
 	public function getForArray(array $keys) : mixed {
@@ -268,7 +268,8 @@ class ARPropertyMap {
 	}
 
 	/**
-	 * @param array $keys
+	 * @param list<mixed> $keys
+	 * @return array<mixed>|null
 	 */
 	public function getJSONData(array $keys) : ?array {
 		if (!$this->isRestored) $this->restore();
@@ -298,10 +299,12 @@ class ARPropertyMap {
 		return new ARPropertyMapArrayImpl($this);
 	}
 
-	protected $PDO = null;
+	protected ?\PDO $PDO = null;
 	protected ?ActiveRecord $activeRecord = null;
+	/** @var array<string, mixed>|null */
 	protected ?array $map = null;
 
+	/** @var array<mixed>|null */
 	protected ?array $data = null;
 
 	protected bool $isRestored = false;
@@ -314,7 +317,7 @@ class ARPropertyMap {
 class ARPropertyMapArrayImpl implements \ArrayAccess {
 	/**
 	 * @param ARPropertyMap $mapObject
-	 * @param array $keys
+	 * @param list<mixed> $keys
 	 */
 	public function __construct(ARPropertyMap $mapObject, array $keys = []) {
 		$this->mapObject = $mapObject;
@@ -350,13 +353,14 @@ class ARPropertyMapArrayImpl implements \ArrayAccess {
 	}
 
 	/**
-	 * @return array
+	 * @return array<mixed>
 	 */
 	public function getJSONData() : array {
 		return $this->mapObject->getJSONData($this->keys);
 	}
 
 	private ARPropertyMap $mapObject;
+	/** @var list<mixed> */
 	private array $keys;
 }
 

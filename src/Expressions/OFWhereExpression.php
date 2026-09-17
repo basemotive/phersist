@@ -18,7 +18,8 @@ use PHersist\Types\ARPropertyType;
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
 class OFWhereExpression extends OFExpression {
-	protected $allowedOperators = [ '=', 'IS', '>', '<', '>=', '<=', '!=', 'LIKE', 'NOT LIKE' ];
+	/** @var list<string> */
+	protected array $allowedOperators = [ '=', 'IS', '>', '<', '>=', '<=', '!=', 'LIKE', 'NOT LIKE' ];
 
 	/**
 	 * @internal
@@ -41,7 +42,7 @@ class OFWhereExpression extends OFExpression {
 
 	/**
 	 * @internal
-	 * @return array
+	 * @return array{string, array<string, mixed>}
 	 */
 	public function evaluate() : array {
 		$context = '';

@@ -95,7 +95,7 @@ class MySQLGenerator {
 	 * Generates the tables for a single class.
 	 *
 	 * @param DOMElement $classElement the XML element for the $class
-	 * @return array an associative array [ 'table_name' => [ PROPS ] ]
+	 * @return array<string, list<array<string, mixed>>> an associative array [ 'table_name' => [ PROPS ] ]
 	 */
 	private function generateClass(DOMElement $classElement) : array {
 		$className = $classElement->getAttribute('name');

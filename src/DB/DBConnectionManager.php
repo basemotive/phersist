@@ -86,6 +86,6 @@ class DBConnectionManager {
 		return self::$connectionsPDO[$id] ?? null;
 	}
 
-	/** @var array the registered database connections */
+	/** @var array<string, PDO> the registered database connections */
 	private static array $connectionsPDO = [];
 }

@@ -25,26 +25,26 @@ abstract class ARRelationType {
 
 	/**
 	 * Restores this relation
-	 * @param array $rel the relation definition from the metadata
-	 * @return array the objects
+	 * @param array<string, mixed> $rel the relation definition from the metadata
+	 * @return list<object> the objects
 	 */
 	public abstract function restore(array $rel) : array;
 
 	/**
 	 * Stores this relation
 	 *
-	 * @param array $rel the relation definition from the metadata
-	 * @param array $objects the objects to store
+	 * @param array<string, mixed> $rel the relation definition from the metadata
+	 * @param list<object> $objects the objects to store
 	 */
-	public abstract function store($rel, array $objects) : void;
+	public abstract function store(array $rel, array $objects) : void;
 
 	/**
 	 * Deletes this relation
 	 *
-	 * @param array $rel the relation definition from the metadata
+	 * @param array<string, mixed> $rel the relation definition from the metadata
 	 */
 	public abstract function delete(array $rel) : void;
 
 	protected ?ActiveRecord $activeRecord = null;
-	protected $PDO = null;
+	protected ?\PDO $PDO = null;
 }

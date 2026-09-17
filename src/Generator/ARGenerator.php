@@ -28,7 +28,7 @@ class ARGenerator {
 	/**
 	 * Generates the code for all the classes in the XML.
 	 *
-	 * @return array the code in the format [ $className => $classCode, ... ]
+	 * @return array<string, string> the code in the format [ $className => $classCode, ... ]
 	 */
 	public function generate() : array {
 		$result = [];
@@ -38,6 +38,20 @@ class ARGenerator {
 			$result[$classElement->getAttribute('name')] = $this->generateClass($classElement);
 
 		return $result;
+	}
+
+	/**
+	 * Generates the code for a single named class from the XML.
+	 *
+	 * @param string $className the simple (unqualified) class name to generate
+	 * @return string the generated PHP code, or an empty string if not found
+	 */
+	public function generateForClass(string $className) : string {
+		$classElements = $this->root->getElementsByTagName('class');
+		foreach ($classElements as $classElement)
+			if ($classElement->getAttribute('name') === $className)
+				return $this->generateClass($classElement);
+		return '';
 	}
 
 	private function generateClass(DOMElement $classElement) : string {
@@ -167,8 +181,8 @@ class ARGenerator {
 	 * and it's used to dynamically write database queries.
 	 *
 	 * @param DOMElement $classElement the class element in the XML tree
-	 * @return array the metadata
- 	 */
+	 * @return array<string, mixed> the metadata
+	 */
 	private function generateMeta(DOMElement $classElement) : array {
 		$className = $classElement->getAttribute('name');
 		$id = $classElement->hasAttribute('id') ?
@@ -345,7 +359,7 @@ class ARGenerator {
 	 * Exports a (nested) array as clean PHP syntax using square bracket notation
 	 * with proper indentation, as an alternative to var_export().
 	 *
-	 * @param array $array the array to export
+	 * @param array<mixed> $array the array to export
 	 * @param int $depth the current indentation depth (1 = inside class body)
 	 * @return string the exported array as a PHP code string
 	 */

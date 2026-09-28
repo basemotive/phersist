@@ -188,11 +188,11 @@ Properties define class fields and column mapping.
 | Attribute | Required | Default | Description |
 |---|---|---|---|
 | `name` | yes | — | Property name used in PHP (`$object->name`). |
-| `type` | no | `Text` | Property type (`Text`, `Int`, `Bool`, `Class`, `DynamicClass`, `TimestampText`). |
+| `type` | no | `Text` | Property type (`Text`, `Int`, `Float`, `Bool`, `Class`, `DynamicClass`, `TimestampText`). |
 | `required` | no | `false` | If `true`, must not be null. |
 | `fieldname` | no | auto | Custom single-column field name. |
 | `fieldnames` | no | auto | Custom comma-separated multi-column names (used by multi-field types). |
-| `default` | no | — | Default value. Applies to `Text`, `Int`, and `Bool` properties. For `required` fields that have no explicit `default`, PHersist uses an implicit default automatically: `''` for `Text`, `0` for `Int`, and `false` for `Bool`. See [Default values](#default-values). |
+| `default` | no | — | Default value. Applies to `Text`, `Int`, `Float`, and `Bool` properties. For `required` fields that have no explicit `default`, PHersist uses an implicit default automatically: `''` for `Text`, `0` for `Int`, `0.0` for `Float`, and `false` for `Bool`. See [Default values](#default-values). |
 
 > `fieldnames` is optional for `DynamicClass`.  
 > If omitted, PHersist generates two field names automatically in the form `propname_class,propname_id` (translated with the configured table style).
@@ -250,6 +250,20 @@ Extra attribute:
 Default value behaviour:
 - If `default` is set, the integer equivalent of that value is used as the default.
 - If the field is `required` and no `default` is given, an implicit default of `0` is added.
+
+### `Float`
+Floating point field. Maps to a `DOUBLE` column, which has the same (double) precision as a PHP `float`. Values read from the database are returned as `float`.
+
+```xml
+<property name="weight" type="Float"/>
+<property name="rating" type="Float" required="true" default="2.5"/>
+```
+
+Default value behaviour:
+- If `default` is set, the float equivalent of that value is used as the default.
+- If the field is `required` and no `default` is given, an implicit default of `0.0` is added.
+
+> Floating point values are inexact. Don't use `Float` for money or other values that need exact decimal arithmetic; store those as an `Int` in the smallest unit (e.g. cents) instead.
 
 ### `Bool`
 Boolean field. Maps to an `INT(1) UNSIGNED` column, storing `1` for true and `0` for false.

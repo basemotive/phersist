@@ -90,6 +90,8 @@ class MySQLGenerator {
 						$result .= " DEFAULT ('".str_replace(['\\', "'"], ['\\\\', "''"], $field['defaultValue'])."')";
 					elseif (is_int($field['defaultValue']))
 						$result .= " DEFAULT {$field['defaultValue']}";
+					elseif (is_float($field['defaultValue']))
+						$result .= ' DEFAULT '.var_export($field['defaultValue'], true);
 					elseif (is_bool($field['defaultValue']))
 						$result .= ' DEFAULT '.($field['defaultValue'] ? 1 : 0);
 				}
@@ -206,6 +208,19 @@ class MySQLGenerator {
 						$fieldSpec['defaultValue'] = intval($property->getAttribute('default'));
 					elseif ($fieldSpec['required'])
 						$fieldSpec['defaultValue'] = 0;
+					$result[$datasetTable][] = $fieldSpec;
+				} elseif ($propType == 'Float') {
+					// DOUBLE matches the precision of PHP floats
+					$fieldSpec = [
+						'fieldName' => $fieldNames[0],
+						'fieldType' => 'DOUBLE',
+						'required' => $required,
+						'primaryKey' => false,
+					];
+					if ($property->hasAttribute('default'))
+						$fieldSpec['defaultValue'] = floatval($property->getAttribute('default'));
+					elseif ($fieldSpec['required'])
+						$fieldSpec['defaultValue'] = 0.0;
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Bool') {
 					$fieldSpec = [

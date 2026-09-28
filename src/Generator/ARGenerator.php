@@ -123,6 +123,8 @@ class ARGenerator {
 						$phpType = 'int';
 					} elseif ($prop_type == 'Bool') {
 						$phpType = 'bool';
+					} elseif ($prop_type == 'Float') {
+						$phpType = 'float';
 					}
 
 					$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
@@ -344,14 +346,14 @@ class ARGenerator {
 	 *
 	 * Uses the 'default' attribute if present, and otherwise an implicit
 	 * default for required properties, just like the MySQL schema does.
-	 * Only Text, Int and Bool properties support default values.
+	 * Only Text, Int, Float and Bool properties support default values.
 	 *
 	 * @param DOMElement $property the property element in the XML tree
 	 * @param string $type the property type
 	 * @param bool $required if the property is required
-	 * @return string|int|bool|null the default value, or null if there is none
+	 * @return string|int|float|bool|null the default value, or null if there is none
 	 */
-	private function getDefault(DOMElement $property, string $type, bool $required) : string|int|bool|null {
+	private function getDefault(DOMElement $property, string $type, bool $required) : string|int|float|bool|null {
 		$hasDefault = $property->hasAttribute('default');
 		$default = $property->getAttribute('default');
 
@@ -361,6 +363,9 @@ class ARGenerator {
 		} elseif ($type == 'Int') {
 			if ($hasDefault) return intval($default);
 			if ($required) return 0;
+		} elseif ($type == 'Float') {
+			if ($hasDefault) return floatval($default);
+			if ($required) return 0.0;
 		} elseif ($type == 'Bool') {
 			if ($hasDefault) return $default == 'true';
 			if ($required) return false;

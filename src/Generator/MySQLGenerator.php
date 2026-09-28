@@ -18,6 +18,35 @@ class MySQLGenerator {
 		$this->doc->loadXML($xml);
 
 		$this->root = $this->doc->documentElement;
+
+		$this->readSettings();
+	}
+
+	/**
+	 * Reads the MySQL-specific settings from the optional <mysql> element
+	 * directly under the <project> root.
+	 */
+	private function readSettings() : void {
+		$mysqlElement = null;
+		foreach ($this->root->childNodes as $child) {
+			if ($child instanceof DOMElement && $child->tagName == 'mysql') {
+				$mysqlElement = $child;
+				break;
+			}
+		}
+
+		if ($mysqlElement && $mysqlElement->hasAttribute('charset')) {
+			$this->charset = $mysqlElement->getAttribute('charset');
+			// without an explicit collation, let MySQL use the charset's default
+			$this->collate = null;
+		}
+		if ($mysqlElement && $mysqlElement->hasAttribute('collate'))
+			$this->collate = $mysqlElement->getAttribute('collate');
+
+		if (!preg_match('/^[A-Za-z0-9_]+$/', $this->charset))
+			die("ERROR: Invalid MySQL charset '{$this->charset}'\n");
+		if ($this->collate !== null && !preg_match('/^[A-Za-z0-9_]+$/', $this->collate))
+			die("ERROR: Invalid MySQL collation '{$this->collate}'\n");
 	}
 
 	/**
@@ -83,8 +112,10 @@ class MySQLGenerator {
 				$result = rtrim($result, ",\n")."\n";
 
 			$result .= ") ENGINE=InnoDB\n";
-			$result .= "  DEFAULT CHARSET=utf8mb4\n";
-			$result .= "  COLLATE=utf8mb4_unicode_ci;\n";
+			$result .= "  DEFAULT CHARSET={$this->charset}";
+			if ($this->collate !== null)
+				$result .= "\n  COLLATE={$this->collate}";
+			$result .= ";\n";
 			$result .= "\n";
 		}
 
@@ -358,4 +389,6 @@ class MySQLGenerator {
 
 	private DOMDocument $doc;
 	private DOMElement $root;
+	private string $charset = 'utf8mb4';
+	private ?string $collate = 'utf8mb4_unicode_ci';
 }

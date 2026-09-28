@@ -68,6 +68,30 @@ You can always override per class with `<class id="...">`.
 
 ---
 
+## Database-specific settings
+
+Settings that only apply to one database type live in their own element directly under `<project>`, named after the database type. Settings that apply to all database types (such as `tablestyle`) stay on `<project>` itself.
+
+### MySQL: `<mysql>`
+
+```xml
+<project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model">
+    <mysql charset="utf8mb4" collate="utf8mb4_0900_ai_ci"/>
+    <!-- classes -->
+</project>
+```
+
+These settings only affect the schema generated with `--mysql`; the generated PHP classes are unaffected.
+
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `charset` | no | `utf8mb4` | Table character set (`DEFAULT CHARSET=...`). |
+| `collate` | no | `utf8mb4_unicode_ci` if `charset` is not set, otherwise none | Table collation (`COLLATE=...`). When `charset` is set without `collate`, no `COLLATE` clause is emitted and MySQL uses the charset's default collation. |
+
+The `<mysql>` element itself is optional; without it the defaults above are used. Values may only contain letters, digits and underscores.
+
+---
+
 ## Defining classes: `<class>`
 
 Each `<class>` generates one PHP class extending `\PHersist\ActiveRecord`.

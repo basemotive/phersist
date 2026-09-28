@@ -13,6 +13,14 @@
 	-->
 
 	<!--
+		Database-specific settings go in an element named after the database type.
+		For MySQL, these only affect the generated schema:
+		- charset: the table character set (default: utf8mb4)
+		- collate: the table collation (default: utf8mb4_unicode_ci when charset is not set; otherwise the charset's default collation)
+	-->
+	<mysql charset="utf8mb4" collate="utf8mb4_unicode_ci" />
+
+	<!--
 		Note that not all property types used in this example may have been implemented yet.
 	-->
 

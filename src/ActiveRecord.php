@@ -68,7 +68,7 @@ class ActiveRecord implements \ArrayAccess {
 	 *   serialize
 	 */
 	public function __sleep() : array {
-		return ["\0PHersist\\ActiveRecord\0_data", "\0PHersist\\ActiveRecord\0_changed"];
+		return ["\0PHersist\\ActiveRecord\0_data", "\0PHersist\\ActiveRecord\0_changed", "\0PHersist\\ActiveRecord\0_deleted"];
 	}
 
 	/**
@@ -103,6 +103,10 @@ class ActiveRecord implements \ArrayAccess {
 	 * Commits the changes to this object in the database
 	 */
 	public function commit() : void {
+		// A deleted object's lifecycle has ended, so it must not be stored again
+		if ($this->_deleted)
+			$this->_error('Cannot commit a deleted object');
+
 		// Don't bother if nothing has changed, unless this is a new object
 		if (count($this->_changed)==0 && $this->id!=null)
 			return;
@@ -210,6 +214,9 @@ class ActiveRecord implements \ArrayAccess {
 				$map->commit();
 			}
 		}
+
+		// Everything is stored now, so nothing has changed anymore
+		$this->_changed = [];
 	}
 
 	/**
@@ -243,6 +250,16 @@ class ActiveRecord implements \ArrayAccess {
 		$stmt->closeCursor();
 
 		return $exists;
+	}
+
+	/**
+	 * Checks if this object has been deleted with delete(), after which it
+	 * cannot be modified or committed anymore.
+	 *
+	 * @return bool if this object has been deleted
+	 */
+	public function isDeleted() : bool {
+		return $this->_deleted;
 	}
 
 	/**
@@ -286,6 +303,7 @@ class ActiveRecord implements \ArrayAccess {
 		ObjectCache::evict($this);
 
 		$this->_data[static::$_meta['id']] = null;
+		$this->_deleted = true;
 	}
 
 	/**
@@ -440,6 +458,10 @@ class ActiveRecord implements \ArrayAccess {
 	public function __set(string $key, mixed $value) : void {
 		// TODO Check for read-only relations (derived relations)
 
+		// A deleted object's lifecycle has ended, so it must not be modified anymore
+		if ($this->_deleted)
+			$this->_error("Cannot set property $key on a deleted object");
+
 		if (isset(static::$_meta['maps'][$key])) {
 			$this->_error("Property $key is a map and cannot be set");
 		}
@@ -450,7 +472,7 @@ class ActiveRecord implements \ArrayAccess {
 
 			// Only update if the new value is not exactly the same as the old one
 			// (TODO maybe check for objects with the same ID as well)
-			if (!(isset($this->_data[$key]) && $this->_data[$key] === $value)) {
+			if (!(array_key_exists($key, $this->_data) && $this->_data[$key] === $value)) {
 				// Set the new value
 				$this->_data[$key] = $value;
 
@@ -475,6 +497,9 @@ class ActiveRecord implements \ArrayAccess {
 	 */
 	public function setChanged(string $key, bool $changed = true) : void {
 		if ($changed) {
+			if ($this->_deleted)
+				$this->_error("Cannot change property $key on a deleted object");
+
 			// Register the value as changed for the next commit
 			if (!in_array($key, $this->_changed))
 				$this->_changed[] = $key;
@@ -589,6 +614,9 @@ class ActiveRecord implements \ArrayAccess {
 
 	/** @var list<string> */
 	private array $_changed = [];
+
+	/** If this object has been deleted, after which it cannot be modified or committed again */
+	private bool $_deleted = false;
 
 	/** The PDO database connection */
 	protected ?\PDO $_PDO;

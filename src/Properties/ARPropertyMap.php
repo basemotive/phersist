@@ -76,6 +76,9 @@ class ARPropertyMap {
 				$stmt->bindValue(":$value", $querySet[$index++], \PDO::PARAM_STR);
 			$stmt->execute();
 		}
+
+		// The map is stored, so further changes must register with the ActiveRecord again
+		$this->isChanged = false;
 	}
 
 	/**
@@ -208,6 +211,11 @@ class ARPropertyMap {
 	 * @param bool $set_changed
 	 */
 	public function setForArray(array $keys, array|string|null $value, bool $set_changed = true) : void {
+		// Check this before touching the data, because the ActiveRecord is only
+		// notified on the first change
+		if ($set_changed && $this->activeRecord->isDeleted())
+			$this->activeRecord->_error("Cannot change property {$this->map['activeRecordKey']} on a deleted object");
+
 		if (!$this->isRestored) $this->restore();
 
 		if (count($keys) != count($this->map['keys']))

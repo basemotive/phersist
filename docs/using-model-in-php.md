@@ -66,6 +66,10 @@ $user->name = 'Joseph Example';
 $user->commit();
 ```
 
+`commit()` only writes the properties that changed since the object was loaded or last committed. If nothing changed, it does nothing at all, so it's safe to call unconditionally. (A new object is always inserted on its first `commit()`, even if nothing was set.)
+
+Assigning a property the value it already has (compared with `===`) doesn't count as a change. The exception is a property whose dataset hasn't been loaded yet: its current value isn't known, so the assignment is always treated as a change.
+
 ### Delete
 
 ```php
@@ -75,6 +79,8 @@ $user->delete();
 ```
 
 If the class uses `softdelete="true"`, this sets `deleted = 1` instead of removing the row.
+
+After `delete()`, the object's lifecycle has ended: its `id` becomes `null`, and setting a property (including map entries) or calling `commit()` on it throws an exception, instead of inserting it again as a new row. Properties that were already loaded can still be read; properties that weren't read as `null`. To store the same data again, create a new object. Use `$user->isDeleted()` to check whether an object has been deleted.
 
 ### Check existence
 

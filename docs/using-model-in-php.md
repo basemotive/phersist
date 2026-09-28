@@ -54,6 +54,8 @@ $user->commit();
 
 After `commit()`, the object receives its primary key (`$user->id`).
 
+A new object starts out with the [default values](creating-model-from-xml.md#default-values) from the model (for example `0` for a required `Int`), and those are stored on the first `commit()`. Properties without a default are `null` until you assign them.
+
 ### Load and update
 
 ```php

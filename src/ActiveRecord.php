@@ -35,6 +35,23 @@ class ActiveRecord implements \ArrayAccess {
 
 		if ($id != null)
 			ObjectCache::put($this);
+		else
+			$this->_applyDefaults();
+	}
+
+	/**
+	 * Sets the default values from the metadata on a new object.
+	 *
+	 * The defaults are marked as changed, so they are written to the database
+	 * explicitly on the first commit, regardless of the column defaults.
+	 */
+	private function _applyDefaults() : void {
+		foreach (static::$_meta['datasets'] as $dataset)
+			foreach ($dataset['props'] as $key => $prop)
+				if (array_key_exists('default', $prop)) {
+					$this->_data[$key] = $prop['default'];
+					$this->_changed[] = $key;
+				}
 	}
 
 	/**
@@ -317,11 +334,9 @@ class ActiveRecord implements \ArrayAccess {
 		$dataset = $this->_getDatasetFor($key);
 		if ($dataset != null) {
 			if ($this->id == null) { // Don't try to restore anything for new objects
-				// TODO It may be a good idea to have default values defined in the XML, for when they
-				//      should not be empty strings
-				// TODO Also check the field type and decide what default value to set
-				// TODO Maybe also set default values for new objects
-				$this->_data[$key] = '';
+				// Properties with a default already got it on construction, so this
+				// property has no value yet
+				$this->_data[$key] = null;
 			} else
 				$this->_restoreDataset($dataset);
 			return;

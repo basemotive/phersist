@@ -188,14 +188,33 @@ Properties define class fields and column mapping.
 | Attribute | Required | Default | Description |
 |---|---|---|---|
 | `name` | yes | — | Property name used in PHP (`$object->name`). |
-| `type` | no | `Text` | Property type (`Text`, `Int`, `Class`, `DynamicClass`, `TimestampText`). |
+| `type` | no | `Text` | Property type (`Text`, `Int`, `Bool`, `Class`, `DynamicClass`, `TimestampText`). |
 | `required` | no | `false` | If `true`, must not be null. |
 | `fieldname` | no | auto | Custom single-column field name. |
 | `fieldnames` | no | auto | Custom comma-separated multi-column names (used by multi-field types). |
-| `default` | no | — | Default column value. Applies to `Text`, `Int`, and `Bool` properties. For `required` fields that have no explicit `default`, PHersist inserts an implicit default automatically: `''` for `Text`, `0` for `Int`, and `0` (false) for `Bool`. |
+| `default` | no | — | Default value. Applies to `Text`, `Int`, and `Bool` properties. For `required` fields that have no explicit `default`, PHersist uses an implicit default automatically: `''` for `Text`, `0` for `Int`, and `false` for `Bool`. See [Default values](#default-values). |
 
 > `fieldnames` is optional for `DynamicClass`.  
 > If omitted, PHersist generates two field names automatically in the form `propname_class,propname_id` (translated with the configured table style).
+
+### Default values
+
+```xml
+<property name="title" required="true" default=""/>
+<property name="isPublished" type="Bool" required="true" default="true"/>
+<property name="views" type="Int" required="true" default="0"/>
+```
+
+A default value (explicit or implicit) is used in two places:
+
+- **Database schema:** it becomes the column default (`DEFAULT ...`) in the generated MySQL schema.
+- **New objects:** it is set on every newly instantiated object (`new Article()`), so `$article->views` is `0` right away instead of being unset. These values are written on the first `commit()` along with any other changes, so the stored row always matches what the application saw, even for existing tables without column defaults.
+
+Objects loaded from the database are unaffected; they always get the stored values.
+
+On a new object, a property without a default (explicit or implicit) reads as `null` until it is assigned.
+
+> Default values are stored in the generated classes' metadata, so regenerate your classes after adding or changing a `default`.
 
 ---
 
@@ -210,7 +229,7 @@ Default string-like field. Maps to a `TEXT` column.
 ```
 
 Default value behaviour:
-- If `default` is set, that string value is used as the column default.
+- If `default` is set, that string value is used as the default.
 - If the field is `required` and no `default` is given, an implicit default of `''` (empty string) is added.
 
 ### `Int`
@@ -229,7 +248,7 @@ Extra attribute:
 | `signed` | no | `true` | Set to `false` to emit `INT UNSIGNED`. |
 
 Default value behaviour:
-- If `default` is set, the integer equivalent of that value is used as the column default.
+- If `default` is set, the integer equivalent of that value is used as the default.
 - If the field is `required` and no `default` is given, an implicit default of `0` is added.
 
 ### `Bool`
@@ -241,8 +260,8 @@ Boolean field. Maps to an `INT(1) UNSIGNED` column, storing `1` for true and `0`
 ```
 
 Default value behaviour:
-- If `default` is set, use `"true"` to default to `1` or any other value to default to `0`.
-- If the field is `required` and no `default` is given, an implicit default of `0` (false) is added.
+- If `default` is set, use `"true"` to default to `true` (`1`) or any other value to default to `false` (`0`).
+- If the field is `required` and no `default` is given, an implicit default of `false` (`0`) is added.
 
 ### `Class`
 Reference to another class in the model.

@@ -125,10 +125,15 @@ class ARGenerator {
 						$phpType = 'bool';
 					}
 
-					if (!$property->hasAttribute('required') || $property->getAttribute('required') != 'true')
+					$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
+					if (!$required)
 						$phpType = "?{$phpType}";
 
 					$result .= " * @property {$phpType} \${$prop_name}";
+
+					$default = $this->getDefault($property, $prop_type, $required);
+					if ($default !== null)
+						$result .= ' default '.var_export($default, true);
 
 					if ($prop_type == 'TimestampText') {
 						$result .= ' timestamp';
@@ -262,6 +267,11 @@ class ARGenerator {
 				// If this property is required
 				$metaprop['required'] = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
 
+				// The default value for new objects; mirrors the column default in the schema
+				$default = $this->getDefault($property, $prop_type, $metaprop['required']);
+				if ($default !== null)
+					$metaprop['default'] = $default;
+
 				$metads['props'][$prop_name] = $metaprop;
 			}
 
@@ -327,6 +337,36 @@ class ARGenerator {
 		}
 
 		return $meta;
+	}
+
+	/**
+	 * Determines the default value for a property.
+	 *
+	 * Uses the 'default' attribute if present, and otherwise an implicit
+	 * default for required properties, just like the MySQL schema does.
+	 * Only Text, Int and Bool properties support default values.
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @param string $type the property type
+	 * @param bool $required if the property is required
+	 * @return string|int|bool|null the default value, or null if there is none
+	 */
+	private function getDefault(DOMElement $property, string $type, bool $required) : string|int|bool|null {
+		$hasDefault = $property->hasAttribute('default');
+		$default = $property->getAttribute('default');
+
+		if ($type == 'Text') {
+			if ($hasDefault) return $default;
+			if ($required) return '';
+		} elseif ($type == 'Int') {
+			if ($hasDefault) return intval($default);
+			if ($required) return 0;
+		} elseif ($type == 'Bool') {
+			if ($hasDefault) return $default == 'true';
+			if ($required) return false;
+		}
+
+		return null;
 	}
 
 	/**

@@ -344,13 +344,14 @@ class ActiveRecord implements \ArrayAccess {
 	 * makes this action much faster but somewhat unreliable. If the existence of
 	 * the object is not ensured, the exists() method may be used to make sure.
 	 *
-	 * Return type should be ActiveRecord, but is instead object, so PHPStan
-	 * does not find fault when we access named properties on such an object.
+	 * The return type is templated on $class, so static analysis knows the
+	 * concrete class (and its @property declarations) of the returned object.
 	 *
-	 * @param string $class the className
+	 * @template T of ActiveRecord
+	 * @param class-string<T> $class the className
 	 * @param ?int $id the id
 	 * @param ?array<string, mixed> $row some data from the database to set into the properties
-	 * @return ?object the ActiveRecord instance, or null if no $id given
+	 * @return ?T the ActiveRecord instance, or null if no $id given
 	 */
 	public static function fetchObject(string $class, ?int $id, ?array $row = null) : ?object {
 		if ($id === null)

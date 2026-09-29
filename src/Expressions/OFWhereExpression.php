@@ -22,6 +22,7 @@ class OFWhereExpression extends OFExpression {
 	protected array $allowedOperators = [ '=', 'IS', '>', '<', '>=', '<=', '!=', 'LIKE', 'NOT LIKE' ];
 
 	/**
+	 * @param ObjectFinder<*> $of
 	 * @internal
 	 */
 	public function __construct(string $property, string $operator, mixed $value, ObjectFinder $of) {
@@ -119,5 +120,6 @@ class OFWhereExpression extends OFExpression {
 	private string $property;
 	private string $operator;
 	private mixed $value;
+	/** @var ObjectFinder<*> */
 	private ObjectFinder $of;
 }

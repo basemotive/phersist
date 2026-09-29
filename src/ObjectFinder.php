@@ -8,6 +8,8 @@ use PHersist\Expressions\OFCombinedExpression;
  * A tool for finding and retrieving sets of ActiveRecord objects from the
  * database.
  *
+ * @template T of ActiveRecord
+ *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
  * // SPDX-License-Identifier: LGPL-2.1-or-later
@@ -28,7 +30,7 @@ class ObjectFinder {
 	 * @see ObjectFinder::create() for a more convenient way to create
 	 *   ObjectFinder instances if you want to use method chaining
 	 *
-	 * @param string $className the name of the class to find
+	 * @param class-string<T> $className the name of the class to find
 	 * @param bool $full if you want to retrieve the full records
 	 */
 	public function __construct(string $className, bool $full = false) {
@@ -48,9 +50,10 @@ class ObjectFinder {
 	 *
 	 * Recommended over the constructor if you want to use method chaining.
 	 *
-	 * @param string $className the name of the class to find
+	 * @template U of ActiveRecord
+	 * @param class-string<U> $className the name of the class to find
 	 * @param bool $full if you want to retrieve the full records
-	 * @return ObjectFinder a new ObjectFinder instance
+	 * @return ObjectFinder<U> a new ObjectFinder instance
 	 */
 	public static function create(string $className, bool $full = false) : ObjectFinder {
 		return new ObjectFinder($className, $full);
@@ -60,7 +63,7 @@ class ObjectFinder {
 	 * Set if deleted records should also be restored.
 	 *
 	 * @param bool $includeDeletedRecords if deleted records should also be restored
-	 * @return ObjectFinder this instance, so methods may be chained
+	 * @return ObjectFinder<T> this instance, so methods may be chained
 	 */
 	public function includeDeletedRecords(bool $includeDeletedRecords) : ObjectFinder {
 		$this->includeDeletedRecords = $includeDeletedRecords;
@@ -71,14 +74,23 @@ class ObjectFinder {
 	// Building a query
 	// ---------------------------------------------------------------------------
 
+	/**
+	 * @return OFCombinedExpression<T>
+	 */
 	public function where(string $property, string $operator, mixed $value) : OFCombinedExpression {
 		return $this->rootExpression->where($property, $operator, $value);
 	}
 
+	/**
+	 * @return OFCombinedExpression<T>
+	 */
 	public function addAnd() : OFCombinedExpression {
 		return $this->rootExpression->addAnd();
 	}
 
+	/**
+	 * @return OFCombinedExpression<T>
+	 */
 	public function addOr() : OFCombinedExpression {
 		return $this->rootExpression->addOr();
 	}
@@ -95,7 +107,7 @@ class ObjectFinder {
 	 * @param string $propname the name of the property to order by
 	 * @param string $direction the direction to order in, either
 	 *   ObjectFinder::DIRECTION_ASC or ObjectFinder::DIRECTION_DESC
-	 * @return ObjectFinder this instance, so methods may be chained
+	 * @return ObjectFinder<T> this instance, so methods may be chained
 	 */
 	public function orderBy(string $propname, string $direction = ObjectFinder::DIRECTION_ASC) : ObjectFinder {
 		if (!$this->hasProperty($propname))
@@ -150,7 +162,7 @@ class ObjectFinder {
 	}
 
 	/**
-	 * @return array<mixed>
+	 * @return list<T>
 	 */
 	public function fetch(mixed $limit='') : array {
 		list($where, $queryValues) = $this->rootExpression->evaluate();
@@ -256,8 +268,7 @@ class ObjectFinder {
 	/**
 	 * Fetch just one item.
 	 *
-	 * The return type is ?object instead of ?ActiveRecord because that prevents
-	 * PHPStan from finding fault when accessing named properties on the result.
+	 * @return ?T the first matching object, or null if there is none
 	 */
 	public function fetchOne() : ?object {
 		$objects = $this->fetch(1);
@@ -397,6 +408,7 @@ class ObjectFinder {
 	}
 
 	/**
+	 * @return class-string<T>
 	 * @internal
 	 */
 	public function getClassName() : string {
@@ -414,8 +426,8 @@ class ObjectFinder {
 	 */
 	protected array $tables = [];
 
-	/** @var string the name of the class we want to fetch objects for */
-	protected ?string $className = null;
+	/** @var class-string<T> the name of the class we want to fetch objects for */
+	protected string $className;
 
 	/** @var bool if we want the full set of properties to be retrieved */
 	protected bool $full = false;
@@ -423,7 +435,7 @@ class ObjectFinder {
 	/** @var ?\PDO the database connection */
 	protected ?\PDO $PDO = null;
 
-	/** @var ?OFCombinedExpression the root of the current expression */
+	/** @var ?OFCombinedExpression<T> the root of the current expression */
 	protected ?OFCombinedExpression $rootExpression = null;
 
 	/** @var list<array<string, string>> which properties to order by and in which direction */

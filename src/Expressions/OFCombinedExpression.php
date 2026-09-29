@@ -2,6 +2,7 @@
 
 namespace PHersist\Expressions;
 
+use PHersist\ActiveRecord;
 use PHersist\ObjectFinder;
 
 /**
@@ -14,30 +15,48 @@ use PHersist\ObjectFinder;
  * These OFExpression classes are created by the ObjectFinder and provide an
  * intuitive way to build queries to select sets of objects.
  *
+ * @template T of ActiveRecord
+ *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
 class OFCombinedExpression extends OFExpression {
+	/**
+	 * @param ObjectFinder<T> $of
+	 * @param ?OFCombinedExpression<T> $parent
+	 */
 	public function __construct(string $operator, ObjectFinder $of, ?OFCombinedExpression $parent = null) {
 		$this->operator = $operator;
 		$this->of = $of;
 		$this->parent = $parent;
 	}
 
+	/**
+	 * @return OFCombinedExpression<T>
+	 */
 	public function addAnd() : OFCombinedExpression {
 		return $this->items[] = new OFCombinedExpression('and', $this->of);
 	}
 
+	/**
+	 * @return OFCombinedExpression<T>
+	 */
 	public function addOr() : OFCombinedExpression {
 		return $this->items[] = new OFCombinedExpression('or', $this->of);
 	}
 
+	/**
+	 * @return OFCombinedExpression<T>
+	 */
 	public function where(string $property, string $operator, mixed $value) : OFCombinedExpression {
 		$this->items[] = new OFWhereExpression($property, $operator, $value, $this->of);
 		return $this;
 	}
 
+	/**
+	 * @return OFCombinedExpression<T>
+	 */
 	public function end() : OFCombinedExpression {
 		return $this->parent ?? $this;
 	}
@@ -62,6 +81,8 @@ class OFCombinedExpression extends OFExpression {
 	 * Calls the ObjectFinder's orderBy function.
 	 *
 	 * This exists for convenience in method chaining.
+	 *
+	 * @return ObjectFinder<T>
 	 */
 	public function orderBy(string $propname, string $direction = ObjectFinder::DIRECTION_ASC) : ObjectFinder {
 		return $this->of->orderBy($propname, $direction);
@@ -72,7 +93,7 @@ class OFCombinedExpression extends OFExpression {
 	 *
 	 * This exists for convenience in method chaining.
 	 *
-	 * @return array<mixed>
+	 * @return list<T>
 	 */
 	public function fetch(mixed $limit='') : array {
 		return $this->of->fetch($limit);
@@ -82,6 +103,8 @@ class OFCombinedExpression extends OFExpression {
 	 * Calls the ObjectFinder's fetchOne function.
 	 *
 	 * This exists for convenience in method chaining.
+	 *
+	 * @return ?T
 	 */
 	public function fetchOne() : ?object {
 		return $this->of->fetchOne();
@@ -97,7 +120,9 @@ class OFCombinedExpression extends OFExpression {
 	}
 
 	private string $operator;
+	/** @var ObjectFinder<T> */
 	private ObjectFinder $of;
+	/** @var ?OFCombinedExpression<T> */
 	private ?OFCombinedExpression $parent;
 	/** @var list<OFExpression> */
 	private array $items = [];

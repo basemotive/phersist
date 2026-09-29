@@ -19,6 +19,7 @@ class ARPropertyTypeClass extends ARPropertyType {
 	}
 
 	public function fromDB(array $prop, array $values) : mixed {
+		/** @var class-string<ActiveRecord> $class_name */
 		$class_name = $prop['class'];
 		$id = $values[$prop['fieldnames'][0]];
 		return $id==null ? null : \PHersist\ActiveRecord::fetchObject($class_name, (int)$id);

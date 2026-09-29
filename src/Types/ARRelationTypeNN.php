@@ -22,8 +22,9 @@ class ARRelationTypeNN extends ARRelationType {
 	public function restore(array $rel) : array {
 		$objects = [];
 
+		/** @var class-string<ActiveRecord> $className */
 		$className = $rel['class']; // The related type class name
-		$meta = \PHersist\ActiveRecord::_getMeta($className);
+		$meta = ActiveRecord::_getMeta($className);
 		$baseTable = $meta['table']; // The base table for the related type
 		$idField = $meta['id']; // The id field for the related type
 
@@ -70,7 +71,7 @@ class ARRelationTypeNN extends ARRelationType {
 			// We use the fetchObject method instead of the constructor so the
 			// ActiveRecord can handle the caching. If we're restoring the complete
 			// objects, the row holds the autoload dataset for it to assign.
-			$objects[] = \PHersist\ActiveRecord::fetchObject(
+			$objects[] = ActiveRecord::fetchObject(
 				$className,
 				(int)$row[$idField],
 				$rel['load_objects'] ? $row : null
@@ -87,7 +88,7 @@ class ARRelationTypeNN extends ARRelationType {
 	 */
 	public function store(array $rel, array $objects) : void {
 		$className = $rel['class']; // The related type class name
-		$meta = \PHersist\ActiveRecord::_getMeta($className);
+		$meta = ActiveRecord::_getMeta($className);
 		$baseTable = $meta['table']; // The base table for the related type
 
 		if (!$rel['table_owner'])

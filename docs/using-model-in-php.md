@@ -202,6 +202,40 @@ $messages = ObjectFinder::create(ForumMessage::class)
     ->fetch();
 ```
 
+### Result types and static analysis
+
+`ObjectFinder` is annotated with generics for static analysers such as PHPStan and Psalm. The class you pass to `create()` determines the result types, so `ObjectFinder::create(User::class)->fetch()` is known to return a `list<User>` and `fetchOne()` a `?User`, including the `@property` declarations of the generated class. The same applies to `ActiveRecord::fetchObject($class, $id)`.
+
+For this to work, the class name must be a `class-string`. `User::class` always is, so prefer it over a string literal like `'MyApp\Model\User'`.
+
+If you must pass a plain string, for example because the class name is constructed dynamically, the analyser cannot tell which class it names and reports an error such as *Unable to resolve the template type*. This has no effect at runtime, but you can resolve it in one of two ways. The recommended way is to check the class at runtime, which the analyser understands as well:
+
+```php
+<?php
+
+use PHersist\ActiveRecord;
+use PHersist\ObjectFinder;
+
+$class = 'MyApp\\Model\\' . ucfirst($type);
+if (!is_subclass_of($class, ActiveRecord::class))
+    throw new \InvalidArgumentException("Unknown model type: $type");
+
+$objects = ObjectFinder::create($class)->fetch(); // list<ActiveRecord>
+```
+
+If you already know the string is valid, you can instead declare its type with an inline `@var` annotation:
+
+```php
+<?php
+
+/** @var class-string<ActiveRecord> $class */
+$class = 'MyApp\\Model\\' . ucfirst($type);
+
+$objects = ObjectFinder::create($class)->fetch(); // list<ActiveRecord>
+```
+
+In both cases the results are typed as `ActiveRecord`, because the analyser does not know the specific class. If you do know it, use `class-string<User>` in the annotation to get `User` results.
+
 ---
 
 ## 5) Chainability and query flow

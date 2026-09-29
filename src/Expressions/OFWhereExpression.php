@@ -84,11 +84,12 @@ class OFWhereExpression extends OFExpression {
 
 				$parts = [];
 				foreach ($values as $fieldname => $value) {
-					// TODO check if the 'is null' type operation will always work
-					if ($prop['type'] == 'Class' && ($this->operator == 'is' || $this->operator == '=') && $value === null)
-						$parts[] = "`{$tableAlias}`.`{$fieldname}` is null"; // Special 'is null' operation
-					elseif ($prop['type'] == 'Class' && ($this->operator == 'not is' || $this->operator == '!=') && $value === null)
-						$parts[] = "not `{$tableAlias}`.`{$fieldname}` is null"; // Special 'is null' operation
+					// Comparing with null using = or != never matches in SQL, so use 'is null'
+					$operator = strtoupper($this->operator);
+					if ($value === null && ($operator == 'IS' || $operator == '='))
+						$parts[] = "`{$tableAlias}`.`{$fieldname}` is null";
+					elseif ($value === null && $operator == '!=')
+						$parts[] = "not `{$tableAlias}`.`{$fieldname}` is null";
 					else {
 						$valueName = $this->of->generateValueName();
 						$parts[] = "`{$tableAlias}`.`{$fieldname}` {$this->operator} :{$valueName}";

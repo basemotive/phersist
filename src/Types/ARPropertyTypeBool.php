@@ -4,9 +4,11 @@ namespace PHersist\Types;
 use PHersist\ActiveRecord;
 
 /**
- * The Bool property type is maps a single field to an object property. Valuues
- * should be checked to be of type bool.
- * TODO introduce value checking to PHersist
+ * The Bool property type maps a single field to an object property, storing
+ * 1 for true and 0 for false. Values read from the database are returned as
+ * bool. Assigned ints 0 and 1 and strings '0' and '1' are converted to bool;
+ * other values throw an exception, so mistakes like assigning 'false' (which
+ * PHP considers true) don't go unnoticed.
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -18,10 +20,21 @@ class ARPropertyTypeBool extends ARPropertyType {
 	}
 
 	public function fromDB(array $prop, array $values) : mixed {
-		return $values[$prop['fieldnames'][0]] != 0 ? true : false;
+		$value = $values[$prop['fieldnames'][0]];
+		return $value === null ? null : $value != 0;
+	}
+
+	public function normalize(array $prop, mixed $value) : mixed {
+		if (is_bool($value))
+			return $value;
+		if ($value === 0 || $value === '0')
+			return false;
+		if ($value === 1 || $value === '1')
+			return true;
+		throw new \InvalidArgumentException('expected a bool, got '.(is_string($value) ? "'$value'" : get_debug_type($value)));
 	}
 
 	public function toDB(array $prop, mixed $value) : array {
-		return [ $prop['fieldnames'][0] => $value ? 1 : 0 ];
+		return [ $prop['fieldnames'][0] => $value === null ? null : ($value ? 1 : 0) ];
 	}
 }

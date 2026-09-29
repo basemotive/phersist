@@ -36,7 +36,7 @@ class ObjectCache {
 	 */
 	public static function put(?ActiveRecord $object) : void {
 		if (!self::$enabled) return;
-		if ($object == null || $object->id == null) return;
+		if ($object == null || $object->id === null) return;
 		self::$cache[get_class($object).':'.$object->id] = WeakReference::create($object);
 	}
 
@@ -59,7 +59,7 @@ class ObjectCache {
 	 */
 	public static function evict(?ActiveRecord $object) : void {
 		if (!self::$enabled) return;
-		if ($object == null || $object->id == null) return;
+		if ($object == null || $object->id === null) return;
         unset(self::$cache[get_class($object).':'.$object->id]);
     }
 }

@@ -245,7 +245,7 @@ class ObjectFinder {
 			// ActiveRecord can handle the caching
 			$objects[] = ActiveRecord::fetchObject(
 				$this->className,
-				$row[$idField],
+				(int)$row[$idField],
 				$this->full ? $row : null
 			);
 		}

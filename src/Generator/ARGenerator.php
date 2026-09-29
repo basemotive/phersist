@@ -105,9 +105,15 @@ class ARGenerator {
 		$className = $classElement->getAttribute('name');
 
 		$result .= " * Class $className.\n";
+		$result .= " *\n";
+
+		// The id is always exposed as $id, regardless of its field name
+		$idField = $classElement->hasAttribute('id') ?
+			$classElement->getAttribute('id') : $this->getAuto('id', $className);
+		$result .= " * @property-read ?int \$id id field: {$idField}\n";
+
 		$datasets = $classElement->getElementsByTagName('dataset');
 		if ($datasets->length >0) {
-			$result .= " *\n";
 			foreach ($datasets as $dataset) {
 				$properties = $dataset->getElementsByTagName('property');
 				foreach ($properties as $property) {

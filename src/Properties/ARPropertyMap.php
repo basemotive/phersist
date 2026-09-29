@@ -67,7 +67,7 @@ class ARPropertyMap {
 		foreach ($querySets as $querySet) {
 			$index = 0;
 
-			$stmt->bindValue(":$id", $querySet[$index++], \PDO::PARAM_STR);
+			$stmt->bindValue(":$id", $querySet[$index++], \PDO::PARAM_INT);
 			if ($this->map['type'] !== false)
 				$stmt->bindValue(":{$this->map['type']}", $querySet[$index++], \PDO::PARAM_STR);
 			foreach ($keys as $key)
@@ -153,7 +153,7 @@ class ARPropertyMap {
 
 		$stmt = $this->PDO->prepare($query);
 		foreach ($values as $key => $value) {
-			$stmt->bindValue(':'.$key, $value, \PDO::PARAM_STR);
+			$stmt->bindValue(':'.$key, $value, $key == 'id' ? \PDO::PARAM_INT : \PDO::PARAM_STR);
 			unset($key, $value);
 		}
 		$stmt->execute();
@@ -182,7 +182,7 @@ class ARPropertyMap {
 		}
 		$stmt = $this->PDO->prepare($query);
 		foreach ($qValues as $key => $value) {
-			$stmt->bindValue(':'.$key, $value, \PDO::PARAM_STR);
+			$stmt->bindValue(':'.$key, $value, $key == 'id' ? \PDO::PARAM_INT : \PDO::PARAM_STR);
 			unset($key, $value);
 		}
 		$stmt->execute();

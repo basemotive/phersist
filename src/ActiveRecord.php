@@ -12,7 +12,7 @@ namespace PHersist;
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  *
  * @implements \ArrayAccess<string, mixed>
- * @property ?int $id the object's primary key
+ * @property-read ?int $id the object's primary key
  */
 class ActiveRecord implements \ArrayAccess {
 	/** @var ?array<string, mixed> $_meta */
@@ -81,7 +81,7 @@ class ActiveRecord implements \ArrayAccess {
 		$this->_PDO = DB\DBConnectionManager::getPDO(static::$_meta['database'])
 			or $this->_error("No database '".static::$_meta['database']."'");
 
-		if ($this->id != null)
+		if ($this->id !== null)
 			ObjectCache::put($this);
 	}
 
@@ -108,7 +108,7 @@ class ActiveRecord implements \ArrayAccess {
 			$this->_error('Cannot commit a deleted object');
 
 		// Don't bother if nothing has changed, unless this is a new object
-		if (count($this->_changed)==0 && $this->id!=null)
+		if (count($this->_changed)==0 && $this->id !== null)
 			return;
 
 		// Map of form 'tablename' => [ 'key' => 'prop', ... ]
@@ -150,11 +150,11 @@ class ActiveRecord implements \ArrayAccess {
 				}
 			}
 
-		$isNew = $this->id == null;
+		$isNew = $this->id === null;
 		$idfield = static::$_meta['id'];
 		foreach ($tableUpdates as $table => $updates) {
 			$setParts = [];
-			if ($this->id == null || $isNew) { // $isNew is for when there are more tables
+			if ($this->id === null || $isNew) { // $isNew is for when there are more tables
 				// New object, so we insert a new set into the table and retrieve the new id afterwards
 				$fields_part = '';
 				$values_part = '';
@@ -176,7 +176,7 @@ class ActiveRecord implements \ArrayAccess {
 					}
 				}
 				$stmt->execute();
-				$this->_data[static::$_meta['id']] = $this->_PDO->lastInsertId();
+				$this->_data[static::$_meta['id']] = (int)$this->_PDO->lastInsertId();
 			} elseif (count($updates)>0) { // The check is because we always process our base table
 				// Existing object, so update the modified values
 				$setpart = '';
@@ -195,7 +195,7 @@ class ActiveRecord implements \ArrayAccess {
 						$stmt->bindValue(':'.$key, $value, \PDO::PARAM_STR);
 					}
 				}
-				$stmt->bindValue(':id', $this->id, \PDO::PARAM_STR);
+				$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 				$stmt->execute();
 			}
 		}
@@ -247,7 +247,7 @@ class ActiveRecord implements \ArrayAccess {
 
 		// Perform the check
 		$stmt = $this->_PDO->prepare($query);
-		$stmt->bindValue(':id', $this->id, \PDO::PARAM_STR);
+		$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 		$stmt->execute();
 		if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) $exists = true;
 		$stmt->closeCursor();
@@ -281,7 +281,7 @@ class ActiveRecord implements \ArrayAccess {
 			// Softdelete the main record
 			$query = "update `$table` set `deleted` = '1' where `$id` = :id";
 			$stmt = $this->_PDO->prepare($query);
-			$stmt->bindValue(':id', $this->id, \PDO::PARAM_STR);
+			$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 			$stmt->execute();
 		} else {
 			// Delete the relations (for which we are table owner)
@@ -298,7 +298,7 @@ class ActiveRecord implements \ArrayAccess {
 			// Delete the main record
 			$query = "delete from `$table` where `$id` = :id";
 			$stmt = $this->_PDO->prepare($query);
-			$stmt->bindValue(':id', $this->id, \PDO::PARAM_STR);
+			$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 			$stmt->execute();
 		}
 
@@ -323,7 +323,7 @@ class ActiveRecord implements \ArrayAccess {
 	 * does not find fault when we access named properties on such an object.
 	 *
 	 * @param string $class the className
-	 * @param int $id the id (should be numeric)
+	 * @param ?int $id the id
 	 * @param ?array<string, mixed> $row some data from the database to set into the properties
 	 * @return ?object the ActiveRecord instance, or null if no $id given
 	 */
@@ -354,7 +354,7 @@ class ActiveRecord implements \ArrayAccess {
 		// If the key is in a dataset, restore that dataset
 		$dataset = $this->_getDatasetFor($key);
 		if ($dataset != null) {
-			if ($this->id == null) { // Don't try to restore anything for new objects
+			if ($this->id === null) { // Don't try to restore anything for new objects
 				// Properties with a default already got it on construction, so this
 				// property has no value yet
 				$this->_data[$key] = null;
@@ -365,7 +365,7 @@ class ActiveRecord implements \ArrayAccess {
 
 		// If the key is for a relation, fetch that relation
 		if (isset(static::$_meta['relations'][$key])) {
-			if ($this->id == null) { // Don't try to restore anything for new objects
+			if ($this->id === null) { // Don't try to restore anything for new objects
 				$objects = [];
 			} else {
 				$relation = static::$_meta['relations'][$key];
@@ -414,7 +414,7 @@ class ActiveRecord implements \ArrayAccess {
 		$query = "select `".implode('`,`', $fieldnames)."` from `$table` where `$idfield` = :id";
 
 		$stmt = $this->_PDO->prepare($query);
-		$stmt->bindValue(':id', $this->id, \PDO::PARAM_STR);
+		$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 		$stmt->execute();
 		if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
 			$this->_assignDatasetValues($dataset, $row);

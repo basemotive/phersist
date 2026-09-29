@@ -61,7 +61,7 @@ class ARRelationTypeNN extends ARRelationType {
 			$query .= " order by `{$rel['order_field']}`";
 
 		$stmt = $this->PDO->prepare($query);
-		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_STR);
+		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
 		if ($myClass !== false)
 			$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
 
@@ -69,10 +69,10 @@ class ARRelationTypeNN extends ARRelationType {
 		while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
 			// If we're restoring the complete objects, we have to pass the data to the constructor
 			if ($rel['load_objects']) {
-				$id = $row[$idField];
+				$id = (int)$row[$idField];
 				$objects[] = new $className($id, $row);
 			} else {
-				$id = $row[$idField];
+				$id = (int)$row[$idField];
 				$objects[] = new $className($id);
 			}
 		}
@@ -116,7 +116,7 @@ class ARRelationTypeNN extends ARRelationType {
 		}
 
 		$stmt = $this->PDO->prepare($query);
-		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_STR);
+		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
 		if ($myClass !== false)
 			$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
 		$stmt->execute();
@@ -142,8 +142,8 @@ class ARRelationTypeNN extends ARRelationType {
 
 		$counter = 0;
 		foreach ($objects as $object) {
-			$stmt->bindValue(":{$rel['local_id']}", $this->activeRecord->id, \PDO::PARAM_STR);
-			$stmt->bindValue(":{$rel['remote_id']}", $object->id, \PDO::PARAM_STR);
+			$stmt->bindValue(":{$rel['local_id']}", $this->activeRecord->id, \PDO::PARAM_INT);
+			$stmt->bindValue(":{$rel['remote_id']}", $object->id, \PDO::PARAM_INT);
 			if (isset($rel['local_type']))
 				if ($rel['use_namespace'])
 					$stmt->bindValue(":{$rel['local_type']}", get_class($this->activeRecord), \PDO::PARAM_STR);

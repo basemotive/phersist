@@ -104,7 +104,7 @@ abstract class ARPropertyType {
 	protected function _updateOnApplies(array $prop) : bool {
 		if ($this->activeRecord == null) return false;
 		$updateOn = $prop['update_on'] ?? null;
-		return ($updateOn == 'create' && $this->activeRecord->id == null) || $updateOn == 'modify';
+		return ($updateOn == 'create' && $this->activeRecord->id === null) || $updateOn == 'modify';
 	}
 
 	protected ?ActiveRecord $activeRecord = null;

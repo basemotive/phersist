@@ -152,7 +152,7 @@ class MySQLGenerator {
 			$datasetTable = $dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $table;
 			$autoload = $dataset->hasAttribute('autoload') && $dataset->getAttribute('autoload') == 'true';
 
-			if (!isset($result[$datasetTable]))
+			if (!isset($result[$datasetTable])) {
 				$result[$datasetTable] = [];
 				$result[$datasetTable][] = [
 					'fieldName' => $idField,
@@ -160,6 +160,7 @@ class MySQLGenerator {
 					'required' => true,
 					'primaryKey' => true,
 				];
+			}
 
 			// process the properties within the dataset
 			$properties = $dataset->getElementsByTagName('property');

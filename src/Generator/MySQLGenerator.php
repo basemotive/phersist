@@ -256,7 +256,7 @@ class MySQLGenerator {
 				} elseif ($propType == 'Bool') {
 					$fieldSpec = [
 						'fieldName' => $fieldNames[0],
-						'fieldType' => 'INT(1) UNSIGNED',
+						'fieldType' => 'TINYINT UNSIGNED',
 						'required' => $required,
 						'primaryKey' => false,
 					];

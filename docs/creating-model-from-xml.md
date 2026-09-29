@@ -291,7 +291,7 @@ Default value behaviour:
 - If the field is `required` and no `default` is given, an implicit default of zero (`'0.00'` for scale 2) is added.
 
 ### `Bool`
-Boolean field. Maps to an `INT(1) UNSIGNED` column, storing `1` for true and `0` for false. Values read from the database are returned as `bool`. Assigned ints `0` and `1` and strings `'0'` and `'1'` are converted to `bool`; other values, like `2` or `'false'`, throw an exception.
+Boolean field. Maps to an `TINYINT UNSIGNED` column, storing `1` for true and `0` for false. Values read from the database are returned as `bool`. Assigned ints `0` and `1` and strings `'0'` and `'1'` are converted to `bool`; other values, like `2` or `'false'`, throw an exception.
 
 ```xml
 <property name="active" type="Bool"/>

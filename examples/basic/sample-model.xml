@@ -43,8 +43,9 @@
 			<!--
 				The property node can have these properties:
 				- name: (required) the name of the class property that will be created; this value will be mapped to a default column name based on the tablestyle defined in the project node
-				- required: (default false) if the property is required when storing the object to the database
-				- type: the property type, like Text, Int, Class, DynamicClass TimestampText
+				- required: (default false) if the property is required when storing the object to the database; a new object must have a value for every required property, or commit() throws an exception
+				- type: the property type, like Text, Int, Float, Decimal, Bool, Date, DateTime, Class, DynamicClass, TimestampText
+				- default: the value for new objects and the column default in the schema (Text, Int, Float, Decimal and Bool only); there are no implicit defaults, so required properties without a default must always be set before committing
 				- fieldname/fieldnames: overrides the generated column name from the name based on the tablestyle defined in the project node; for most types only one column is needed, but the DynamicClass type needs both a column for the class name and the object id
 			-->
 			<property name="name" required="true"/>
@@ -103,11 +104,13 @@
 			<property name="title" required="true"/>
 			<property name="messageSummary" required="true"/>
 			<!--
-				the update_on property is for the TimestampText type, can have either the value "create" or "update" and means the value is set to the current datetime when creating or updating the object in the database, respectively
+				the update_on property is for the Date, DateTime and TimestampText types, can have either the value "create" or "modify" and means the value is set to the current datetime when creating or updating the object in the database, respectively; a required property with update_on doesn't need to be set, since it gets its value on commit
 			-->
 			<property name="createdAt" type="TimestampText" required="true" update_on="create"/>
 			<property name="modifiedAt" type="TimestampText" required="false"/>
 			<property name="user" type="Class" class="User" required="true"/>
+			<!-- new messages start with 0 views, so this doesn't need to be set before committing -->
+			<property name="viewCount" type="Int" signed="false" required="true" default="0"/>
 		</dataset>
 		<dataset>
 			<!--

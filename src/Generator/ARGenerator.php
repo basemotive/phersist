@@ -142,7 +142,7 @@ class ARGenerator {
 
 					$result .= " * @property {$phpType} \${$prop_name}";
 
-					$default = $this->getDefault($property, $prop_type, $required);
+					$default = $this->getDefault($property, $prop_type);
 					if ($default !== null)
 						$result .= ' default '.var_export($default, true);
 
@@ -288,7 +288,7 @@ class ARGenerator {
 				$metaprop['required'] = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
 
 				// The default value for new objects; mirrors the column default in the schema
-				$default = $this->getDefault($property, $prop_type, $metaprop['required']);
+				$default = $this->getDefault($property, $prop_type);
 				if ($default !== null)
 					$metaprop['default'] = $default;
 
@@ -362,28 +362,24 @@ class ARGenerator {
 	/**
 	 * Determines the default value for a property.
 	 *
-	 * Uses the 'default' attribute if present, and otherwise an implicit
-	 * default for required properties, just like the MySQL schema does.
+	 * Only explicit 'default' attributes are used; required properties don't
+	 * get an implicit default, so they must be set before committing.
 	 * Only Text, Int, Float, Decimal and Bool properties support default values.
 	 *
 	 * @param DOMElement $property the property element in the XML tree
 	 * @param string $type the property type
-	 * @param bool $required if the property is required
 	 * @return string|int|float|bool|null the default value, or null if there is none
 	 */
-	private function getDefault(DOMElement $property, string $type, bool $required) : string|int|float|bool|null {
+	private function getDefault(DOMElement $property, string $type) : string|int|float|bool|null {
 		$hasDefault = $property->hasAttribute('default');
 		$default = $property->getAttribute('default');
 
 		if ($type == 'Text') {
 			if ($hasDefault) return $default;
-			if ($required) return '';
 		} elseif ($type == 'Int') {
 			if ($hasDefault) return intval($default);
-			if ($required) return 0;
 		} elseif ($type == 'Float') {
 			if ($hasDefault) return floatval($default);
-			if ($required) return 0.0;
 		} elseif ($type == 'Decimal') {
 			[$precision, $scale] = $this->getDecimalSize($property);
 			try {
@@ -391,10 +387,8 @@ class ARGenerator {
 			} catch (\InvalidArgumentException $e) {
 				die("ERROR: Invalid default for property '{$property->getAttribute('name')}': {$e->getMessage()}\n");
 			}
-			if ($required) return ARPropertyTypeDecimal::normalizeValue(0, $precision, $scale);
 		} elseif ($type == 'Bool') {
 			if ($hasDefault) return $default == 'true';
-			if ($required) return false;
 		}
 
 		return null;

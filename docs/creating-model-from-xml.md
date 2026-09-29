@@ -189,10 +189,10 @@ Properties define class fields and column mapping.
 |---|---|---|---|
 | `name` | yes | — | Property name used in PHP (`$object->name`). |
 | `type` | no | `Text` | Property type (`Text`, `Int`, `Float`, `Decimal`, `Bool`, `Date`, `DateTime`, `Class`, `DynamicClass`, `TimestampText`). |
-| `required` | no | `false` | If `true`, must not be null. |
+| `required` | no | `false` | If `true`, must not be null. A new object must have a value for every required property (assigned or from `default`), or `commit()` throws an exception. |
 | `fieldname` | no | auto | Custom single-column field name. |
 | `fieldnames` | no | auto | Custom comma-separated multi-column names (used by multi-field types). |
-| `default` | no | — | Default value. Applies to `Text`, `Int`, `Float`, `Decimal`, and `Bool` properties. For `required` fields that have no explicit `default`, PHersist uses an implicit default automatically: `''` for `Text`, `0` for `Int`, `0.0` for `Float`, `'0.00'` (zero with the property's scale) for `Decimal`, and `false` for `Bool`. See [Default values](#default-values). |
+| `default` | no | — | Default value. Applies to `Text`, `Int`, `Float`, `Decimal`, and `Bool` properties. There are no implicit defaults, also not for `required` properties. See [Default values](#default-values). |
 
 > `fieldnames` is optional for `DynamicClass`.  
 > If omitted, PHersist generates two field names automatically in the form `propname_class,propname_id` (translated with the configured table style).
@@ -205,14 +205,14 @@ Properties define class fields and column mapping.
 <property name="views" type="Int" required="true" default="0"/>
 ```
 
-A default value (explicit or implicit) is used in two places:
+A default value is used in two places:
 
 - **Database schema:** it becomes the column default (`DEFAULT ...`) in the generated MySQL schema.
 - **New objects:** it is set on every newly instantiated object (`new Article()`), so `$article->views` is `0` right away instead of being unset. These values are written on the first `commit()` along with any other changes, so the stored row always matches what the application saw, even for existing tables without column defaults.
 
 Objects loaded from the database are unaffected; they always get the stored values.
 
-On a new object, a property without a default (explicit or implicit) reads as `null` until it is assigned.
+On a new object, a property without a default reads as `null` until it is assigned. PHersist never assumes a default that isn't in the model: if a `required` property has no `default` and isn't assigned, `commit()` throws an exception listing the missing properties instead of storing an empty value. The exception is a `Date`, `DateTime` or `TimestampText` property with `update_on`, which gets its value on commit. In the generated schema, such a column is `NOT NULL` without a `DEFAULT`.
 
 > Default values are stored in the generated classes' metadata, so regenerate your classes after adding or changing a `default`.
 
@@ -230,7 +230,7 @@ Default string-like field. Maps to a `TEXT` column.
 
 Default value behaviour:
 - If `default` is set, that string value is used as the default.
-- If the field is `required` and no `default` is given, an implicit default of `''` (empty string) is added.
+- There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Int`
 Integer field. Maps to an `INT` column (signed by default, `INT UNSIGNED` when `signed="false"`). Values read from the database are returned as `int`. Assigned integer strings (like `'42'`) and floats without a fractional part (like `42.0`) are converted to `int`; other values, like `3.5`, `'3.0'` or `'1e3'`, throw an exception.
@@ -249,7 +249,7 @@ Extra attribute:
 
 Default value behaviour:
 - If `default` is set, the integer equivalent of that value is used as the default.
-- If the field is `required` and no `default` is given, an implicit default of `0` is added.
+- There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Float`
 Floating point field. Maps to a `DOUBLE` column, which has the same (double) precision as a PHP `float`. Values read from the database are returned as `float`. Assigned ints and numeric strings are converted to `float`; other values throw an exception.
@@ -261,7 +261,7 @@ Floating point field. Maps to a `DOUBLE` column, which has the same (double) pre
 
 Default value behaviour:
 - If `default` is set, the float equivalent of that value is used as the default.
-- If the field is `required` and no `default` is given, an implicit default of `0.0` is added.
+- There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 > Floating point values are inexact. Don't use `Float` for money or other values that need exact decimal arithmetic; use [`Decimal`](#decimal) instead.
 
@@ -288,7 +288,7 @@ To calculate with these values exactly, use an extension like [bcmath](https://w
 
 Default value behaviour:
 - If `default` is set, it must be a valid decimal that fits the column; the generator reports an error otherwise.
-- If the field is `required` and no `default` is given, an implicit default of zero (`'0.00'` for scale 2) is added.
+- There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Bool`
 Boolean field. Maps to an `TINYINT UNSIGNED` column, storing `1` for true and `0` for false. Values read from the database are returned as `bool`. Assigned ints `0` and `1` and strings `'0'` and `'1'` are converted to `bool`; other values, like `2` or `'false'`, throw an exception.
@@ -300,7 +300,7 @@ Boolean field. Maps to an `TINYINT UNSIGNED` column, storing `1` for true and `0
 
 Default value behaviour:
 - If `default` is set, use `"true"` to default to `true` (`1`) or any other value to default to `false` (`0`).
-- If the field is `required` and no `default` is given, an implicit default of `false` (`0`) is added.
+- There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Date`
 Date without a time. Maps to a `DATE` column. Values are `DateTimeImmutable` objects at midnight in PHP's default timezone.

@@ -20,6 +20,7 @@ The sample model includes practical patterns such as:
 
 - multiple classes (`Forum`, `ForumMessage`, `Tag`, `User`)
 - autoload and non-autoload datasets
+- required properties, and a default value (`viewCount`) for new objects
 - `Class` references between models
 - one-to-many and many-to-many relations
 - map properties for key/value-style data

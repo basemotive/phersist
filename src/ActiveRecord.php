@@ -111,6 +111,10 @@ class ActiveRecord implements \ArrayAccess {
 		if (count($this->_changed)==0 && $this->id !== null)
 			return;
 
+		// A new object must have a value for every required property before it's stored
+		if ($this->id === null)
+			$this->_checkRequired();
+
 		// Map of form 'tablename' => [ 'key' => 'prop', ... ]
 		// We always automatically add our base table here, so it gets processed first for new objects
 		$tableUpdates = [ static::$_meta['table'] => [] ];
@@ -220,6 +224,27 @@ class ActiveRecord implements \ArrayAccess {
 
 		// Everything is stored now, so nothing has changed anymore
 		$this->_changed = [];
+	}
+
+	/**
+	 * Checks that all required properties of a new object have a value.
+	 *
+	 * Properties that are filled in automatically on commit, like a DateTime
+	 * with update_on="create", don't need to be set.
+	 */
+	private function _checkRequired() : void {
+		$missing = [];
+		foreach (static::$_meta['datasets'] as $dataset)
+			foreach ($dataset['props'] as $key => $prop) {
+				if (!$prop['required'] || ($this->_data[$key] ?? null) !== null)
+					continue;
+				if ($this->_getPropertyType($prop['type'])->requiresAutoUpdate($prop))
+					continue;
+				$missing[] = $key;
+			}
+
+		if (count($missing) > 0)
+			$this->_error('Required '.(count($missing) == 1 ? 'property' : 'properties').' not set: '.implode(', ', $missing));
 	}
 
 	/**

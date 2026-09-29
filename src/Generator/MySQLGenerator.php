@@ -196,8 +196,6 @@ class MySQLGenerator {
 					];
 					if ($property->hasAttribute('default'))
 						$fieldSpec['defaultValue'] = $property->getAttribute('default');
-					elseif ($fieldSpec['required'])
-						$fieldSpec['defaultValue'] = '';
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Int') {
 					// signed ints by default
@@ -210,8 +208,6 @@ class MySQLGenerator {
 					];
 					if ($property->hasAttribute('default'))
 						$fieldSpec['defaultValue'] = intval($property->getAttribute('default'));
-					elseif ($fieldSpec['required'])
-						$fieldSpec['defaultValue'] = 0;
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Float') {
 					// DOUBLE matches the precision of PHP floats
@@ -223,8 +219,6 @@ class MySQLGenerator {
 					];
 					if ($property->hasAttribute('default'))
 						$fieldSpec['defaultValue'] = floatval($property->getAttribute('default'));
-					elseif ($fieldSpec['required'])
-						$fieldSpec['defaultValue'] = 0.0;
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Decimal') {
 					$precision = $property->hasAttribute('precision') ? $property->getAttribute('precision') : (string)ARPropertyTypeDecimal::DEFAULT_PRECISION;
@@ -240,8 +234,6 @@ class MySQLGenerator {
 						// The value is validated, so it's safe to use as a numeric literal
 						if ($property->hasAttribute('default'))
 							$fieldSpec['defaultRaw'] = ARPropertyTypeDecimal::normalizeValue($property->getAttribute('default'), $precision, $scale);
-						elseif ($fieldSpec['required'])
-							$fieldSpec['defaultRaw'] = ARPropertyTypeDecimal::normalizeValue(0, $precision, $scale);
 					} catch (\InvalidArgumentException $e) {
 						die("ERROR: Invalid Decimal property '{$propName}': {$e->getMessage()}\n");
 					}
@@ -262,8 +254,6 @@ class MySQLGenerator {
 					];
 					if ($property->hasAttribute('default'))
 						$fieldSpec['defaultValue'] = $property->getAttribute('default') == 'true';
-					elseif ($fieldSpec['required'])
-						$fieldSpec['defaultValue'] = false;
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Class') {
 					$fieldSpec = [

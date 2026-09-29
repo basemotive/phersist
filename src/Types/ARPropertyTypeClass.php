@@ -5,7 +5,9 @@ use PHersist\ActiveRecord;
 
 /**
  * The Class property type handles the conversion between an (ActiveRecord)
- * object in PHP to an object ID in the database and vice versa.
+ * object in PHP to an object ID in the database and vice versa. Assigned
+ * values must be instances of the class the property refers to (or of a
+ * subclass); other values throw an exception.
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -25,6 +27,12 @@ class ARPropertyTypeClass extends ARPropertyType {
 	public function toDB(array $prop, mixed $value) : array {
 		// This will go wrong if the related object hasn't been committed already
 		return [ $prop['fieldnames'][0] => $value==null ? null : $value->id ];
+	}
+
+	public function normalize(array $prop, mixed $value) : mixed {
+		if (!($value instanceof $prop['class']))
+			throw new \InvalidArgumentException('expected '.$prop['class'].', got '.get_debug_type($value));
+		return $value;
 	}
 
 	public function dereference(array $prop, $sourceTable) : array|false {

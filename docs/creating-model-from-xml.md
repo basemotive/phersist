@@ -359,7 +359,7 @@ Values are stored with a precision of seconds; fractions of seconds are dropped.
 `default` is not supported for `DateTime` properties. For automatic creation/modification times, use `update_on`.
 
 ### `Class`
-Reference to another class in the model.
+Reference to another class in the model. Assigned values must be instances of that class (or a subclass); anything else, like an object of another class or an ID, throws an exception.
 
 ```xml
 <property name="forum" type="Class" class="Forum" required="true"/>
@@ -372,7 +372,7 @@ Extra attribute:
 | `class` | yes | Name of target class in this model XML. |
 
 ### `DynamicClass`
-Polymorphic reference: class + id pair.
+Polymorphic reference: class + id pair. Assigned values must be `ActiveRecord` objects; anything else throws an exception.
 
 ```xml
 <property name="target" type="DynamicClass"/>

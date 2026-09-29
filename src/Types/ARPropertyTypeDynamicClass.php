@@ -9,7 +9,8 @@ use PHersist\ActiveRecord;
  * in the database and vice versa.
  *
  * Contrary to the Class property, this object reference is not
- * statically typed, but stored in the database next to the id.
+ * statically typed, but stored in the database next to the id. Assigned
+ * values can be any ActiveRecord object; other values throw an exception.
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -48,6 +49,12 @@ class ARPropertyTypeDynamicClass extends ARPropertyType {
 			$prop['fieldnames'][0] => $class_name,
 			$prop['fieldnames'][1] => $id
 		];
+	}
+
+	public function normalize(array $prop, mixed $value) : mixed {
+		if (!($value instanceof ActiveRecord))
+			throw new \InvalidArgumentException('expected an ActiveRecord object, got '.get_debug_type($value));
+		return $value;
 	}
 
 	// This class lacks the dereference method, because you'd have to dynamically

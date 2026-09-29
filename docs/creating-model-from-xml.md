@@ -188,11 +188,11 @@ Properties define class fields and column mapping.
 | Attribute | Required | Default | Description |
 |---|---|---|---|
 | `name` | yes | — | Property name used in PHP (`$object->name`). |
-| `type` | no | `Text` | Property type (`Text`, `Int`, `Float`, `Bool`, `Class`, `DynamicClass`, `TimestampText`). |
+| `type` | no | `Text` | Property type (`Text`, `Int`, `Float`, `Decimal`, `Bool`, `Date`, `DateTime`, `Class`, `DynamicClass`, `TimestampText`). |
 | `required` | no | `false` | If `true`, must not be null. |
 | `fieldname` | no | auto | Custom single-column field name. |
 | `fieldnames` | no | auto | Custom comma-separated multi-column names (used by multi-field types). |
-| `default` | no | — | Default value. Applies to `Text`, `Int`, `Float`, and `Bool` properties. For `required` fields that have no explicit `default`, PHersist uses an implicit default automatically: `''` for `Text`, `0` for `Int`, `0.0` for `Float`, and `false` for `Bool`. See [Default values](#default-values). |
+| `default` | no | — | Default value. Applies to `Text`, `Int`, `Float`, `Decimal`, and `Bool` properties. For `required` fields that have no explicit `default`, PHersist uses an implicit default automatically: `''` for `Text`, `0` for `Int`, `0.0` for `Float`, `'0.00'` (zero with the property's scale) for `Decimal`, and `false` for `Bool`. See [Default values](#default-values). |
 
 > `fieldnames` is optional for `DynamicClass`.  
 > If omitted, PHersist generates two field names automatically in the form `propname_class,propname_id` (translated with the configured table style).
@@ -252,7 +252,7 @@ Default value behaviour:
 - If the field is `required` and no `default` is given, an implicit default of `0` is added.
 
 ### `Float`
-Floating point field. Maps to a `DOUBLE` column, which has the same (double) precision as a PHP `float`. Values read from the database are returned as `float`.
+Floating point field. Maps to a `DOUBLE` column, which has the same (double) precision as a PHP `float`. Values read from the database are returned as `float`. Assigned ints and numeric strings are converted to `float`; other values throw an exception.
 
 ```xml
 <property name="weight" type="Float"/>
@@ -263,7 +263,32 @@ Default value behaviour:
 - If `default` is set, the float equivalent of that value is used as the default.
 - If the field is `required` and no `default` is given, an implicit default of `0.0` is added.
 
-> Floating point values are inexact. Don't use `Float` for money or other values that need exact decimal arithmetic; store those as an `Int` in the smallest unit (e.g. cents) instead.
+> Floating point values are inexact. Don't use `Float` for money or other values that need exact decimal arithmetic; use [`Decimal`](#decimal) instead.
+
+### `Decimal`
+Exact decimal number, for money and other values that must not be rounded. Maps to a `DECIMAL(precision,scale)` column.
+
+```xml
+<property name="price" type="Decimal" required="true"/>
+<property name="exchangeRate" type="Decimal" precision="12" scale="6" default="1"/>
+```
+
+Extra attributes:
+
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `precision` | no | `10` | Total number of digits (1–65). |
+| `scale` | no | `2` | Number of digits after the decimal point (0–30, at most `precision`). |
+
+PHP has no exact decimal type, so values are **strings** with exactly `scale` decimals, like `'12.50'`. You can assign:
+- **numeric strings** and **ints**, like `'12.5'` or `12` (both become `'12.50'`). These must fit exactly: a value with more decimals than `scale` (`'12.345'`), or too many digits before the decimal point, throws an exception instead of being rounded silently. Exponent notation (`'1e3'`) isn't accepted.
+- **floats**, which are rounded to `scale` decimals (`0.1 + 0.2` becomes `'0.30'`), since floats are inexact anyway.
+
+To calculate with these values exactly, use an extension like [bcmath](https://www.php.net/manual/en/book.bc.php), or ints in the smallest unit (e.g. cents).
+
+Default value behaviour:
+- If `default` is set, it must be a valid decimal that fits the column; the generator reports an error otherwise.
+- If the field is `required` and no `default` is given, an implicit default of zero (`'0.00'` for scale 2) is added.
 
 ### `Bool`
 Boolean field. Maps to an `INT(1) UNSIGNED` column, storing `1` for true and `0` for false.
@@ -276,6 +301,62 @@ Boolean field. Maps to an `INT(1) UNSIGNED` column, storing `1` for true and `0`
 Default value behaviour:
 - If `default` is set, use `"true"` to default to `true` (`1`) or any other value to default to `false` (`0`).
 - If the field is `required` and no `default` is given, an implicit default of `false` (`0`) is added.
+
+### `Date`
+Date without a time. Maps to a `DATE` column. Values are `DateTimeImmutable` objects at midnight in PHP's default timezone.
+
+```xml
+<property name="birthday" type="Date"/>
+<property name="lastChangedOn" type="Date" update_on="modify"/>
+```
+
+Accepts the same values as [`DateTime`](#datetime), but only uses the date part. That date is taken as written, in the value's own timezone: `'2026-01-01T23:30:00-05:00'` becomes 2026-01-01, even though that moment is already January 2 in Europe.
+
+`default` is not supported for `Date` properties. `update_on` works like it does for [`DateTime`](#datetime), storing the current date.
+
+### `DateTime`
+Date and time. Maps to a `DATETIME` column. Values are `DateTimeImmutable` objects in PHP's default timezone.
+
+```xml
+<property name="startsAt" type="DateTime" required="true"/>
+<property name="createdAt" type="DateTime" update_on="create"/>
+<property name="modifiedAt" type="DateTime" update_on="modify"/>
+```
+
+Extra attribute:
+
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `update_on` | no | — | `create`: set to the current time when the object is first stored. `modify`: set to the current time every time the object is stored, including the first time. |
+
+With `update_on`, the automatic value always replaces a value you assigned yourself. `modify` only applies when `commit()` actually stores something: committing an object without changes doesn't update it. After `commit()`, the property holds the stored value, so you don't need to reload the object to read it.
+
+You can assign any `DateTimeInterface` object or a string in one of these formats:
+
+| Format | Example |
+|---|---|
+| Date | `'2026-01-01'` (midnight) |
+| Date and time | `'2026-01-01 12:30'`, `'2026-01-01 12:30:00'` |
+| ISO 8601 | `'2026-01-01T12:30:00'` |
+| ISO 8601 with offset | `'2026-01-01T12:30:00+02:00'`, `'2026-01-01T10:30:00.000Z'` |
+
+Strings are converted to `DateTimeImmutable` right away, so `$event->startsAt` is always an object. Other strings, like `'tomorrow'` or `'01-01-2026'`, and impossible dates like `'2026-02-30'` throw an exception, instead of being guessed at or rolled over to another date.
+
+Timezones:
+- A `DATETIME` column doesn't store a timezone. Values are converted to PHP's default timezone (`date_default_timezone_get()`) before they are stored, and read back in that timezone. The moment in time is kept, but the original offset is not: `'2026-01-01T12:30:00+02:00'` is stored as `2026-01-01 10:30:00` when the default timezone is UTC.
+- Strings without an offset are interpreted in the default timezone.
+- Because stored values depend on the default timezone, it must be the same everywhere your application runs, and must not change once there is data.
+
+Choosing the default timezone:
+
+- **UTC** (`date_default_timezone_set('UTC')`) is the safest choice. UTC has no daylight saving time, so every stored value means exactly one moment in time. It also doesn't depend on local server settings. The downside is that you convert values for display, for example `$event->startsAt->setTimezone(new DateTimeZone('Europe/Amsterdam'))->format('H:i')`.
+- **A local timezone**, like `Europe/Amsterdam`, stores values as local time, so they display as-is and are easy to read in the database. This works if your application only deals with that one timezone, but daylight saving time makes some values ambiguous or impossible. When the clocks go back, an hour happens twice (in Amsterdam, `02:30` on the last Sunday of October happens twice), and the stored value can't tell which one it was. When the clocks go forward, an hour is skipped, and times in that hour are moved to a different time.
+
+PHersist doesn't enforce either choice; it uses whatever `date_default_timezone_get()` returns.
+
+Values are stored with a precision of seconds; fractions of seconds are dropped.
+
+`default` is not supported for `DateTime` properties. For automatic creation/modification times, use `update_on`.
 
 ### `Class`
 Reference to another class in the model.
@@ -323,6 +404,8 @@ Extra attributes:
 |---|---|---|
 | `update_on` | no | `create` or `modify`. |
 | `date_format` | no | PHP `date()` format string. |
+
+Values are plain strings. For new models, a [`DateTime`](#datetime) or [`Date`](#date) property with `update_on` is usually a better fit, since it gives you `DateTimeImmutable` objects.
 
 ---
 

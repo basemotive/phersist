@@ -4,9 +4,8 @@ namespace PHersist\Types;
 use PHersist\ActiveRecord;
 
 /**
- * The Float property type maps a single field to an object property. Values
- * should be checked to be of type float.
- * TODO introduce value checking to PHersist
+ * The Float property type maps a single field to an object property. Ints and
+ * numeric strings are accepted and converted to float.
  *
  * Values are converted to strings explicitly, because PHP's default float to
  * string conversion (used when binding parameters) only keeps 14 significant
@@ -26,7 +25,20 @@ class ARPropertyTypeFloat extends ARPropertyType {
 		return $value === null ? null : floatval($value);
 	}
 
+	public function normalize(array $prop, mixed $value) : mixed {
+		if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric($value)))
+			throw new \InvalidArgumentException('expected a float, got '.get_debug_type($value));
+		return floatval($value);
+	}
+
 	public function toDB(array $prop, mixed $value) : array {
 		return [ $prop['fieldnames'][0] => $value === null ? null : var_export(floatval($value), true) ];
+	}
+
+	public function toDBSearch(array $prop, mixed $value) : array {
+		// Strings are passed as-is, so patterns for LIKE keep working
+		if (is_int($value) || is_float($value))
+			$value = var_export(floatval($value), true);
+		return [ $prop['fieldnames'][0] => $value ];
 	}
 }

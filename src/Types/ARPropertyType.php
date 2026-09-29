@@ -45,6 +45,21 @@ abstract class ARPropertyType {
 	public abstract function toDB(array $prop, mixed $value) : array;
 
 	/**
+	 * Converts a value that is assigned to a property into the form the
+	 * property has in PHP, so it matches the values read from the database.
+	 * For example, a date string is turned into a DateTimeImmutable object.
+	 * This is never called with null.
+	 *
+	 * @param array<string, mixed> $prop the property definition from the metadata
+	 * @param mixed $value the assigned value
+	 * @return mixed the normalized value
+	 * @throws \InvalidArgumentException if the value is not valid for this type
+	 */
+	public function normalize(array $prop, mixed $value) : mixed {
+		return $value;
+	}
+
+	/**
 	 * Translates the value to database fields for a search. Usually this
 	 * can be expected to be the same as toDB, but it can be overloaded.
 	 *
@@ -76,6 +91,20 @@ abstract class ARPropertyType {
 	 */
 	public function requiresAutoUpdate(array $prop) : bool {
 		return false;
+	}
+
+	/**
+	 * Checks the 'update_on' setting of a property: 'create' updates the value
+	 * when the object is first stored, 'modify' on every commit that stores it.
+	 * Only applies when this type instance belongs to an object.
+	 *
+	 * @param array<string, mixed> $prop the property definition from the metadata
+	 * @return bool if the value must be updated now
+	 */
+	protected function _updateOnApplies(array $prop) : bool {
+		if ($this->activeRecord == null) return false;
+		$updateOn = $prop['update_on'] ?? null;
+		return ($updateOn == 'create' && $this->activeRecord->id == null) || $updateOn == 'modify';
 	}
 
 	protected ?ActiveRecord $activeRecord = null;

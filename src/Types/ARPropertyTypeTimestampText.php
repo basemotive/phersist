@@ -29,8 +29,7 @@ class ARPropertyTypeTimestampText extends ARPropertyType {
 	}
 
 	public function requiresAutoUpdate(array $prop) : bool {
-		if ($this->activeRecord == null) return false;
-		return ($prop['update_on']=='create' && $this->activeRecord->id==null) || $prop['update_on']=='modify';
+		return $this->_updateOnApplies($prop);
 	}
 
 }

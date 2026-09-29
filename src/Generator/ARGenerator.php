@@ -4,6 +4,7 @@ namespace PHersist\Generator;
 
 use DOMDocument;
 use DOMElement;
+use PHersist\Types\ARPropertyTypeDecimal;
 
 /**
  * Generates ActiveRecord instances.
@@ -125,6 +126,8 @@ class ARGenerator {
 						$phpType = 'bool';
 					} elseif ($prop_type == 'Float') {
 						$phpType = 'float';
+					} elseif ($prop_type == 'Date' || $prop_type == 'DateTime') {
+						$phpType = '\\DateTimeImmutable';
 					}
 
 					$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
@@ -137,7 +140,12 @@ class ARGenerator {
 					if ($default !== null)
 						$result .= ' default '.var_export($default, true);
 
-					if ($prop_type == 'TimestampText') {
+					if ($prop_type == 'Decimal') {
+						[$precision, $scale] = $this->getDecimalSize($property);
+						$result .= " decimal($precision,$scale)";
+					} elseif (($prop_type == 'Date' || $prop_type == 'DateTime') && $property->hasAttribute('update_on')) {
+						$result .= ' updates on '.$this->getUpdateOn($property);
+					} elseif ($prop_type == 'TimestampText') {
 						$result .= ' timestamp';
 						if ($property->hasAttribute('update_on'))
 							$result .= ', updates on '.$property->getAttribute('update_on');
@@ -260,6 +268,10 @@ class ARGenerator {
 						$propertyClass = ltrim($propertyClass, '\\');
 
 					$metaprop['class'] = $propertyClass;
+				} elseif ($prop_type == 'Decimal') {
+					[$metaprop['precision'], $metaprop['scale']] = $this->getDecimalSize($property);
+				} elseif (($prop_type == 'Date' || $prop_type == 'DateTime') && $property->hasAttribute('update_on')) {
+					$metaprop['update_on'] = $this->getUpdateOn($property);
 				} elseif ($prop_type == 'TimestampText') {
 					$metaprop['update_on'] = $property->getAttribute('update_on');
 					if ($property->hasAttribute('date_format'))
@@ -346,7 +358,7 @@ class ARGenerator {
 	 *
 	 * Uses the 'default' attribute if present, and otherwise an implicit
 	 * default for required properties, just like the MySQL schema does.
-	 * Only Text, Int, Float and Bool properties support default values.
+	 * Only Text, Int, Float, Decimal and Bool properties support default values.
 	 *
 	 * @param DOMElement $property the property element in the XML tree
 	 * @param string $type the property type
@@ -366,12 +378,49 @@ class ARGenerator {
 		} elseif ($type == 'Float') {
 			if ($hasDefault) return floatval($default);
 			if ($required) return 0.0;
+		} elseif ($type == 'Decimal') {
+			[$precision, $scale] = $this->getDecimalSize($property);
+			try {
+				if ($hasDefault) return ARPropertyTypeDecimal::normalizeValue($default, $precision, $scale);
+			} catch (\InvalidArgumentException $e) {
+				die("ERROR: Invalid default for property '{$property->getAttribute('name')}': {$e->getMessage()}\n");
+			}
+			if ($required) return ARPropertyTypeDecimal::normalizeValue(0, $precision, $scale);
 		} elseif ($type == 'Bool') {
 			if ($hasDefault) return $default == 'true';
 			if ($required) return false;
 		}
 
 		return null;
+	}
+
+	/**
+	 * Reads the update_on attribute for a Date or DateTime property.
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @return string 'create' or 'modify'
+	 */
+	private function getUpdateOn(DOMElement $property) : string {
+		$updateOn = $property->getAttribute('update_on');
+		if ($updateOn != 'create' && $updateOn != 'modify')
+			die("ERROR: Invalid update_on '{$updateOn}' for property '{$property->getAttribute('name')}', use 'create' or 'modify'\n");
+		return $updateOn;
+	}
+
+	/**
+	 * Reads the precision and scale for a Decimal property.
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @return array{int, int} the precision and scale
+	 */
+	private function getDecimalSize(DOMElement $property) : array {
+		$precision = $property->hasAttribute('precision') ? $property->getAttribute('precision') : (string)ARPropertyTypeDecimal::DEFAULT_PRECISION;
+		$scale = $property->hasAttribute('scale') ? $property->getAttribute('scale') : (string)ARPropertyTypeDecimal::DEFAULT_SCALE;
+		try {
+			return ARPropertyTypeDecimal::parseSize($precision, $scale);
+		} catch (\InvalidArgumentException $e) {
+			die("ERROR: Invalid Decimal property '{$property->getAttribute('name')}': {$e->getMessage()}\n");
+		}
 	}
 
 	/**

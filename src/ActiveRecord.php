@@ -140,6 +140,9 @@ class ActiveRecord implements \ArrayAccess {
 				if ($type->requiresAutoUpdate($prop)) {
 					$fieldvalues = $type->toDB($prop, $this->_data[$key] ?? null);
 
+					// Keep the object in sync with the value that gets stored
+					$this->_data[$key] = $type->fromDB($prop, $fieldvalues);
+
 					// Stuff the values in the $tableUpdates for later when we update the DB
 					$table = $dataset['table'];
 					if (!isset($tableUpdates[$table])) $tableUpdates[$table] = [];
@@ -470,9 +473,23 @@ class ActiveRecord implements \ArrayAccess {
 			if ($value === null && $this->_isRequired($key))
 				$this->_error("Property $key is required and cannot be set to null");
 
-			// Only update if the new value is not exactly the same as the old one
+			// Let the property type convert the value, like date strings to DateTimeImmutable
+			$dataset = $this->_getDatasetFor($key);
+			if ($dataset != null && $value !== null) {
+				$prop = $dataset['props'][$key];
+				try {
+					$value = $this->_getPropertyType($prop['type'])->normalize($prop, $value);
+				} catch (\InvalidArgumentException $e) {
+					$this->_error("Invalid value for property $key: ".$e->getMessage());
+				}
+			}
+
+			// Only update if the new value is not the same as the old one
 			// (TODO maybe check for objects with the same ID as well)
-			if (!(array_key_exists($key, $this->_data) && $this->_data[$key] === $value)) {
+			$oldValue = $this->_data[$key] ?? null;
+			$same = array_key_exists($key, $this->_data) && ($oldValue === $value
+				|| ($oldValue instanceof \DateTimeInterface && $value instanceof \DateTimeInterface && $oldValue == $value));
+			if (!$same) {
 				// Set the new value
 				$this->_data[$key] = $value;
 

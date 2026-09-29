@@ -4,6 +4,7 @@ namespace PHersist\Generator;
 
 use DOMDocument;
 use DOMElement;
+use PHersist\Types\ARPropertyTypeDecimal;
 
 /**
  * Generates MySQL tables.
@@ -85,7 +86,9 @@ class MySQLGenerator {
 					$result .= ' AUTO_INCREMENT';
 					$primaryKey = $field;
 				}
-				if (isset($field['defaultValue'])) {
+				if (isset($field['defaultRaw'])) {
+					$result .= " DEFAULT {$field['defaultRaw']}";
+				} elseif (isset($field['defaultValue'])) {
 					if (is_string($field['defaultValue']))
 						$result .= " DEFAULT ('".str_replace(['\\', "'"], ['\\\\', "''"], $field['defaultValue'])."')";
 					elseif (is_int($field['defaultValue']))
@@ -222,6 +225,33 @@ class MySQLGenerator {
 					elseif ($fieldSpec['required'])
 						$fieldSpec['defaultValue'] = 0.0;
 					$result[$datasetTable][] = $fieldSpec;
+				} elseif ($propType == 'Decimal') {
+					$precision = $property->hasAttribute('precision') ? $property->getAttribute('precision') : (string)ARPropertyTypeDecimal::DEFAULT_PRECISION;
+					$scale = $property->hasAttribute('scale') ? $property->getAttribute('scale') : (string)ARPropertyTypeDecimal::DEFAULT_SCALE;
+					try {
+						[$precision, $scale] = ARPropertyTypeDecimal::parseSize($precision, $scale);
+						$fieldSpec = [
+							'fieldName' => $fieldNames[0],
+							'fieldType' => "DECIMAL($precision,$scale)",
+							'required' => $required,
+							'primaryKey' => false,
+						];
+						// The value is validated, so it's safe to use as a numeric literal
+						if ($property->hasAttribute('default'))
+							$fieldSpec['defaultRaw'] = ARPropertyTypeDecimal::normalizeValue($property->getAttribute('default'), $precision, $scale);
+						elseif ($fieldSpec['required'])
+							$fieldSpec['defaultRaw'] = ARPropertyTypeDecimal::normalizeValue(0, $precision, $scale);
+					} catch (\InvalidArgumentException $e) {
+						die("ERROR: Invalid Decimal property '{$propName}': {$e->getMessage()}\n");
+					}
+					$result[$datasetTable][] = $fieldSpec;
+				} elseif ($propType == 'Date' || $propType == 'DateTime') {
+					$result[$datasetTable][] = [
+						'fieldName' => $fieldNames[0],
+						'fieldType' => $propType == 'Date' ? 'DATE' : 'DATETIME',
+						'required' => $required,
+						'primaryKey' => false,
+					];
 				} elseif ($propType == 'Bool') {
 					$fieldSpec = [
 						'fieldName' => $fieldNames[0],

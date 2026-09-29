@@ -56,6 +56,8 @@ After `commit()`, the object receives its primary key (`$user->id`).
 
 A new object starts out with the [default values](creating-model-from-xml.md#default-values) from the model (for example `0` for a required `Int`), and those are stored on the first `commit()`. Properties without a default are `null` until you assign them.
 
+Some property types convert assigned values, so a property always has the same kind of value, whether it was assigned or loaded from the database. For example, `$event->startsAt = '2026-01-01 12:30'` stores a `DateTimeImmutable` for a `DateTime` property, and `$product->price = 12.5` stores `'12.50'` for a `Decimal`. Invalid values, like `'2026-02-30'` for a date, throw an exception on assignment. See [Property types](creating-model-from-xml.md#property-types).
+
 ### Load and update
 
 ```php
@@ -68,7 +70,7 @@ $user->commit();
 
 `commit()` only writes the properties that changed since the object was loaded or last committed. If nothing changed, it does nothing at all, so it's safe to call unconditionally. (A new object is always inserted on its first `commit()`, even if nothing was set.)
 
-Assigning a property the value it already has (compared with `===`) doesn't count as a change. The exception is a property whose dataset hasn't been loaded yet: its current value isn't known, so the assignment is always treated as a change.
+Assigning a property the value it already has (compared with `===` after conversion, and by moment in time for dates) doesn't count as a change. The exception is a property whose dataset hasn't been loaded yet: its current value isn't known, so the assignment is always treated as a change.
 
 ### Delete
 

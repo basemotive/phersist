@@ -36,14 +36,14 @@ class OFCombinedExpression extends OFExpression {
 	 * @return OFCombinedExpression<T>
 	 */
 	public function addAnd() : OFCombinedExpression {
-		return $this->items[] = new OFCombinedExpression('and', $this->of);
+		return $this->items[] = new OFCombinedExpression('and', $this->of, $this);
 	}
 
 	/**
 	 * @return OFCombinedExpression<T>
 	 */
 	public function addOr() : OFCombinedExpression {
-		return $this->items[] = new OFCombinedExpression('or', $this->of);
+		return $this->items[] = new OFCombinedExpression('or', $this->of, $this);
 	}
 
 	/**

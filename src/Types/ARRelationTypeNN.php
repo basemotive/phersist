@@ -67,14 +67,14 @@ class ARRelationTypeNN extends ARRelationType {
 
 		$stmt->execute();
 		while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-			// If we're restoring the complete objects, we have to pass the data to the constructor
-			if ($rel['load_objects']) {
-				$id = (int)$row[$idField];
-				$objects[] = new $className($id, $row);
-			} else {
-				$id = (int)$row[$idField];
-				$objects[] = new $className($id);
-			}
+			// We use the fetchObject method instead of the constructor so the
+			// ActiveRecord can handle the caching. If we're restoring the complete
+			// objects, the row holds the autoload dataset for it to assign.
+			$objects[] = \PHersist\ActiveRecord::fetchObject(
+				$className,
+				(int)$row[$idField],
+				$rel['load_objects'] ? $row : null
+			);
 		}
 		$stmt->closeCursor();
 

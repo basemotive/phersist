@@ -308,7 +308,7 @@ class ARGenerator {
 			if (strpos($relationClass, '\\') === false)
 				$relationClass = $this->getNamespace().$relationClass;
 			else
-				$relationclass = ltrim($relationClass, '\\');
+				$relationClass = ltrim($relationClass, '\\');
 
 			$metarel = [
 				'type' => $relation->getAttribute('type'),

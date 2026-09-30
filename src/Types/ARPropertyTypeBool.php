@@ -37,4 +37,11 @@ class ARPropertyTypeBool extends ARPropertyType {
 	public function toDB(array $prop, mixed $value) : array {
 		return [ $prop['fieldnames'][0] => $value === null ? null : ($value ? 1 : 0) ];
 	}
+
+	public function toDBSearch(array $prop, mixed $value) : array {
+		// Validate like on assignment, so searching for 'false' doesn't match true
+		if ($value !== null)
+			$value = $this->normalize($prop, $value);
+		return $this->toDB($prop, $value);
+	}
 }

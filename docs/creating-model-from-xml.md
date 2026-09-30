@@ -291,7 +291,7 @@ Default value behaviour:
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Bool`
-Boolean field. Maps to an `TINYINT UNSIGNED` column, storing `1` for true and `0` for false. Values read from the database are returned as `bool`. Assigned ints `0` and `1` and strings `'0'` and `'1'` are converted to `bool`; other values, like `2` or `'false'`, throw an exception.
+Boolean field. Maps to an `TINYINT UNSIGNED` column, storing `1` for true and `0` for false. Values read from the database are returned as `bool`. Assigned ints `0` and `1` and strings `'0'` and `'1'` are converted to `bool`; other values, like `2` or `'false'`, throw an exception. The same applies to values used when searching with `ObjectFinder::where()`.
 
 ```xml
 <property name="active" type="Bool"/>

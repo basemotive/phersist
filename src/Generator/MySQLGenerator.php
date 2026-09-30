@@ -186,6 +186,9 @@ class MySQLGenerator {
 			$properties = $dataset->getElementsByTagName('property');
 			foreach ($properties as $property) {
 				$propName = $property->getAttribute('name');
+				// 'id' always refers to the object's id, so it can't be a property
+				if ($propName == 'id')
+					throw new \Exception("Class {$classElement->getAttribute('name')} can't have a property named 'id', it is reserved for the object's id");
 				$propNameTS = $this->getAuto('fieldname', $propName);
 				$propType = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
 				$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';

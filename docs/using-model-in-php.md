@@ -148,6 +148,8 @@ Common methods:
 - `count()`
 - `includeDeletedRecords(true|false)` for soft-delete classes
 
+Besides the properties from your XML, `id` can be used in `where(...)` (also at the end of a path, such as `forum->id`) and in `orderBy(...)`.
+
 Supported operators include:
 `=`, `IS`, `>`, `<`, `>=`, `<=`, `!=`, `LIKE`, `NOT LIKE`.
 

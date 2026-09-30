@@ -224,11 +224,14 @@ class ObjectFinder {
 						break;
 					}
 
-				if ($prop == null)
+				// The id is not part of any dataset, so it maps to the id field directly
+				$values = [ $idField => '' ];
+				if ($prop != null) {
+					$type = self::_getPropertyType($prop['type']);
+					$values = $type->toDBSearch($prop, '');
+				} elseif ($property != 'id')
 					$this->error("Trying to evaluate for nonexistent property $property on class {$this->className}");
 
-				$type = self::_getPropertyType($prop['type']);
-				$values = $type->toDBSearch($prop, '');
 				foreach ($values as $fieldname => $value)
 					$orderBysTranslated[] = "`{$baseTable}`.`{$fieldname}` {$direction}";
 			}
@@ -237,7 +240,7 @@ class ObjectFinder {
 			// we do this for MSSQL because using OFFSET x ROWS FETCH NEXT y ROWS ONLY
 			// isn't accepted unless there is a unique order by
 			// (though i haven't tested what custom order stuff does)
-			$query .= " order by `{$idField}`\n";
+			$query .= " order by `{$baseTable}`.`{$idField}`\n";
 		}
 
 		// Limit

@@ -241,6 +241,9 @@ class ARGenerator {
 			$properties = $dataset->getElementsByTagName('property');
 			foreach ($properties as $property) {
 				$prop_name = $property->getAttribute('name');
+				// 'id' always refers to the object's id, so it can't be a property
+				if ($prop_name == 'id')
+					throw new \Exception("Class {$classElement->getAttribute('name')} can't have a property named 'id', it is reserved for the object's id");
 				$prop_fieldnames_str = '';
 				if ($property->hasAttribute('fieldnames'))
 					$prop_fieldnames_str = $property->getAttribute('fieldnames');

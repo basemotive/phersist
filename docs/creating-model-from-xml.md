@@ -187,7 +187,7 @@ Properties define class fields and column mapping.
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Property name used in PHP (`$object->name`). |
+| `name` | yes | — | Property name used in PHP (`$object->name`). The name `id` is reserved for the object's id; the generator refuses it. |
 | `type` | no | `Text` | Property type (`Text`, `Int`, `Float`, `Decimal`, `Bool`, `Date`, `DateTime`, `Class`, `DynamicClass`, `TimestampText`). |
 | `required` | no | `false` | If `true`, must not be null. A new object must have a value for every required property (assigned or from `default`), or `commit()` throws an exception. |
 | `fieldname` | no | auto | Custom single-column field name. |

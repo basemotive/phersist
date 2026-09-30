@@ -77,11 +77,13 @@ class OFWhereExpression extends OFExpression {
 						break;
 					}
 
-				if ($prop == null)
+				// The id is not part of any dataset, so it maps to the id field directly
+				$values = [ $meta['id'] => $this->value ];
+				if ($prop != null) {
+					$type = self::_getPropertyType($prop['type']);
+					$values = $type->toDBSearch($prop, $this->value);
+				} elseif ($property != 'id')
 					$this->of->error("Trying to evaluate for nonexistent property $property on class $className");
-
-				$type = self::_getPropertyType($prop['type']);
-				$values = $type->toDBSearch($prop, $this->value);
 
 				$parts = [];
 				foreach ($values as $fieldname => $value) {

@@ -59,8 +59,25 @@ class MySQLGenerator {
 		$tables = [];
 
 		$classElements = $this->root->getElementsByTagName('class');
+
+		// Collect the tables that hold the classes themselves, so that a relation
+		// on such a table knows that its columns come from that class
+		$this->classTables = [];
+		foreach ($classElements as $classElement) {
+			$table = $classElement->hasAttribute('table') ?
+				$classElement->getAttribute('table') : $this->getAuto('table', $classElement->getAttribute('name'));
+			$this->classTables[$table] = true;
+			foreach ($classElement->getElementsByTagName('dataset') as $dataset)
+				if ($dataset->hasAttribute('table'))
+					$this->classTables[$dataset->getAttribute('table')] = true;
+		}
+
+		// A table can be shared by multiple classes (a join table that is defined
+		// from both sides, or one that holds the relations of several classes), so
+		// each class adds the columns that the table doesn't have yet
 		foreach ($classElements as $classElement)
-			$tables = array_merge($tables, $this->generateClass($classElement));
+			foreach ($this->generateClass($classElement) as $tableName => $fields)
+				$this->addFields($tables, $tableName, $fields);
 
 		$result = '';
 		foreach ($tables as $tableName => $fields) {
@@ -336,38 +353,56 @@ class MySQLGenerator {
 			$localTypeTS = $this->getAuto('table', $className);
 			$remoteTypeTS = $this->getAuto('table', $relation->getAttribute('class'));
 
-			// only create table if it doesn't exist yet, because it may have been
-			// already created from the reverse relation in another class
-			// also, only create tables if we're the table owner, because if it's
-			// a derived property, it may reference another class's base table
-			if ($tableOwner && !isset($result[$tableName])) {
-				$result[$tableName] = [
-					[
-						'fieldName' => $localID,
-						'fieldType' => 'INT UNSIGNED',
-						'required' => true,
-						'primaryKey' => false,
-					],
-					[
-						'fieldName' => $remoteID,
-						'fieldType' => 'INT UNSIGNED',
-						'required' => true,
-						'primaryKey' => false,
-					],
+			// only create the table if we're the table owner, because if it's a
+			// derived relation, it references another table that we don't write to
+			if (!$tableOwner)
+				continue;
+			// if the table holds a class, that class already defines the columns
+			if (isset($this->classTables[$tableName]))
+				continue;
+
+			$fields = [
+				[
+					'fieldName' => $localID,
+					'fieldType' => 'INT UNSIGNED',
+					'required' => true,
+					'primaryKey' => false,
+					'indexName' => 'idx_' . $localTypeTS,
+				],
+			];
+
+			// the class name of the local object, for a table that holds the
+			// relations of several classes; without it, the local id is all we need
+			if ($relation->getAttribute('local_type') != '') {
+				$fields[] = [
+					'fieldName' => $relation->getAttribute('local_type'),
+					'fieldType' => 'VARCHAR(191)',
+					'required' => true,
+					'primaryKey' => false,
+					'indexName' => 'idx_' . $localTypeTS,
 				];
-
-				if ($relation->hasAttribute('order_field')) {
-					$result[$tableName][] = [
-						'fieldName' => $relation->getAttribute('order_field'),
-						'fieldType' => 'INT UNSIGNED',
-						'required' => true,
-						'primaryKey' => false,
-					];
-				}
-
-				$result[$tableName][0]['indexName'] = 'idx_' . $localTypeTS;
-				$result[$tableName][1]['indexName'] = 'idx_' . $remoteTypeTS;
 			}
+
+			$fields[] = [
+				'fieldName' => $remoteID,
+				'fieldType' => 'INT UNSIGNED',
+				'required' => true,
+				'primaryKey' => false,
+				'indexName' => 'idx_' . $remoteTypeTS,
+			];
+
+			if ($relation->hasAttribute('order_field')) {
+				$fields[] = [
+					'fieldName' => $relation->getAttribute('order_field'),
+					'fieldType' => 'INT UNSIGNED',
+					'required' => true,
+					'primaryKey' => false,
+				];
+			}
+
+			// the table may already exist from another relation in this class, in
+			// which case we only add what's missing
+			$this->addFields($result, $tableName, $fields);
 		}
 
 		$maps = $classElement->getElementsByTagName('map');
@@ -431,6 +466,27 @@ class MySQLGenerator {
 	}
 
 	/**
+	 * Adds fields to a table, creating the table if needed. Fields that the
+	 * table already has (by name) are left as they are.
+	 *
+	 * @param array<string, list<array<string, mixed>>> $tables the tables so far: [ 'table_name' => [ PROPS ] ]
+	 * @param string $tableName the table to add the fields to
+	 * @param list<array<string, mixed>> $fields the fields to add
+	 */
+	private function addFields(array &$tables, string $tableName, array $fields) : void {
+		if (!isset($tables[$tableName]))
+			$tables[$tableName] = [];
+
+		$existing = array_column($tables[$tableName], 'fieldName');
+		foreach ($fields as $field) {
+			if (in_array($field['fieldName'], $existing))
+				continue;
+			$tables[$tableName][] = $field;
+			$existing[] = $field['fieldName'];
+		}
+	}
+
+	/**
 	 * Uses a table style converter to convert class and property names into table and column names.
 	 *
 	 * @param string $term what kind of term to translate: table | id | fieldname
@@ -458,6 +514,8 @@ class MySQLGenerator {
 
 	private DOMDocument $doc;
 	private DOMElement $root;
+	/** @var array<string, bool> the tables that hold a class (base and dataset tables) */
+	private array $classTables = [];
 	private string $charset = 'utf8mb4';
 	private ?string $collate = 'utf8mb4_unicode_ci';
 }

@@ -133,12 +133,12 @@ class ARRelationTypeNN extends ARRelationType {
 
 		// Now we re-insert again
 		$query = "insert into `{$rel['table']}` (`{$rel['local_id']}`, `{$rel['remote_id']}`";
-		if (isset($rel['local_type']))
+		if ($myClass !== false)
 			$query .= ", `{$rel['local_type']}`";
 		if (isset($rel['order_field']))
 			$query .= ", `{$rel['order_field']}`";
 		$query .= ") values (:{$rel['local_id']}, :{$rel['remote_id']}";
-		if (isset($rel['local_type']))
+		if ($myClass !== false)
 			$query .= ", :{$rel['local_type']}";
 		if (isset($rel['order_field']))
 			$query .= ", :{$rel['order_field']}";
@@ -150,11 +150,8 @@ class ARRelationTypeNN extends ARRelationType {
 		foreach ($objects as $object) {
 			$stmt->bindValue(":{$rel['local_id']}", $this->activeRecord->id, \PDO::PARAM_INT);
 			$stmt->bindValue(":{$rel['remote_id']}", $object->id, \PDO::PARAM_INT);
-			if (isset($rel['local_type']))
-				if ($rel['use_namespace'])
-					$stmt->bindValue(":{$rel['local_type']}", get_class($this->activeRecord), \PDO::PARAM_STR);
-				else
-					$stmt->bindValue(":{$rel['local_type']}", (new \ReflectionClass($this->activeRecord))->getShortName(), \PDO::PARAM_STR);
+			if ($myClass !== false)
+				$stmt->bindValue(":{$rel['local_type']}", $myClass, \PDO::PARAM_STR);
 			if (isset($rel['order_field'])) {
 				$stmt->bindValue(":{$rel['order_field']}", $counter, \PDO::PARAM_STR);
 				$counter++;

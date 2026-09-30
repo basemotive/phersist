@@ -324,7 +324,7 @@ class ARGenerator {
 			if ($relation->hasAttribute('order_field'))
 				$metarel['order_field'] = $relation->getAttribute('order_field');
 
-			if ($relation->hasAttribute('local_type')) {
+			if ($relation->getAttribute('local_type') != '') {
 				// relation table field that holds the class name of the local object
 				$metarel['local_type'] = $relation->getAttribute('local_type');
 				// use namespace of class for the local_type field (default false)

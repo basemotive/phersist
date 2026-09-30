@@ -440,7 +440,7 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 | `load_objects` | yes | `true` to load autoload datasets for related objects; `false` for ID-only skeletons. |
 | `order_field` | no | SQL order column when restoring relation. |
 | `cascade_delete` | no | Delete related objects when owner is deleted. |
-| `local_type` | no | Type column for polymorphic filtering with dynamic local references. |
+| `local_type` | no | Column holding the class name of the local object, for tables that hold rows of several classes. When omitted, every row matching `local_id` is taken to belong to this class. |
 | `use_namespace` | no | Controls what value is stored in `local_type`. `false` (default): store the short class name (e.g. `ForumMessage`). `true`: store the fully-qualified class name (e.g. `MyApp\Model\ForumMessage`). Only used when `local_type` is set. |
 
 ### Common patterns
@@ -470,6 +470,10 @@ By default (`use_namespace="false"`), the **short class name** is stored — jus
 
 Here the `owner_type` column will contain `ForumMessage`, not `MyApp\Model\ForumMessage`.  
 This keeps the stored values short and human-readable, and avoids tying your database data to a specific PHP namespace.
+
+Without `local_type`, PHersist assumes no discriminator is needed: any row with the object's ID in `local_id` belongs to the current class.
+
+In the generated MySQL schema, a join table (`table_owner="true"`) gets the `local_type` column as `VARCHAR(191) NOT NULL`, indexed together with `local_id`. A join table shared by several classes gets the combined columns of all relations that use it. When `table` is a class's own base or dataset table, the relation adds nothing to the schema: the columns are expected to be defined by that class (for example by a `DynamicClass` property).
 
 Set `use_namespace="true"` only when you need the fully-qualified name — for example to match values an external system has already stored:
 

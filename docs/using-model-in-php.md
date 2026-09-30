@@ -65,10 +65,14 @@ Some property types convert assigned values, so a property always has the same k
 ```php
 <?php
 
-$user = new User(123);   // id-based object
+$user = User::fetch(123);   // id-based object
 $user->name = 'Joseph Example';
 $user->commit();
 ```
+
+`User::fetch($id)` is a shortcut for `ActiveRecord::fetchObject(User::class, $id)`. It returns an object without querying the database, so it doesn't tell you whether the row exists (see [Check existence](#check-existence)); the data is loaded when you first read a property. With `ObjectCache` enabled, it returns the instance that is already in use for that id.
+
+The constructor is for new objects only: `new User(123)` throws an exception.
 
 `commit()` only writes the properties that changed since the object was loaded or last committed. If nothing changed, it does nothing at all, so it's safe to call unconditionally. (A new object is always inserted on its first `commit()`, even if nothing was set.)
 
@@ -113,7 +117,7 @@ Example using `ForumMessageTrait::createdAtRelative()`:
 
 use Babble\Model\ForumMessage;
 
-$message = new ForumMessage(123);
+$message = ForumMessage::fetch(123);
 echo $message->createdAtRelative() . PHP_EOL;
 ```
 
@@ -214,7 +218,7 @@ $messages = ObjectFinder::create(ForumMessage::class)
 
 ### Result types and static analysis
 
-`ObjectFinder` is annotated with generics for static analysers such as PHPStan and Psalm. The class you pass to `create()` determines the result types, so `ObjectFinder::create(User::class)->fetch()` is known to return a `list<User>` and `fetchOne()` a `?User`, including the `@property` declarations of the generated class. The same applies to `ActiveRecord::fetchObject($class, $id)`.
+`ObjectFinder` is annotated with generics for static analysers such as PHPStan and Psalm. The class you pass to `create()` determines the result types, so `ObjectFinder::create(User::class)->fetch()` is known to return a `list<User>` and `fetchOne()` a `?User`, including the `@property` declarations of the generated class. The same applies to `ActiveRecord::fetchObject($class, $id)` and `User::fetch($id)`.
 
 For this to work, the class name must be a `class-string`. `User::class` always is, so prefer it over a string literal like `'MyApp\Model\User'`.
 

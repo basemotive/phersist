@@ -55,11 +55,18 @@ class ObjectCache {
 	/**
 	 * Evicts an ActiveRecord object from the cache.
 	 *
+	 * The entry is left alone if it belongs to another instance with the same
+	 * class and id that is still alive.
+	 *
 	 * @param ?ActiveRecord $object the object to evict from the cache
 	 */
 	public static function evict(?ActiveRecord $object) : void {
 		if (!self::$enabled) return;
 		if ($object == null || $object->id === null) return;
-        unset(self::$cache[get_class($object).':'.$object->id]);
-    }
+		$key = get_class($object).':'.$object->id;
+		if (!isset(self::$cache[$key])) return;
+		$cached = self::$cache[$key]->get();
+		if ($cached === null || $cached === $object)
+			unset(self::$cache[$key]);
+	}
 }

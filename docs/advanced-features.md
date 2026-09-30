@@ -25,6 +25,8 @@ With `ObjectCache` enabled, PHersist can reuse an already-loaded instance for th
 - PHersist stores **weak references** in the cache.
 - Objects are cached only when they have a non-null id.
 - Lookups happen during object restoration/fetching (including repeated `ObjectFinder` results and object restoration while dereferencing relation properties), so already-cached instances can be reused instead of issuing equivalent follow-up queries.
+- A new object is added to the cache when its first `commit()` gives it an id.
+- Existing objects can only be obtained through `MyClass::fetch($id)`, `ActiveRecord::fetchObject()`, `ObjectFinder` or a property/relation, which all consult the cache; `new MyClass($id)` throws an exception, so you can't create a second instance for the same row by accident.
 - Objects are evicted on delete.
 - Because references are weak, cache entries naturally disappear when no strong references remain.
 

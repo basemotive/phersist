@@ -18,11 +18,25 @@ class ActiveRecord implements \ArrayAccess {
 	/** @var ?array<string, mixed> $_meta */
 	protected static ?array $_meta;
 
+	/** @var bool $_fetching if fetchObject() is creating an instance right now */
+	private static bool $_fetching = false;
+
 	/**
 	 * Creates a new persistent object.
-	 * @param ?int $id the object-id for the given type in the database
+	 *
+	 * Use this for new objects only. An existing object is retrieved with
+	 * fetch() or fetchObject(), so the ObjectCache can hand out the instance
+	 * that is already in use; passing an id here throws an exception.
+	 *
+	 * @param ?int $id for internal use by fetchObject() only
 	 */
 	public function __construct(?int $id = null) {
+		// Only fetchObject() may create an instance for an existing id
+		$fetching = self::$_fetching;
+		self::$_fetching = false;
+		if ($id !== null && !$fetching)
+			$this->_error('Cannot construct an object with an id; use '.static::class.'::fetch($id) instead');
+
 		// This is a basic sanity check; user instantiated the wrong class
 		if (static::$_meta == null)
 			$this->_error('No metadata available');
@@ -240,6 +254,10 @@ class ActiveRecord implements \ArrayAccess {
 
 		// Everything is stored now, so nothing has changed anymore
 		$this->_changed = [];
+
+		// A new object has an id now, so it can be found in the ObjectCache
+		if ($isNew)
+			ObjectCache::put($this);
 	}
 
 	/**
@@ -389,10 +407,23 @@ class ActiveRecord implements \ArrayAccess {
 	}
 
 	/**
+	 * Fetches the instance of this class with the given id.
+	 *
+	 * This is a shortcut for fetchObject() with the class it is called on, like
+	 * User::fetch(123).
+	 *
+	 * @param ?int $id the id
+	 * @return ?static the ActiveRecord instance, or null if no $id given
+	 */
+	public static function fetch(?int $id) : ?static {
+		return self::fetchObject(static::class, $id);
+	}
+
+	/**
 	 * Fetches a specific ActiveRecord instance.
 	 *
-	 * Currently, this simply creates a new object, but in the future this could use some
-	 * form of caching (ideally, when PHP supports weak references).
+	 * With the ObjectCache enabled, the instance that is already in use for this
+	 * class and id is returned; otherwise a new one is created.
 	 *
 	 * Returns an object even if it doesn't actually exist in the database. This
 	 * makes this action much faster but somewhat unreliable. If the existence of
@@ -411,7 +442,12 @@ class ActiveRecord implements \ArrayAccess {
 		if ($id === null)
 			return null;
 
-		$object = ObjectCache::get($class, $id) ?? new $class($id);
+		$object = ObjectCache::get($class, $id);
+		if ($object === null) {
+			// Tells the constructor that it may accept an id this time
+			self::$_fetching = true;
+			$object = new $class($id);
+		}
 
 		// If we got values for our autoload dataset, then handle them
 		if ($row != null) {

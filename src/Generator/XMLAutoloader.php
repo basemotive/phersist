@@ -27,6 +27,20 @@ class XMLAutoloader {
 	}
 
 	private function loader(string $className) : void {
+		// The autoloader receives the fully qualified name, while the generator
+		// looks for the short name. Only classes in the project namespace can
+		// come from the XML.
+		$namespace = ltrim($this->generator->getNamespace(), '\\');
+		if ($namespace != '') {
+			if (strncasecmp($className, $namespace, strlen($namespace)) != 0)
+				return;
+			$className = substr($className, strlen($namespace));
+		}
+
+		// Anything still qualified is in another (sub)namespace
+		if (strpos($className, '\\') !== false)
+			return;
+
 		$phpcode = $this->generator->generateForClass($className);
 
 		// If the class was not found in the XML, the generator returns nothing

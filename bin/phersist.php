@@ -25,7 +25,6 @@ use PHersist\Generator\MySQLGenerator;
 $options = getopt('h', [
 	'xml:',
 	'classesdir:',
-	'includesdir:',
 	'mysql:',
 	'skip-classes',
 	'help',
@@ -33,7 +32,6 @@ $options = getopt('h', [
 
 $xmlFile = $options['xml'] ?? null;
 $classesDir = $options['classesdir'] ?? null;
-$includesDir = $options['includesdir'] ?? null;
 $mysqlFile = $options['mysql'] ?? null;
 $skipClasses = isset($options['skip-classes']);
 $help = isset($options['h']) || isset($options['help']);
@@ -46,8 +44,6 @@ if ($help) {
     echo "Optional parameters:\n";
     echo "  --classesdir=<PATH>\n";
     echo "    the path where the classes should be written\n";
-    echo "  --includesdir=<PATH>\n";
-    echo "    the path where Classname.include.php files can be found\n";
     echo "  --mysql=<SQLFILE>\n";
     echo "    where to write the MySQL schema\n";
     echo "  --skip-classes\n";
@@ -72,17 +68,13 @@ if ($classesDir && (!file_exists($classesDir) || !is_dir($classesDir))) {
 	echo "ERROR: Classes dir '{$classesDir}' not found\n";
 	exit(1);
 }
-if ($includesDir && (!file_exists($includesDir) || !is_dir($includesDir))) {
-	echo "ERROR: Includes dir '{$includesDir}' not found\n";
-	exit(1);
-}
 if (!$autoloader) {
 	echo "ERROR: Composer autoloader not found; run 'composer install' first\n";
 	exit(1);
 }
 
 $xml = file_get_contents($xmlFile);
-$arGenerator = new ARGenerator($xml, $includesDir);
+$arGenerator = new ARGenerator($xml);
 
 if (!$skipClasses && !$classesDir) {
 	// automagically figure out where to put the classes

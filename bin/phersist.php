@@ -35,9 +35,10 @@ $classesDir = $options['classesdir'] ?? null;
 $mysqlFile = $options['mysql'] ?? null;
 $skipClasses = isset($options['skip-classes']);
 $help = isset($options['h']) || isset($options['help']);
+$script = $argv[0] ?? 'phersist';
 
 if ($help) {
-	echo "Usage: {$argv[0]} --xml=<file>\n";
+	echo "Usage: {$script} --xml=<file>\n";
     echo "Where:\n";
     echo "  --xml=<FILE>\n";
     echo "    the project's data structure\n";
@@ -56,8 +57,8 @@ if ($skipClasses && $mysqlFile == null) {
 	exit(0);
 }
 if (!$xmlFile) {
-    echo "Usage: {$argv[0]} --xml=<file>\n";
-    echo "More info: {$argv[0]} --help\n";
+    echo "Usage: {$script} --xml=<file>\n";
+    echo "More info: {$script} --help\n";
     exit(1);
 }
 if (!file_exists($xmlFile)) {

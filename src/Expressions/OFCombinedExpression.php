@@ -69,6 +69,7 @@ class OFCombinedExpression extends OFExpression {
 		$values = [];
 		foreach ($this->items as $item) {
 			list($subParts, $subValues) = $item->evaluate();
+			if ($subParts === '') continue; // empty group
 			$parts[] = $subParts;
 			$values = array_merge($values, $subValues);
 		}

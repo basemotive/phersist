@@ -86,7 +86,9 @@ class MySQLGenerator {
 				else
 					$result .= ' NULL';
 				if ($field['primaryKey']) {
-					$result .= ' AUTO_INCREMENT';
+					// Only the base table hands out ids; other dataset tables receive them
+					if (!empty($field['autoIncrement']))
+						$result .= ' AUTO_INCREMENT';
 					$primaryKey = $field;
 				}
 				if (isset($field['defaultRaw'])) {
@@ -151,7 +153,18 @@ class MySQLGenerator {
 		$softdelete = $classElement->hasAttribute('softdelete') && $classElement->getAttribute('softdelete')=='true';
 
 		$result = [];
-		$softdeleteSatisfied = false;
+
+		// the base table always exists, even if no dataset stores its properties
+		// there, because it hands out the ids and holds the softdelete field
+		$result[$table] = [
+			[
+				'fieldName' => $idField,
+				'fieldType' => 'INT UNSIGNED',
+				'required' => true,
+				'primaryKey' => true,
+				'autoIncrement' => true,
+			],
+		];
 
 		// process the datasets
 		$datasets = $classElement->getElementsByTagName('dataset');
@@ -295,19 +308,18 @@ class MySQLGenerator {
 					];
 				}
 			}
+		}
 
-			// add a deleted field for softdelete
-			if ($softdelete && !$softdeleteSatisfied) {
-				$result[$datasetTable][] = [
-					'fieldName' => 'deleted',
-					'fieldType' => 'INT UNSIGNED',
-					'required' => true,
-					'primaryKey' => false,
-					'defaultValue' => 0,
-				];
-
-				$softdeleteSatisfied = true;
-			}
+		// add a deleted field for softdelete; it belongs in the base table,
+		// because that's where ActiveRecord and ObjectFinder look for it
+		if ($softdelete) {
+			$result[$table][] = [
+				'fieldName' => 'deleted',
+				'fieldType' => 'INT UNSIGNED',
+				'required' => true,
+				'primaryKey' => false,
+				'defaultValue' => 0,
+			];
 		}
 
 		// Process the relations

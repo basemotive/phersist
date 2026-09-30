@@ -164,7 +164,7 @@ Properties are grouped into datasets. A dataset is loaded in one query.
 | Attribute | Required | Default | Description |
 |---|---|---|---|
 | `autoload` | no | `false` | Load this dataset automatically in bulk fetches. |
-| `table` | no | class base table | Optional table override for dataset-backed properties. |
+| `table` | no | class base table | Optional table override for dataset-backed properties. The table shares the id of the base table: every object has exactly one row in it, created on the first commit and removed on a hard delete. |
 
 ### Why split datasets?
 

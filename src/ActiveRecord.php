@@ -156,10 +156,22 @@ class ActiveRecord implements \ArrayAccess {
 
 		$isNew = $this->id === null;
 		$idfield = static::$_meta['id'];
+		$baseTable = static::$_meta['table'];
+
+		// A new object gets a row in every dataset table, even if none of that
+		// dataset's properties have been set
+		if ($isNew)
+			foreach (static::$_meta['datasets'] as $dataset)
+				if (!isset($tableUpdates[$dataset['table']])) $tableUpdates[$dataset['table']] = [];
+
 		foreach ($tableUpdates as $table => $updates) {
-			$setParts = [];
-			if ($this->id === null || $isNew) { // $isNew is for when there are more tables
-				// New object, so we insert a new set into the table and retrieve the new id afterwards
+			if ($isNew) {
+				// New object, so we insert a new set into the table. The base table is
+				// processed first and hands out the id, which the other dataset tables
+				// then receive explicitly.
+				if ($table != $baseTable)
+					$updates = [ $idfield => $this->id ] + $updates;
+
 				$fields_part = '';
 				$values_part = '';
 				foreach ($updates as $key => $value) {
@@ -180,7 +192,8 @@ class ActiveRecord implements \ArrayAccess {
 					}
 				}
 				$stmt->execute();
-				$this->_data[static::$_meta['id']] = (int)$this->_PDO->lastInsertId();
+				if ($table == $baseTable)
+					$this->_data[$idfield] = (int)$this->_PDO->lastInsertId();
 			} elseif (count($updates)>0) { // The check is because we always process our base table
 				// Existing object, so update the modified values
 				$setpart = '';
@@ -319,6 +332,15 @@ class ActiveRecord implements \ArrayAccess {
 				// Use __get(), because the map only exists once it has been accessed
 				$map = $this->__get($mapname);
 				$map->delete();
+			}
+
+			// Delete the rows of the datasets that live in their own table
+			$datasetTables = array_unique(array_column(static::$_meta['datasets'], 'table'));
+			foreach ($datasetTables as $datasetTable) if ($datasetTable != $table) {
+				$query = "delete from `$datasetTable` where `$id` = :id";
+				$stmt = $this->_PDO->prepare($query);
+				$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
+				$stmt->execute();
 			}
 
 			// Delete the main record

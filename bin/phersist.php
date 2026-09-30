@@ -76,6 +76,10 @@ if ($includesDir && (!file_exists($includesDir) || !is_dir($includesDir))) {
 	echo "ERROR: Includes dir '{$includesDir}' not found\n";
 	exit(1);
 }
+if (!$autoloader) {
+	echo "ERROR: Composer autoloader not found; run 'composer install' first\n";
+	exit(1);
+}
 
 $xml = file_get_contents($xmlFile);
 $arGenerator = new ARGenerator($xml, $includesDir);

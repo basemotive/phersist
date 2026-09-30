@@ -352,9 +352,6 @@ class MySQLGenerator {
 			$remoteID = $relation->getAttribute('remote_id');
 			$tableOwner = $relation->getAttribute('table_owner') == 'true';
 
-			$localTypeTS = $this->getAuto('table', $className);
-			$remoteTypeTS = $this->getAuto('table', $relation->getAttribute('class'));
-
 			// only create the table if we're the table owner, because if it's a
 			// derived relation, it references another table that we don't write to
 			if (!$tableOwner)
@@ -369,7 +366,7 @@ class MySQLGenerator {
 					'fieldType' => 'INT UNSIGNED',
 					'required' => true,
 					'primaryKey' => false,
-					'indexName' => 'idx_' . $localTypeTS,
+					'indexName' => 'idx_' . $localID,
 				],
 			];
 
@@ -381,7 +378,7 @@ class MySQLGenerator {
 					'fieldType' => 'VARCHAR(191)',
 					'required' => true,
 					'primaryKey' => false,
-					'indexName' => 'idx_' . $localTypeTS,
+					'indexName' => 'idx_' . $localID,
 				];
 			}
 
@@ -390,7 +387,7 @@ class MySQLGenerator {
 				'fieldType' => 'INT UNSIGNED',
 				'required' => true,
 				'primaryKey' => false,
-				'indexName' => 'idx_' . $remoteTypeTS,
+				'indexName' => 'idx_' . $remoteID,
 			];
 
 			if ($relation->hasAttribute('order_field')) {

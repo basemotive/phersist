@@ -36,8 +36,8 @@ DROP TABLE IF EXISTS `forum_message_tags`;
 CREATE TABLE `forum_message_tags` (
 	`forum_message_id` INT UNSIGNED NOT NULL,
 	`tag_id` INT UNSIGNED NOT NULL,
-	INDEX `idx_forum_messages` (`forum_message_id`),
-	INDEX `idx_tags` (`tag_id`)
+	INDEX `idx_forum_message_id` (`forum_message_id`),
+	INDEX `idx_tag_id` (`tag_id`)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;

@@ -132,6 +132,31 @@ class ActiveRecord implements \ArrayAccess {
 		// Referenced objects need an id before we can store a reference to them
 		$this->_checkReferences();
 
+		$isNew = $this->id === null;
+
+		try {
+			$this->_transaction(fn() => $this->_store($isNew));
+		} catch (\Throwable $e) {
+			// The inserts have been rolled back, so the id we got from them is invalid
+			if ($isNew)
+				$this->_data[static::$_meta['id']] = null;
+			throw $e;
+		}
+
+		// Everything is stored now, so nothing has changed anymore
+		$this->_changed = [];
+
+		// A new object has an id now, so it can be found in the ObjectCache
+		if ($isNew)
+			ObjectCache::put($this);
+	}
+
+	/**
+	 * Writes the changed properties, relations and maps to the database.
+	 *
+	 * @param bool $isNew if this object has not been stored before
+	 */
+	private function _store(bool $isNew) : void {
 		// Map of form 'tablename' => [ 'key' => 'prop', ... ]
 		// We always automatically add our base table here, so it gets processed first for new objects
 		$tableUpdates = [ static::$_meta['table'] => [] ];
@@ -171,8 +196,6 @@ class ActiveRecord implements \ArrayAccess {
 				}
 			}
 
-		$isNew = $this->id === null;
-		$idfield = static::$_meta['id'];
 		$baseTable = static::$_meta['table'];
 
 		// A new object gets a row in every dataset table, even if none of that
@@ -251,13 +274,52 @@ class ActiveRecord implements \ArrayAccess {
 				$map->commit();
 			}
 		}
+	}
 
-		// Everything is stored now, so nothing has changed anymore
-		$this->_changed = [];
+	/**
+	 * Runs the given function in a database transaction, so its statements
+	 * are stored either all or not at all.
+	 *
+	 * If a transaction is already active, for example one the application
+	 * started itself or an outer commit() or delete(), the function simply runs
+	 * in that transaction and the caller that started it decides whether it
+	 * gets committed.
+	 *
+	 * @param callable(): void $fn the function that performs the statements
+	 */
+	private function _transaction(callable $fn) : void {
+		// A failed statement must throw, even if the application switched the
+		// connection to another error mode. Otherwise the failure would go
+		// unnoticed and the other statements would still be committed.
+		$errorMode = $this->_PDO->getAttribute(\PDO::ATTR_ERRMODE);
+		$this->_PDO->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
-		// A new object has an id now, so it can be found in the ObjectCache
-		if ($isNew)
-			ObjectCache::put($this);
+		try {
+			$ownTransaction = !$this->_PDO->inTransaction();
+			if ($ownTransaction)
+				$this->_PDO->beginTransaction();
+
+			try {
+				$fn();
+				if ($ownTransaction)
+					$this->_PDO->commit();
+			} catch (\Throwable $e) {
+				if ($ownTransaction)
+					$this->_rollBack();
+				throw $e;
+			}
+		} finally {
+			$this->_PDO->setAttribute(\PDO::ATTR_ERRMODE, $errorMode);
+		}
+	}
+
+	/**
+	 * Rolls back the active transaction, if there still is one.
+	 */
+	private function _rollBack() : void {
+		// Some databases end the transaction themselves on certain errors
+		if ($this->_PDO->inTransaction())
+			$this->_PDO->rollBack();
 	}
 
 	/**
@@ -359,6 +421,19 @@ class ActiveRecord implements \ArrayAccess {
 		if ($this->id === null)
 			return;
 
+		$this->_transaction(fn() => $this->_deleteRows());
+
+		// Self-evict this instance from the ObjectCache
+		ObjectCache::evict($this);
+
+		$this->_data[static::$_meta['id']] = null;
+		$this->_deleted = true;
+	}
+
+	/**
+	 * Deletes (or softdeletes) the rows of this object from the database.
+	 */
+	private function _deleteRows() : void {
 		$table = static::$_meta['table'];
 		$id = static::$_meta['id'];
 
@@ -398,12 +473,6 @@ class ActiveRecord implements \ArrayAccess {
 			$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 			$stmt->execute();
 		}
-
-		// Self-evict this instance from the ObjectCache
-		ObjectCache::evict($this);
-
-		$this->_data[static::$_meta['id']] = null;
-		$this->_deleted = true;
 	}
 
 	/**

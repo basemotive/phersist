@@ -90,6 +90,29 @@ If the class uses `softdelete="true"`, this sets `deleted = 1` instead of removi
 
 After `delete()`, the object's lifecycle has ended: its `id` becomes `null`, and setting a property (including map entries) or calling `commit()` on it throws an exception, instead of inserting it again as a new row. Properties that were already loaded can still be read; properties that weren't read as `null`. To store the same data again, create a new object. Use `$user->isDeleted()` to check whether an object has been deleted.
 
+### Transactions
+
+A single `commit()` or `delete()` can run many statements: inserts or updates for every dataset table, and rewriting relations and maps. These run in a database transaction, so if one of them fails, none of them are stored and `commit()` or `delete()` throws the database's `PDOException`. This happens even if you switched the connection to `PDO::ERRMODE_SILENT` or `PDO::ERRMODE_WARNING`: PHersist uses `PDO::ERRMODE_EXCEPTION` for the duration of the call and then restores your setting, because otherwise a failed statement would go unnoticed and the others would still be stored. (The connections that `DBConnectionManager` creates use `PDO::ERRMODE_EXCEPTION` anyway.) The object stays as it was: its changes are still pending, so you can fix the cause and call `commit()` again, and a new object whose commit failed has no `id`. A failed `delete()` doesn't mark the object as deleted.
+
+If a transaction is already active on the connection, `commit()` and `delete()` run in that transaction instead of starting their own, and leave committing or rolling back to you. Use this to store several objects together:
+
+```php
+<?php
+
+$pdo = DBConnectionManager::getPDO('myapp');
+$pdo->beginTransaction();
+try {
+    $user->commit();
+    $message->commit();
+    $pdo->commit();
+} catch (\Throwable $e) {
+    $pdo->rollBack();
+    throw $e;
+}
+```
+
+Only the database is rolled back, not the objects in memory. After rolling back your own transaction, objects that were committed in it no longer have pending changes, and new ones keep the `id` they received, even though nothing was stored. Discard those objects and fetch them again. The same applies to objects removed by a `cascade_delete` relation when the `delete()` that removed them fails: they are marked as deleted, though their rows are still there. A related object in a different database is deleted in a transaction on its own connection, which a failure on the other connection doesn't roll back.
+
 ### Check existence
 
 ```php

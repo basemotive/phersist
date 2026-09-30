@@ -55,7 +55,10 @@ class DBConnectionManager {
 		$PDO = new MySQLtoMSSQLPDO (
 			"sqlsrv:Server={$host};Database={$name};TrustServerCertificate=yes",
 			$username,
-			$password
+			$password,
+			[
+				PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+			]
 		);
 		self::$connectionsPDO[$id] = $PDO;
 		return $PDO;
@@ -70,7 +73,9 @@ class DBConnectionManager {
 	 * @return PDO the database connection
 	 */
 	public static function newSQLiteConnection(string $id, string $filename) : PDO {
-		$PDO = new PDO ("sqlite:{$filename}");
+		$PDO = new PDO ("sqlite:{$filename}", null, null, [
+			PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+		]);
 		self::$connectionsPDO[$id] = $PDO;
 		return $PDO;
 	}

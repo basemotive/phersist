@@ -26,7 +26,7 @@ class ARPropertyTypeClass extends ARPropertyType {
 	}
 
 	public function toDB(array $prop, mixed $value) : array {
-		// This will go wrong if the related object hasn't been committed already
+		// ActiveRecord::commit() makes sure the related object has been committed already
 		return [ $prop['fieldnames'][0] => $value==null ? null : $value->id ];
 	}
 

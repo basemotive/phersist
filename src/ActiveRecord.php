@@ -115,6 +115,9 @@ class ActiveRecord implements \ArrayAccess {
 		if ($this->id === null)
 			$this->_checkRequired();
 
+		// Referenced objects need an id before we can store a reference to them
+		$this->_checkReferences();
+
 		// Map of form 'tablename' => [ 'key' => 'prop', ... ]
 		// We always automatically add our base table here, so it gets processed first for new objects
 		$tableUpdates = [ static::$_meta['table'] => [] ];
@@ -258,6 +261,34 @@ class ActiveRecord implements \ArrayAccess {
 
 		if (count($missing) > 0)
 			$this->_error('Required '.(count($missing) == 1 ? 'property' : 'properties').' not set: '.implode(', ', $missing));
+	}
+
+	/**
+	 * Checks that the changed properties and relations don't refer to objects
+	 * that haven't been committed yet.
+	 *
+	 * Such objects have no id, so the reference would end up as NULL in the
+	 * database. Referenced objects are not committed automatically.
+	 */
+	private function _checkReferences() : void {
+		$uncommitted = [];
+		foreach ($this->_changed as $key) {
+			$value = $this->_data[$key] ?? null;
+
+			if ($this->_getDatasetFor($key) != null) {
+				if ($value instanceof ActiveRecord && $value->id === null)
+					$uncommitted[] = $key;
+			} elseif (isset(static::$_meta['relations'][$key]) && static::$_meta['relations'][$key]['table_owner']) {
+				foreach ((array)$value as $object)
+					if ($object instanceof ActiveRecord && $object->id === null) {
+						$uncommitted[] = $key;
+						break;
+					}
+			}
+		}
+
+		if (count($uncommitted) > 0)
+			$this->_error('Cannot commit a reference to an object that has not been committed itself: '.implode(', ', $uncommitted));
 	}
 
 	/**

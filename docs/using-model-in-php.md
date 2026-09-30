@@ -56,6 +56,8 @@ After `commit()`, the object receives its primary key (`$user->id`).
 
 A new object starts out with the [default values](creating-model-from-xml.md#default-values) from the model (for example `0` for an `Int` with `default="0"`), and those are stored on the first `commit()`. Properties without a default are `null` until you assign them. If a `required` property still has no value, `commit()` throws an exception and nothing is stored.
 
+`commit()` only stores the object it is called on. Objects you refer to, through a `Class` or `DynamicClass` property or an owned relation, are not committed along with it, so commit those first. If a changed property or relation refers to an object that has no id yet, `commit()` throws an exception and nothing is stored.
+
 Some property types convert assigned values, so a property always has the same kind of value, whether it was assigned or loaded from the database. For example, `$user->age = '42'` stores the int `42` for an `Int` property, `$event->startsAt = '2026-01-01 12:30'` stores a `DateTimeImmutable` for a `DateTime` property, and `$product->price = 12.5` stores `'12.50'` for a `Decimal`. Invalid values, like `'2026-02-30'` for a date, throw an exception on assignment. See [Property types](creating-model-from-xml.md#property-types).
 
 ### Load and update
@@ -310,7 +312,7 @@ $message->tags = [$tag1, $tag2];
 $message->commit();
 ```
 
-For `table_owner="true"` relations, commit replaces relation rows for that owning object.  
+For `table_owner="true"` relations, commit replaces relation rows for that owning object. The related objects must have been committed already; otherwise `commit()` throws an exception.  
 For derived relations (`table_owner="false"`), treat them as read-only views.
 
 With `ObjectCache` enabled, dereferencing relations/properties that point to objects already loaded earlier in the same runtime can also reduce repeated SQL queries.

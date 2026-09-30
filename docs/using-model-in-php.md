@@ -145,7 +145,7 @@ Common methods:
 - `addAnd()`, `addOr()` for grouped conditions
 - `end()` to close the current group and return to the parent level
 - `orderBy($property, ObjectFinder::DIRECTION_ASC|ObjectFinder::DIRECTION_DESC)`
-- `fetch($limit = '')`
+- `fetch(?int $limit = null, int $offset = 0)`
 - `fetchOne()`
 - `count()`
 - `includeDeletedRecords(true|false)` for soft-delete classes
@@ -187,6 +187,8 @@ $messages = ObjectFinder::create(ForumMessage::class)
     ->orderBy('createdAt', ObjectFinder::DIRECTION_DESC)
     ->fetch(20);
 ```
+
+`fetch()` takes the maximum number of objects and, optionally, the number of matching objects to skip: `fetch(20, 40)` returns the third page of 20. Both must be integers (an offset requires a limit), and the direction for `orderBy(...)` must be one of the two `ObjectFinder::DIRECTION_*` constants; anything else throws.
 
 ### Count rows
 

@@ -96,8 +96,8 @@ class OFCombinedExpression extends OFExpression {
 	 *
 	 * @return list<T>
 	 */
-	public function fetch(mixed $limit='') : array {
-		return $this->of->fetch($limit);
+	public function fetch(?int $limit = null, int $offset = 0) : array {
+		return $this->of->fetch($limit, $offset);
 	}
 
 	/**

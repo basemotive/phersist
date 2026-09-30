@@ -113,6 +113,11 @@ class ObjectFinder {
 		if (!$this->hasProperty($propname))
 			$this->error("Does not have property $propname");
 
+		// The direction ends up in the SQL as is, so only the known ones will do
+		$direction = strtolower($direction);
+		if ($direction !== self::DIRECTION_ASC && $direction !== self::DIRECTION_DESC)
+			$this->error("Invalid order direction, use ObjectFinder::DIRECTION_ASC or ObjectFinder::DIRECTION_DESC");
+
 		$this->orderBys[] = [
 			'property' => $propname,
 			'direction' => $direction,
@@ -162,9 +167,22 @@ class ObjectFinder {
 	}
 
 	/**
+	 * Fetches the matching objects.
+	 *
+	 * @param ?int $limit the maximum number of objects to fetch, or null for
+	 *   all of them
+	 * @param int $offset the number of matching objects to skip, which requires
+	 *   a limit
 	 * @return list<T>
 	 */
-	public function fetch(mixed $limit='') : array {
+	public function fetch(?int $limit = null, int $offset = 0) : array {
+		if ($limit !== null && $limit < 0)
+			$this->error("The limit can't be negative");
+		if ($offset < 0)
+			$this->error("The offset can't be negative");
+		if ($offset > 0 && $limit === null)
+			$this->error("An offset requires a limit");
+
 		list($where, $queryValues) = $this->rootExpression->evaluate();
 
 		$meta = ActiveRecord::_getMeta($this->className);
@@ -255,8 +273,8 @@ class ObjectFinder {
 		}
 
 		// Limit
-		if ($limit !== '') {
-			$query .= " limit $limit\n";
+		if ($limit !== null) {
+			$query .= $offset > 0 ? " limit $offset, $limit\n" : " limit $limit\n";
 		}
 
 		$objects = [];

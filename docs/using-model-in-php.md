@@ -329,6 +329,8 @@ $user->settings['theme'] = 'dark';
 $user->commit();
 ```
 
+A key that doesn't exist reads as `null`, and `isset()` / `??` work as they do on arrays. For a map with more than one key, `isset($page->texts['nl'])` tells whether there are any entries under `nl`.
+
 ### Remove a map entry
 
 ```php
@@ -338,7 +340,81 @@ $user->settings['theme'] = null;
 $user->commit();
 ```
 
-Important: assign map entries by key. Do not replace the map property itself with direct `=` assignment.
+`unset($user->settings['theme'])` does the same.
+
+### Replace a whole map or submap
+
+Assigning an array replaces the contents; entries that aren't in the array are removed on commit. The array must be nested exactly as deep as the map has keys. For a map with two keys (`lang`, `field`):
+
+```php
+<?php
+
+// Replace the whole map
+$page->texts = [
+    'nl' => ['title' => 'Titel', 'content' => 'De inhoud hier'],
+    'en' => ['title' => 'Title', 'content' => 'The content here'],
+];
+
+// Replace only the 'nl' submap
+$page->texts['nl'] = ['title' => 'Titel', 'content' => 'De inhoud hier'];
+
+// Remove the 'en' submap, or empty the whole map
+unset($page->texts['en']);
+$page->texts = [];
+
+$page->commit();
+```
+
+An array that doesn't fit the key structure (too deep, too shallow, or a non-string-like value) throws an `\InvalidArgumentException` and leaves the map unchanged. Values are stored as strings.
+
+To add entries without removing the others, assign them by key, or merge first: `$page->texts = array_replace_recursive($page->texts->toArray(), $new);`
+
+#### `set()` for static analysis
+
+The generated classes declare a map property as `PHersist\Maps\Map`, because that is what reading it returns. Static analyzers such as PHPStan therefore report an error when you assign an array to it directly, even though it works at runtime. Use `set()` instead if you want your code to pass analysis; it does exactly the same, and also works on a submap:
+
+```php
+<?php
+
+// Same as $page->texts = [...]
+$page->texts->set([
+    'nl' => ['title' => 'Titel', 'content' => 'De inhoud hier'],
+]);
+
+// Same as $page->texts['nl'] = [...]
+$page->texts['nl']->set(['title' => 'Titel', 'content' => 'De inhoud hier']);
+
+// Same as $page->texts = []
+$page->texts->set([]);
+```
+
+### Get a map as an array
+
+A map property is an object, so a PHP `(array)` cast doesn't give its contents. Use `toArray()`, which also works on a submap, or loop over it directly:
+
+```php
+<?php
+
+$all = $page->texts->toArray();        // ['nl' => ['title' => 'Titel', ...], ...]
+$nl = $page->texts['nl']->toArray();   // ['title' => 'Titel', ...]
+
+foreach ($page->texts['nl'] as $field => $text)
+    echo "$field: $text\n";
+```
+
+The result is a copy; changing it doesn't change the map.
+
+`count()` and `json_encode()` also work on a map or submap:
+
+```php
+<?php
+
+$languages = count($page->texts);         // number of entries directly under the map: 2
+$fields = count($page->texts['nl']);      // 2
+$json = json_encode($page->texts);        // {"nl":{"title":"Titel",...},"en":{...}}
+```
+
+The JSON output is always an object, also for an empty map (`{}`) or one with numeric keys. `getJSONData()` is deprecated; use `toArray()` instead.
 
 ---
 

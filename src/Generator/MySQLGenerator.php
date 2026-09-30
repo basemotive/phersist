@@ -66,12 +66,15 @@ class MySQLGenerator {
 		foreach ($tables as $tableName => $fields) {
 			$primaryKey = false;
 
-			// Collect indexes: group fields by indexName
+			// Collect indexes: group fields by indexName and uniqueName
 			$indexes = [];
+			$uniques = [];
 			foreach ($fields as $field) {
 				if (isset($field['indexName'])) {
 					$indexes[$field['indexName']][] = $field['fieldName'];
 				}
+				if (isset($field['uniqueName']))
+					$uniques[$field['uniqueName']][] = $field['fieldName'];
 			}
 
 			$result .= "DROP TABLE IF EXISTS `{$tableName}`;\n";
@@ -108,6 +111,10 @@ class MySQLGenerator {
 			foreach ($indexes as $indexName => $indexFields) {
 				$fieldList = implode('`, `', $indexFields);
 				$result .= "\tINDEX `{$indexName}` (`{$fieldList}`),\n";
+			}
+			foreach ($uniques as $uniqueName => $uniqueFields) {
+				$fieldList = implode('`, `', $uniqueFields);
+				$result .= "\tUNIQUE INDEX `{$uniqueName}` (`{$fieldList}`),\n";
 			}
 
 			// cut the last comma if there's no primary key
@@ -356,13 +363,24 @@ class MySQLGenerator {
 
 			$result[$tableName] = [];
 
+			$keyElements = $map->getElementsByTagName('key');
+
+			// The owner and the keys together identify a value, so they form a
+			// unique index, which also serves to look up a map by its owner. An
+			// InnoDB index fits 4 VARCHAR(191) columns (at 4 bytes per character);
+			// a map with more gets a plain index on just the owner.
+			$ownerIndex = ['indexName' => 'idx_' . $idField];
+			$keyIndex = [];
+			if ($keyElements->length + ($objectTypeField ? 1 : 0) <= 4)
+				$ownerIndex = $keyIndex = ['uniqueName' => 'uniq_' . $idField];
+
 			if ($objectTypeField) {
 				$result[$tableName][] = [
 					'fieldName' => $objectTypeField,
-					'fieldType' => 'TEXT',
+					'fieldType' => 'VARCHAR(191)',
 					'required' => true,
 					'primaryKey' => false,
-				];
+				] + $ownerIndex;
 			}
 
 			$result[$tableName][] = [
@@ -370,19 +388,21 @@ class MySQLGenerator {
 				'fieldType' => 'INT UNSIGNED',
 				'required' => true,
 				'primaryKey' => false,
-			];
+			] + $ownerIndex;
 
-			$keyElements = $map->getElementsByTagName('key');
+			// Keys use a binary collation, so that they are as distinct in the
+			// database as they are in a PHP array ('Theme' is not 'theme')
 			foreach ($keyElements as $keyElement)
 				$result[$tableName][] = [
 					'fieldName' => $keyElement->getAttribute('name'),
-					'fieldType' => 'TEXT',
+					'fieldType' => "VARCHAR(191) CHARACTER SET {$this->charset} COLLATE {$this->charset}_bin",
 					'required' => true,
 					'primaryKey' => false,
-					'indexName' => 'idx_' . $keyElement->getAttribute('name'),
-				];
+				] + $keyIndex;
 
 			$valueElements = $map->getElementsByTagName('value');
+			if ($valueElements->length != 1)
+				throw new \Exception("Map {$map->getAttribute('name')} of class {$classElement->getAttribute('name')} must have exactly one <value>, found {$valueElements->length}");
 			foreach ($valueElements as $valueElement)
 			$result[$tableName][] = [
 				'fieldName' => $valueElement->getAttribute('name'),
@@ -390,8 +410,6 @@ class MySQLGenerator {
 				'required' => true,
 				'primaryKey' => false,
 			];
-
-			$result[$tableName][$objectTypeField ? 1 : 0]['indexName'] = 'idx_' . $idField;
 		}
 
 		return $result;

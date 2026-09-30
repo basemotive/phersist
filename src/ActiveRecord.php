@@ -316,7 +316,8 @@ class ActiveRecord implements \ArrayAccess {
 			}
 
 			foreach (static::$_meta['maps'] as $mapname => $metamap) {
-				$map = $this->_data[$mapname];
+				// Use __get(), because the map only exists once it has been accessed
+				$map = $this->__get($mapname);
 				$map->delete();
 			}
 
@@ -403,7 +404,7 @@ class ActiveRecord implements \ArrayAccess {
 
 		// If the key is for a map, fetch that map
 		if (isset(static::$_meta['maps'][$key])) {
-			$map = new \PHersist\Properties\ARPropertyMap($this->_PDO, $this, static::$_meta['maps'][$key]);
+			$map = new \PHersist\Maps\MapStorage($this, static::$_meta['maps'][$key]);
 			$this->_data[$key] = $map->getArrayAccess();
 		}
 	}
@@ -492,7 +493,11 @@ class ActiveRecord implements \ArrayAccess {
 			$this->_error("Cannot set property $key on a deleted object");
 
 		if (isset(static::$_meta['maps'][$key])) {
-			$this->_error("Property $key is a map and cannot be set");
+			// Replace the contents of the map; the map object itself stays in place
+			if (!is_array($value) && !($value instanceof Maps\Map))
+				$this->_error("Property $key is a map and can only be set to an array");
+			$this->__get($key)->set($value);
+			return;
 		}
 
 		if ($this->_keyExists($key)) {

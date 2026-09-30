@@ -44,12 +44,11 @@ CREATE TABLE `forum_message_tags` (
 
 DROP TABLE IF EXISTS `prop_map`;
 CREATE TABLE `prop_map` (
-	`object_type` TEXT NOT NULL,
+	`object_type` VARCHAR(191) NOT NULL,
 	`id` INT UNSIGNED NOT NULL,
-	`key` TEXT NOT NULL,
+	`key` VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	`value` TEXT NOT NULL,
-	INDEX `idx_id` (`id`),
-	INDEX `idx_key` (`key`)
+	UNIQUE INDEX `uniq_id` (`object_type`, `id`, `key`)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;

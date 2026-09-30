@@ -188,7 +188,7 @@ class ARGenerator {
 		foreach ($maps as $map) {
 			$map_name = $map->getAttribute('name');
 
-			$result .= " * @property \PHersist\Properties\ARPropertyMap \${$map_name} map\n";
+			$result .= " * @property \PHersist\Maps\Map \${$map_name} map\n";
 		}
 
 		$result .= " */\n";
@@ -340,7 +340,7 @@ class ARGenerator {
 				'type' => $map->hasAttribute('type') ? $map->getAttribute('type') : false,
 				'activeRecordKey' => $map->getAttribute('name'),
 				'keys' => [],
-				'values' => [],
+				'value' => '',
 				// use namespace of class for the type field (default false)
 				'use_namespace' => $map->getAttribute('use_namespace') === 'true',
 			];
@@ -350,8 +350,9 @@ class ARGenerator {
 				$metamap['keys'][] = $key->getAttribute('name');
 
 			$values = $map->getElementsByTagName('value');
-			foreach ($values as $value)
-				$metamap['values'][] = $value->getAttribute('name');
+			if ($values->length != 1)
+				throw new \Exception("Map {$map->getAttribute('name')} of class {$classElement->getAttribute('name')} must have exactly one <value>, found {$values->length}");
+			$metamap['value'] = $values->item(0)->getAttribute('name');
 
 			$meta['maps'][$map->getAttribute('name')] = $metamap;
 		}

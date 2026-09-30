@@ -147,10 +147,7 @@
         	This is a map.
          	Maps are later accessed like $object->prop['keyname'] = $value;
           	Multiple keys are possible so if there were a key named 'language' before the 'key' key, one could do $object->prop['english']['greeting'] = 'Hello';
-            Multiple values are also possible; that would create a keymap where the 'value'
-            would become the key for that map, then the next one would be the value, and
-            this can go on. If you have 3 values defined, 'a', 'b' and 'c', then you would
-            get a map [ 'a' => [ 'b' => 'c' ] ].
+            A map has exactly one value; it names the column that stores the value.
            	The XML properties are:
             - name: what the property on the object is going to be called
             - table: the table name

@@ -138,7 +138,9 @@ class ObjectFinder {
 		}
 
 		// Now we build the basic query
-		$query = "select count(`$baseTable`.`$idField`) as itemcount\n";
+		// The joins can yield several rows per object, so we count distinct ids
+		$distinct = count($this->tables)>0 ? 'distinct ' : '';
+		$query = "select count($distinct`$baseTable`.`$idField`) as itemcount\n";
 		$query .= " from `$baseTable`\n";
 		foreach ($this->tables as $table) {
 			$joinOn = $table['join_on'];
@@ -148,8 +150,6 @@ class ObjectFinder {
 			$query .= "   on $joinOn\n";
 		}
 		if ($where != '') $query .= " where $where\n";
-		if (count($this->tables)>0)
-			$query .= " group by `$baseTable`.`$idField`\n";
 
 		$stmt = $this->PDO->prepare($query);
 		foreach ($queryValues as $key => $value)

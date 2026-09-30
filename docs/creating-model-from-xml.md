@@ -195,7 +195,7 @@ Properties define class fields and column mapping.
 | `default` | no | — | Default value. Applies to `Text`, `Int`, `Float`, `Decimal`, and `Bool` properties. There are no implicit defaults, also not for `required` properties. See [Default values](#default-values). |
 
 > `fieldnames` is optional for `DynamicClass`.  
-> If omitted, PHersist generates two field names automatically in the form `propname_class,propname_id` (translated with the configured table style).
+> If omitted, PHersist generates two field names automatically in the form `propname_type,propname_id` (translated with the configured table style).
 
 ### Default values
 
@@ -388,7 +388,9 @@ Extra attribute:
 
 | Attribute | Required | Description |
 |---|---|---|
-| `fieldnames` | no | Optional two-field override (class-name column, id column). If omitted, PHersist auto-generates `propname_class,propname_id` using the configured table style. |
+| `fieldnames` | no | Optional two-field override (class-name column, id column). If omitted, PHersist auto-generates `propname_type,propname_id` using the configured table style. |
+
+In the generated MySQL schema, the class-name column is `VARCHAR(191)` and the id column is `INT UNSIGNED`, indexed together.
 
 ### `TimestampText`
 Datetime field with optional auto-updating.

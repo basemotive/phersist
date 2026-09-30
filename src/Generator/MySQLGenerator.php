@@ -305,9 +305,11 @@ class MySQLGenerator {
 					];
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'DynamicClass') {
+					// the class name is indexed, which MySQL doesn't allow on a TEXT
+					// column without a key length
 					$result[$datasetTable][] = [
 						'fieldName' => $fieldNames[0],
-						'fieldType' => 'TEXT',
+						'fieldType' => 'VARCHAR(191)',
 						'required' => $required,
 						'primaryKey' => false,
 						'indexName' => 'idx_' . $propNameTS,

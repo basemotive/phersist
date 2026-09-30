@@ -216,7 +216,7 @@ class ObjectFinder {
 			$values = [ $idField => '' ];
 			if ($prop != null) {
 				$type = self::_getPropertyType($prop['type']);
-				$values = $type->toDBSearch($prop, '');
+				$values = $type->toDBSearch($prop, null);
 			} elseif ($property != 'id')
 				$this->error("Trying to evaluate for nonexistent property $property on class {$this->className}");
 

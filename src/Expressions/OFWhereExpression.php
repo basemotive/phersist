@@ -101,7 +101,8 @@ class OFWhereExpression extends OFExpression {
 					}
 				}
 
-				$result = implode(' and ', $parts);
+				// A property with several fields differs if any of its fields does
+				$result = implode(strtoupper($this->operator) == '!=' ? ' or ' : ' and ', $parts);
 				if (count($parts) > 1) $result = "($result)";
 			}
 		}

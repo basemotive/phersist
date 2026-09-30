@@ -67,7 +67,8 @@ class OFWhereExpression extends OFExpression {
 			if ($last) {
 				$contextData = $this->of->addContext($lastContext);
 				$className = $contextData['class_name'];
-				$tableAlias = $contextData['table_alias'];
+				// The property may live in a dataset table, which is then joined
+				$tableAlias = $this->of->addDatasetTable($lastContext, $property);
 
 				$meta = ActiveRecord::_getMeta($className);
 				$prop = null;

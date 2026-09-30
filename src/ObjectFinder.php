@@ -180,14 +180,51 @@ class ObjectFinder {
 		// If we're constructing full objects, we load the data for the autoload
 		// datasets here, so we can populate the new objects with it.
 		$extraFields='';
+		$groupBys = [ "`$baseTable`.`$idField`" ];
 		if ($this->full) {
 			foreach ($meta['datasets'] as $dataset) if ($dataset['autoload']) {
 				$extraFieldList = [];
 				foreach ($dataset['props'] as $prop)
 					$extraFieldList = array_merge($extraFieldList, $prop['fieldnames']);
-				foreach (array_unique($extraFieldList) as $extraField)
-					$extraFields .= ", `$baseTable`.`$extraField`";
+				// The dataset may live in its own table, which we then join
+				$datasetTable = $this->_addDatasetTable('', $dataset['table']);
+				foreach (array_unique($extraFieldList) as $extraField) {
+					$extraFields .= ", `$datasetTable`.`$extraField`";
+					$groupBys[] = "`$datasetTable`.`$extraField`";
+				}
 				break;
+			}
+		}
+
+		// Sorting
+		// TODO This is not optimal because it now only works on properties of the
+		// class itself, and not properties/values we imported from other tables
+		// We should dereference the tables here and prepend the mapped table names
+		$orderBysTranslated = [];
+		foreach ($this->orderBys as $orderBy) {
+			$property = $orderBy['property'];
+			$direction = $orderBy['direction'];
+
+			$prop = null;
+			foreach ($meta['datasets'] as $dataset)
+				if (isset($dataset['props'][$property])) {
+					$prop = $dataset['props'][$property];
+					break;
+				}
+
+			// The id is not part of any dataset, so it maps to the id field directly
+			$values = [ $idField => '' ];
+			if ($prop != null) {
+				$type = self::_getPropertyType($prop['type']);
+				$values = $type->toDBSearch($prop, '');
+			} elseif ($property != 'id')
+				$this->error("Trying to evaluate for nonexistent property $property on class {$this->className}");
+
+			// The property may live in a dataset table, which we then join
+			$orderTable = $this->addDatasetTable('', $property);
+			foreach ($values as $fieldname => $value) {
+				$orderBysTranslated[] = "`{$orderTable}`.`{$fieldname}` {$direction}";
+				$groupBys[] = "`{$orderTable}`.`{$fieldname}`";
 			}
 		}
 
@@ -202,39 +239,13 @@ class ObjectFinder {
 			$query .= "   on $joinOn\n";
 		}
 		if ($where != '') $query .= " where $where\n";
-		if (count($this->tables)>0)
-			$query .= " group by `$baseTable`.`$idField`\n";
+		// Dataset tables have one row per object, so only the other joins can
+		// yield several rows per object. The other columns we use depend on the
+		// id, but are listed for databases that require that (ONLY_FULL_GROUP_BY).
+		if (count(array_filter($this->tables, fn($table) => !$table['dataset']))>0)
+			$query .= " group by ".implode(', ', array_unique($groupBys))."\n";
 
-		// Sorting
-		// TODO This is not optimal because it now only works on properties from the
-		// base table, and not properties/values we imported from other tables
-		// We should dereference the tables here and prepend the mapped table names
-		if (count($this->orderBys)>0) {
-			$orderBysTranslated = [];
-			foreach ($this->orderBys as $orderBy) {
-
-				$property = $orderBy['property'];
-				$direction = $orderBy['direction'];
-
-				$meta = ActiveRecord::_getMeta($this->className);
-				$prop = null;
-				foreach ($meta['datasets'] as $dataset)
-					if (isset($dataset['props'][$property])) {
-						$prop = $dataset['props'][$property];
-						break;
-					}
-
-				// The id is not part of any dataset, so it maps to the id field directly
-				$values = [ $idField => '' ];
-				if ($prop != null) {
-					$type = self::_getPropertyType($prop['type']);
-					$values = $type->toDBSearch($prop, '');
-				} elseif ($property != 'id')
-					$this->error("Trying to evaluate for nonexistent property $property on class {$this->className}");
-
-				foreach ($values as $fieldname => $value)
-					$orderBysTranslated[] = "`{$baseTable}`.`{$fieldname}` {$direction}";
-			}
+		if (count($orderBysTranslated)>0) {
 			$query .= " order by ".implode(',', $orderBysTranslated)."\n";
 		} else {
 			// we do this for MSSQL because using OFFSET x ROWS FETCH NEXT y ROWS ONLY
@@ -333,7 +344,8 @@ class ObjectFinder {
 			if ($derefData = $type->dereference($prop, $meta['table'])) {
 				$counter++;
 
-				$sourceTable = $lastContext=='' ? $meta['table'] : $this->tables[$lastContext]['table_alias'];
+				// The property may live in a dataset table, which we then join
+				$sourceTable = $this->addDatasetTable($lastContext, $propertyName);
 				$tableName = $derefData['target_table'];
 				$tableAlias = "rel{$counter}_{$derefData['target_table']}";
 				$joinOn = $derefData['on'];
@@ -345,6 +357,7 @@ class ObjectFinder {
 					'table_alias' => $tableAlias,
 					'join_on' => $joinOn,
 					'class_name' => $currentClassName,
+					'dataset' => false,
 				];
 			} else {
 				$this->error("Cannot dereference $currentClassName::$propertyName");
@@ -352,6 +365,60 @@ class ObjectFinder {
 
 		}
 		return $this->tables[$context];
+	}
+
+	/**
+	 * Returns the alias of the table that holds a property, for use as a column
+	 * prefix. If the property is in a dataset that lives in its own table, that
+	 * table is joined (on the id) first.
+	 *
+	 * @internal only used by the OFWhereExpression class
+	 *
+	 * @param string $context the context of the class that has the property, as
+	 *   used for ObjectFinder::addContext()
+	 * @param string $property the name of the property
+	 * @return string the table alias
+	 */
+	public function addDatasetTable(string $context, string $property) : string {
+		$contextData = $this->addContext($context);
+		$meta = ActiveRecord::_getMeta($contextData['class_name']);
+		foreach ($meta['datasets'] as $dataset)
+			if (isset($dataset['props'][$property]))
+				return $this->_addDatasetTable($context, $dataset['table']);
+
+		// The id is not part of any dataset and is in the base table
+		return $contextData['table_alias'];
+	}
+
+	/**
+	 * Joins a dataset table to the table of a context, unless it is that table.
+	 *
+	 * @param string $context the context of the class that has the dataset
+	 * @param string $table the name of the dataset's table
+	 * @return string the table alias
+	 */
+	private function _addDatasetTable(string $context, string $table) : string {
+		static $counter = 0;
+
+		$contextData = $this->addContext($context);
+		$meta = ActiveRecord::_getMeta($contextData['class_name']);
+		if ($table == $meta['table'])
+			return $contextData['table_alias'];
+
+		// Property names can't hold a '#', so this key can't clash with a context
+		$key = "$context#$table";
+		if (!isset($this->tables[$key])) {
+			$counter++;
+			$this->tables[$key] = [
+				'source_table' => $contextData['table_alias'],
+				'table_name' => $table,
+				'table_alias' => "ds{$counter}_{$table}",
+				'join_on' => '`{$source_table}`.`'.$meta['id'].'` = `{$target_table}`.`'.$meta['id'].'`',
+				'class_name' => $contextData['class_name'],
+				'dataset' => true,
+			];
+		}
+		return $this->tables[$key]['table_alias'];
 	}
 
 	/**

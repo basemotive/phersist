@@ -462,7 +462,7 @@ When an object is deleted, each of its relations is cleaned up so no rows keep r
 
 For a derived relation, the reference usually belongs to a property of the related class, like `Page.picture` for a `Picture.pages` relation. If that property is `required`, the reference can't be set to `NULL`, so `delete()` throws an exception when any object still refers to the deleted one. Delete those objects first, or set `cascade_delete="true"` to delete them along.
 
-The whole delete runs in one transaction, so if one step fails, nothing is deleted. Objects that are already in memory are not updated: a `Page` you loaded before deleting its picture still returns the deleted `Picture` object. Fetch it again to see the change.
+The whole delete runs in one transaction, so if one step fails, nothing is deleted. Objects that are already in memory are not updated: a `Page` you loaded before deleting its picture still returns the deleted `Picture` object. Call `reload()` on it to see the change; see [Reload](using-model-in-php.md#reload).
 
 Only relations defined on the deleted object's class are cleaned up. If `Page` refers to `Picture` but `Picture` has no `pages` relation, deleting a picture leaves the `picture_id` values in place.
 

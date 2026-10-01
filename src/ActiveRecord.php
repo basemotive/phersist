@@ -415,6 +415,28 @@ class ActiveRecord implements \ArrayAccess {
 	}
 
 	/**
+	 * Forgets the loaded properties, relations and maps, so they are loaded
+	 * from the database again when they are next accessed.
+	 *
+	 * @param bool $discard whether to discard uncommitted changes; without it,
+	 *   reloading an object with uncommitted changes throws an exception
+	 */
+	public function reload(bool $discard = false) : void {
+		if ($this->_deleted)
+			$this->_error('Cannot reload a deleted object');
+
+		// A new object has nothing in the database to reload from
+		if ($this->id === null)
+			$this->_error('Cannot reload an object that has not been committed');
+
+		if (count($this->_changed) > 0 && !$discard)
+			$this->_error('Cannot reload an object with uncommitted changes');
+
+		$this->_data = [static::$_meta['id'] => $this->id];
+		$this->_changed = [];
+	}
+
+	/**
 	 * Deletes this object from the database.
 	 */
 	public function delete() : void {

@@ -2,6 +2,7 @@
 
 namespace PHersist\Types;
 use PHersist\ActiveRecord;
+use PHersist\ReferenceCleaner;
 
 /**
  * Handles N-N and 1-N relations.
@@ -140,29 +141,25 @@ class ARRelationTypeNN extends ARRelationType {
 	 * Cleans up this relation when the object is deleted.
 	 *
 	 * In a join table, the rows of this object are deleted, whether we own the
-	 * table or not. In a derived relation, where the table is one of the related
-	 * class's own tables, the references to this object are set to NULL, unless
-	 * they are held by a required property: then the deletion is refused. With
-	 * cascade_delete, the related objects are deleted first.
+	 * table or not; with cascade_delete, the related objects are deleted first.
+	 * In a derived relation, where the table is one of the related class's own
+	 * tables, the references to this object are cleaned up according to the
+	 * on_remote_delete of the property that holds them, or deleted along with
+	 * cascade_delete.
 	 *
 	 * @param array<string, mixed> $rel
 	 */
 	public function delete(array $rel) : void {
-		if ($rel['cascade_delete']) {
-			$objects = $this->restore($rel);
-			foreach ($objects as $object) $object->delete();
-		}
-
 		/** @var class-string<ActiveRecord> $className */
 		$className = $rel['class'];
 		$meta = ActiveRecord::_getMeta($className);
 		$classTables = array_merge([$meta['table']], array_column($meta['datasets'], 'table'));
 
-		if (!in_array($rel['table'], $classTables))
+		if (!in_array($rel['table'], $classTables)) {
+			if ($rel['cascade_delete'])
+				foreach ($this->restore($rel) as $object) $object->delete();
 			$this->_deleteRows($rel);
-		elseif (!$rel['cascade_delete'])
-			// Deleted objects removed their own rows; softdeleted ones keep
-			// referring to us, like softdeleted objects keep their relations
+		} else
 			$this->_clearReferences($rel, $meta);
 	}
 
@@ -185,54 +182,38 @@ class ARRelationTypeNN extends ARRelationType {
 	}
 
 	/**
-	 * Sets the references to this object in a derived relation to NULL.
+	 * Cleans up the references to this object in a derived relation.
 	 *
-	 * This includes the rows of softdeleted objects, so they don't refer to a
-	 * missing object when they are undeleted. The objects already in memory
-	 * are not updated.
+	 * The policy is that of the property in the related class that holds the
+	 * reference, unless the relation has cascade_delete. Without such a
+	 * property, the references are set to NULL.
 	 *
 	 * @param array<string, mixed> $rel
 	 * @param array<string, mixed> $meta the metadata of the related class
 	 */
 	private function _clearReferences(array $rel, array $meta) : void {
-		$where = "`{$rel['local_id']}` = :id";
+		$match = [ $rel['local_id'] => $this->activeRecord->id ];
 		$myClass = $this->_localType($rel);
 		if ($myClass !== null)
-			$where .= " and `{$rel['local_type']}` = :myClass";
+			$match[$rel['local_type']] = $myClass;
 
 		// The property in the related class that holds the reference
 		$propName = null;
+		$policy = 'null';
 		foreach ($meta['datasets'] as $dataset) if ($dataset['table'] == $rel['table'])
 			foreach ($dataset['props'] as $key => $prop)
-				if (in_array($rel['local_id'], $prop['fieldnames']) && $prop['required'])
+				if (in_array($rel['local_id'], $prop['fieldnames'])) {
 					$propName = $key;
+					if ($prop['type'] == 'Class' || $prop['type'] == 'DynamicClass')
+						$policy = ReferenceCleaner::policyFor($prop);
+					elseif ($prop['required'])
+						$policy = 'restrict';
+				}
 
-		// A required reference can't be cleared, so the related objects have
-		// to be deleted first, or be deleted along with cascade_delete
-		if ($propName !== null) {
-			$stmt = $this->PDO->prepare("select count(*) from `{$rel['table']}` where $where");
-			$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
-			if ($myClass !== null)
-				$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
-			$stmt->execute();
-			$count = (int)$stmt->fetchColumn();
-			$stmt->closeCursor();
+		if ($rel['cascade_delete'])
+			$policy = 'cascade';
 
-			if ($count > 0)
-				$this->activeRecord->_error("Cannot delete, because $count ".(new \ReflectionClass($rel['class']))->getShortName()
-					." object".($count == 1 ? '' : 's')." still refer".($count == 1 ? 's' : '')
-					." to it through the required property '$propName'; delete them first, or set cascade_delete on the relation");
-		}
-
-		$set = "`{$rel['local_id']}` = NULL";
-		if ($myClass !== null)
-			$set .= ", `{$rel['local_type']}` = NULL";
-
-		$stmt = $this->PDO->prepare("update `{$rel['table']}` set $set where $where");
-		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
-		if ($myClass !== null)
-			$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
-		$stmt->execute();
+		(new ReferenceCleaner($this->activeRecord))->clear($rel['class'], $rel['table'], $match, $policy, $propName);
 	}
 
 	/**

@@ -370,6 +370,7 @@ Extra attribute:
 | Attribute | Required | Description |
 |---|---|---|
 | `class` | yes | Name of target class in this model XML. |
+| `on_remote_delete` | no | What happens to the reference when the referred object is deleted: `null`, `restrict` or `cascade`. Default `restrict` for a `required` property, `null` otherwise. See [Deleting objects with relations](#deleting-objects-with-relations). |
 
 ### `DynamicClass`
 Polymorphic reference: class + id pair. Assigned values must be `ActiveRecord` objects; anything else throws an exception.
@@ -389,6 +390,7 @@ Extra attribute:
 | Attribute | Required | Description |
 |---|---|---|
 | `fieldnames` | no | Optional two-field override (class-name column, id column). If omitted, PHersist auto-generates `propname_type,propname_id` using the configured table style. |
+| `on_remote_delete` | no | Like for [`Class`](#class): `null`, `restrict` or `cascade`. |
 
 In the generated MySQL schema, the class-name column is `VARCHAR(191)` and the id column is `INT UNSIGNED`, indexed together.
 
@@ -458,18 +460,33 @@ When an object is deleted, each of its relations is cleaned up so no rows keep r
 | `table` is… | Without `cascade_delete` | With `cascade_delete="true"` |
 |---|---|---|
 | A join table (owned or not) | The object's rows in the join table are deleted; the related objects stay. | The related objects are deleted, then the object's rows in the join table. |
-| One of the related class's own tables (derived relation) | The references are set to `NULL` (both columns for a `local_type` relation). | The related objects are deleted. |
+| One of the related class's own tables (derived relation) | Depends on `on_remote_delete` of the property that holds the references (see below); by default they are set to `NULL` (both columns for a `local_type` relation). | The related objects are deleted. |
 
-For a derived relation, the reference usually belongs to a property of the related class, like `Page.picture` for a `Picture.pages` relation. If that property is `required`, the reference can't be set to `NULL`, so `delete()` throws an exception when any object still refers to the deleted one. Delete those objects first, or set `cascade_delete="true"` to delete them along.
+For a derived relation, the reference usually belongs to a property of the related class, like `Page.picture` for a `Picture.pages` relation. Without `cascade_delete`, that property's `on_remote_delete` decides what happens; see below.
+
+References from other classes are cleaned up even when the deleted object's class has no relation for them. The generator looks through the whole XML for them:
+
+- **A `Class` or `DynamicClass` property** that refers to the deleted object is handled according to its `on_remote_delete` attribute:
+
+  | `on_remote_delete` | Effect |
+  |---|---|
+  | `null` | The reference is set to `NULL` (both columns for a `DynamicClass`). The default for properties that aren't `required`; not allowed on `required` ones. |
+  | `restrict` | `delete()` throws an exception while any object still refers to the deleted one. The default for `required` properties. Delete those objects first, or use `cascade`. |
+  | `cascade` | The objects that refer to the deleted one are deleted along. |
+
+  For example, with `<property name="picture" type="Class" class="Picture" on_remote_delete="cascade"/>` in `Page`, deleting a picture deletes its pages, whether `Picture` has a `pages` relation or not. If it has one with `cascade_delete="true"`, the pages are deleted regardless of `on_remote_delete`.
+- **A relation through a join table**, like `ForumMessage.tags`: deleting a `Tag` deletes its rows in `forum_message_tags`, so the messages no longer list it.
+
+Only classes in the same XML file are found. If a class in another model refers to this one, its references are left in place.
+
+A cascade may lead back to an object that is already being deleted, for example when two objects refer to each other with `cascade`; that object is then simply deleted once.
 
 The whole delete runs in one transaction, so if one step fails, nothing is deleted. Objects that are already in memory are not updated: a `Page` you loaded before deleting its picture still returns the deleted `Picture` object. Call `reload()` on it to see the change; see [Reload](using-model-in-php.md#reload).
-
-Only relations defined on the deleted object's class are cleaned up. If `Page` refers to `Picture` but `Picture` has no `pages` relation, deleting a picture leaves the `picture_id` values in place.
 
 If soft delete is involved, two things differ:
 
 - When the deleted object's class uses `softdelete="true"`, relations and references are left alone: the object is only made inactive, and objects that refer to it keep working.
-- Softdeleted objects that refer to the deleted object are cleaned up like any other: their references are set to `NULL`, so they don't refer to a missing object when they are undeleted, and they also count for the required check above. With `cascade_delete`, softdeleted objects aren't deleted again; related objects of a class with `softdelete="true"` are softdeleted and keep their reference.
+- Softdeleted objects that refer to the deleted object are cleaned up like any other: their references are set to `NULL`, so they don't refer to a missing object when they are undeleted, and they also count for `restrict`. With `cascade_delete` or `on_remote_delete="cascade"`, softdeleted objects aren't deleted again; objects of a class with `softdelete="true"` are softdeleted and keep their reference.
 
 ### Polymorphic relations and `use_namespace`
 

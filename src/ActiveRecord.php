@@ -21,6 +21,9 @@ class ActiveRecord implements \ArrayAccess {
 	/** @var bool $_fetching if fetchObject() is creating an instance right now */
 	private static bool $_fetching = false;
 
+	/** @var array<string, true> $_deleting the objects (class:id) that delete() is deleting right now */
+	private static array $_deleting = [];
+
 	/**
 	 * Creates a new persistent object.
 	 *
@@ -443,7 +446,18 @@ class ActiveRecord implements \ArrayAccess {
 		if ($this->id === null)
 			return;
 
-		$this->_transaction(fn() => $this->_deleteRows());
+		// Cascading deletes may lead back to an object that is being deleted
+		// already; that one finishes its own deletion
+		$key = static::class.':'.$this->id;
+		if (isset(self::$_deleting[$key]))
+			return;
+
+		self::$_deleting[$key] = true;
+		try {
+			$this->_transaction(fn() => $this->_deleteRows());
+		} finally {
+			unset(self::$_deleting[$key]);
+		}
 
 		// Self-evict this instance from the ObjectCache
 		ObjectCache::evict($this);
@@ -473,6 +487,12 @@ class ActiveRecord implements \ArrayAccess {
 				$relationType = $this->_getRelationType($relation['type']);
 				$relationType->delete($relation);
 			}
+
+			// Clean up the references from other classes that aren't covered by
+			// one of our relations
+			$referenceCleaner = new ReferenceCleaner($this);
+			foreach (static::$_meta['references'] ?? [] as $reference)
+				$referenceCleaner->cleanUp($reference);
 
 			foreach (static::$_meta['maps'] as $mapname => $metamap) {
 				// Use __get(), because the map only exists once it has been accessed

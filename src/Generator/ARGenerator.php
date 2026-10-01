@@ -244,39 +244,17 @@ class ARGenerator {
 				// 'id' always refers to the object's id, so it can't be a property
 				if ($prop_name == 'id')
 					throw new \Exception("Class {$classElement->getAttribute('name')} can't have a property named 'id', it is reserved for the object's id");
-				$prop_fieldnames_str = '';
-				if ($property->hasAttribute('fieldnames'))
-					$prop_fieldnames_str = $property->getAttribute('fieldnames');
-				if ($prop_fieldnames_str == '' && $property->hasAttribute('fieldname'))
-					$prop_fieldnames_str = $property->getAttribute('fieldname');
-
 				$prop_type = $property->hasAttribute('type') ?
 					$property->getAttribute('type') : 'Text';
 
-				if ($prop_fieldnames_str == '') {
-					if ($prop_type == 'Class') {
-						$prop_fieldnames_str = $this->getAuto('relation_id', $prop_name);
-					} elseif ($prop_type == 'DynamicClass') {
-						$prop_fieldnames_str = $this->getAuto('relation_combo', $prop_name);
-					} else {
-						$prop_fieldnames_str = $this->getAuto('fieldname', $prop_name);
-					}
-				}
-
 				$metaprop = [
 					'type' => $prop_type,
-					'fieldnames' => explode(',', $prop_fieldnames_str),
+					'fieldnames' => $this->getFieldNames($property, $prop_type),
 				];
 
 				// Special types - TODO Can we make this more generic?
 				if ($prop_type == 'Class') {
-					$propertyClass = $property->getAttribute('class');
-					if (strpos($propertyClass, '\\') === false)
-						$propertyClass = $this->getNamespace().$property->getAttribute('class');
-					else
-						$propertyClass = ltrim($propertyClass, '\\');
-
-					$metaprop['class'] = $propertyClass;
+					$metaprop['class'] = $this->qualifyClass($property->getAttribute('class'));
 				} elseif ($prop_type == 'Decimal') {
 					[$metaprop['precision'], $metaprop['scale']] = $this->getDecimalSize($property);
 				} elseif (($prop_type == 'Date' || $prop_type == 'DateTime') && $property->hasAttribute('update_on')) {
@@ -289,6 +267,12 @@ class ARGenerator {
 
 				// If this property is required
 				$metaprop['required'] = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
+
+				// What happens to the reference when the referred object is deleted
+				if ($prop_type == 'Class' || $prop_type == 'DynamicClass')
+					$metaprop['on_remote_delete'] = $this->getOnRemoteDelete($property, $metaprop['required']);
+				elseif ($property->hasAttribute('on_remote_delete'))
+					throw new \Exception("Property '$prop_name' of class $className can't have on_remote_delete, only Class and DynamicClass properties can");
 
 				// The default value for new objects; mirrors the column default in the schema
 				$default = $this->getDefault($property, $prop_type);
@@ -304,11 +288,7 @@ class ARGenerator {
 		// The relations
 		$relations = $classElement->getElementsByTagName('relation');
 		foreach ($relations as $relation) {
-			$relationClass = $relation->getAttribute('class');
-			if (strpos($relationClass, '\\') === false)
-				$relationClass = $this->getNamespace().$relationClass;
-			else
-				$relationClass = ltrim($relationClass, '\\');
+			$relationClass = $this->qualifyClass($relation->getAttribute('class'));
 
 			$metarel = [
 				'type' => $relation->getAttribute('type'),
@@ -360,7 +340,154 @@ class ARGenerator {
 			$meta['maps'][$map->getAttribute('name')] = $metamap;
 		}
 
+		$meta['references'] = $this->generateReferences($classElement);
+
 		return $meta;
+	}
+
+	/**
+	 * Finds the references to a class from the classes in the XML, so they can
+	 * be cleaned up when an object of the class is deleted.
+	 *
+	 * These are the Class properties that refer to the class, all DynamicClass
+	 * properties (they may refer to any class), and the relations to the class
+	 * through a join table. References that one of the class's own relations
+	 * already cleans up are left out.
+	 *
+	 * @param DOMElement $classElement the class element in the XML tree
+	 * @return list<array<string, string>> the references, each with the
+	 *   referring 'class' and the 'property' or 'relation' in it
+	 */
+	private function generateReferences(DOMElement $classElement) : array {
+		$className = $this->qualifyClass($classElement->getAttribute('name'));
+		$classTables = $this->getClassTables($classElement);
+
+		// The table and column of every reference our own relations clean up
+		$covered = [];
+		foreach ($classElement->getElementsByTagName('relation') as $relation)
+			$covered[] = $relation->getAttribute('table').'.'.$relation->getAttribute('local_id');
+
+		$references = [];
+		foreach ($this->root->getElementsByTagName('class') as $otherElement) {
+			$otherClass = $this->qualifyClass($otherElement->getAttribute('name'));
+			$otherTables = $this->getClassTables($otherElement);
+			$defaultTable = $otherTables[0];
+
+			foreach ($otherElement->getElementsByTagName('dataset') as $dataset) {
+				$table = $dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $defaultTable;
+				foreach ($dataset->getElementsByTagName('property') as $property) {
+					$type = $property->getAttribute('type');
+					if ($type == 'Class') {
+						if ($this->qualifyClass($property->getAttribute('class')) != $className)
+							continue;
+						$column = $this->getFieldNames($property, $type)[0];
+					} elseif ($type == 'DynamicClass') {
+						$column = $this->getFieldNames($property, $type)[1];
+					} else
+						continue;
+
+					if (!in_array("$table.$column", $covered))
+						$references[] = ['class' => $otherClass, 'property' => $property->getAttribute('name')];
+				}
+			}
+
+			foreach ($otherElement->getElementsByTagName('relation') as $relation) {
+				if ($this->qualifyClass($relation->getAttribute('class')) != $className)
+					continue;
+				// Only a join table holds rows that are just about the relation;
+				// the rows in a class's own tables are its objects
+				$table = $relation->getAttribute('table');
+				if (in_array($table, $classTables) || in_array($table, $otherTables))
+					continue;
+
+				if (!in_array("$table.{$relation->getAttribute('remote_id')}", $covered))
+					$references[] = ['class' => $otherClass, 'relation' => $relation->getAttribute('name')];
+			}
+		}
+
+		return $references;
+	}
+
+	/**
+	 * Returns the tables of a class: its base table, then those of its datasets.
+	 *
+	 * @param DOMElement $classElement the class element in the XML tree
+	 * @return non-empty-list<string> the table names
+	 */
+	private function getClassTables(DOMElement $classElement) : array {
+		$table = $classElement->hasAttribute('table') ?
+			$classElement->getAttribute('table')
+			:
+			$this->getAuto('table', $classElement->getAttribute('name'));
+
+		$tables = [$table];
+		foreach ($classElement->getElementsByTagName('dataset') as $dataset)
+			if ($dataset->hasAttribute('table'))
+				$tables[] = $dataset->getAttribute('table');
+
+		return array_values(array_unique($tables));
+	}
+
+	/**
+	 * Returns the column names for a property.
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @param string $type the property type
+	 * @return list<string> the column names; two for a DynamicClass (class name and id), one otherwise
+	 */
+	private function getFieldNames(DOMElement $property, string $type) : array {
+		$fieldNames = '';
+		if ($property->hasAttribute('fieldnames'))
+			$fieldNames = $property->getAttribute('fieldnames');
+		if ($fieldNames == '' && $property->hasAttribute('fieldname'))
+			$fieldNames = $property->getAttribute('fieldname');
+
+		$name = $property->getAttribute('name');
+		if ($fieldNames == '') {
+			if ($type == 'Class') {
+				$fieldNames = $this->getAuto('relation_id', $name);
+			} elseif ($type == 'DynamicClass') {
+				$fieldNames = $this->getAuto('relation_combo', $name);
+			} else {
+				$fieldNames = $this->getAuto('fieldname', $name);
+			}
+		}
+
+		return explode(',', $fieldNames);
+	}
+
+	/**
+	 * Returns the fully qualified name of a class referred to in the XML.
+	 *
+	 * @param string $class the class name; without a namespace, the project's is used
+	 * @return string the class name with namespace, without leading backslash
+	 */
+	private function qualifyClass(string $class) : string {
+		if (strpos($class, '\\') === false)
+			return $this->getNamespace().$class;
+		return ltrim($class, '\\');
+	}
+
+	/**
+	 * Reads the on_remote_delete attribute for a Class or DynamicClass property.
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @param bool $required if the property is required
+	 * @return string 'null', 'restrict' or 'cascade'; by default 'restrict' for
+	 *   a required property and 'null' otherwise
+	 */
+	private function getOnRemoteDelete(DOMElement $property, bool $required) : string {
+		if (!$property->hasAttribute('on_remote_delete'))
+			return $required ? 'restrict' : 'null';
+
+		$name = $property->getAttribute('name');
+		$onRemoteDelete = $property->getAttribute('on_remote_delete');
+		if (!in_array($onRemoteDelete, ['null', 'restrict', 'cascade']))
+			throw new \Exception("Invalid on_remote_delete '$onRemoteDelete' for property '$name', use 'null', 'restrict' or 'cascade'");
+		if ($onRemoteDelete == 'null' && $required)
+			throw new \Exception("Property '$name' can't have on_remote_delete=\"null\", because it is required");
+
+		return $onRemoteDelete;
 	}
 
 	/**

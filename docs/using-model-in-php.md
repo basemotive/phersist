@@ -98,7 +98,7 @@ If the object has uncommitted changes, `reload()` throws an exception, so you do
 $user->delete();
 ```
 
-This removes the object's row. Its relations are cleaned up as well: rows in join tables are removed, and objects of other classes that refer to it get `NULL` in that property, or are deleted if the relation has `cascade_delete="true"`. If such a property is required, `delete()` throws an exception instead. See [Deleting objects with relations](creating-model-from-xml.md#deleting-objects-with-relations).
+This removes the object's row. References to it are cleaned up as well: rows in join tables are removed, and objects that refer to it through a `Class` or `DynamicClass` property get `NULL` in that property, are deleted along, or make `delete()` throw an exception, depending on the property's `on_remote_delete` (and the relation's `cascade_delete`). By default, a required property makes `delete()` throw, and other properties are set to `NULL`. See [Deleting objects with relations](creating-model-from-xml.md#deleting-objects-with-relations).
 
 After `delete()`, the object's lifecycle has ended: its `id` becomes `null`, and setting a property (including map entries) or calling `commit()` on it throws an exception, instead of inserting it again as a new row. Properties that were already loaded can still be read; properties that weren't read as `null`. To store the same data again, create a new object. Use `$user->isDeleted()` to check whether an object has been deleted.
 
@@ -125,7 +125,7 @@ try {
 }
 ```
 
-Only the database is rolled back, not the objects in memory. After rolling back your own transaction, objects that were committed in it no longer have pending changes, and new ones keep the `id` they received, even though nothing was stored. Call `reload()` on the objects that already existed, so they get their values from the database again, and discard the new ones. Objects removed by a `cascade_delete` relation when the `delete()` that removed them fails are out of date as well: they are marked as deleted, though their rows are still there. `reload()` doesn't work on them, so discard them and fetch them again. A related object in a different database is deleted in a transaction on its own connection, which a failure on the other connection doesn't roll back.
+Only the database is rolled back, not the objects in memory. After rolling back your own transaction, objects that were committed in it no longer have pending changes, and new ones keep the `id` they received, even though nothing was stored. Call `reload()` on the objects that already existed, so they get their values from the database again, and discard the new ones. Objects removed by a cascade (`cascade_delete` or `on_remote_delete="cascade"`) when the `delete()` that removed them fails are out of date as well: they are marked as deleted, though their rows are still there. `reload()` doesn't work on them, so discard them and fetch them again. A related object in a different database is deleted in a transaction on its own connection, which a failure on the other connection doesn't roll back.
 
 ### Check existence
 

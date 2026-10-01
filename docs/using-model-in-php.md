@@ -86,7 +86,9 @@ Assigning a property the value it already has (compared with `===` after convers
 $user->delete();
 ```
 
-If the class uses `softdelete="true"`, this sets `deleted = 1` instead of removing the row.
+If the class uses `softdelete="true"`, this sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but objects that refer to it keep working.
+
+Otherwise, the object's relations are cleaned up as well: rows in join tables are removed, and objects of other classes that refer to it get `NULL` in that property, or are deleted if the relation has `cascade_delete="true"`. If such a property is required, `delete()` throws an exception instead. See [Deleting objects with relations](creating-model-from-xml.md#deleting-objects-with-relations).
 
 After `delete()`, the object's lifecycle has ended: its `id` becomes `null`, and setting a property (including map entries) or calling `commit()` on it throws an exception, instead of inserting it again as a new row. Properties that were already loaded can still be read; properties that weren't read as `null`. To store the same data again, create a new object. Use `$user->isDeleted()` to check whether an object has been deleted.
 

@@ -50,17 +50,9 @@ class ARRelationTypeNN extends ARRelationType {
 		if ($datasetTable != $baseTable)
 			$query .= " left join `$datasetTable` on `$datasetTable`.`$idField` = `$baseTable`.`$idField`";
 		$query .= " where `{$rel['table']}`.`{$rel['local_id']}` = :id";
-		if (isset($rel['local_type']) && $rel['local_type'] != '') {
-			$myClass =
-				$rel['use_namespace']
-				?
-				get_class($this->activeRecord)
-				:
-				(new \ReflectionClass($this->activeRecord))->getShortName();
+		$myClass = $this->_localType($rel);
+		if ($myClass !== null)
 			$query .= " and `{$rel['table']}`.`{$rel['local_type']}` = :myClass";
-		} else {
-			$myClass = false;
-		}
 		if ($meta['softdelete']) // Account for softdelete
 			$query .= " and `$baseTable`.`deleted` = '0'";
 		if (isset($rel['order_field']))
@@ -68,7 +60,7 @@ class ARRelationTypeNN extends ARRelationType {
 
 		$stmt = $this->PDO->prepare($query);
 		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
-		if ($myClass !== false)
+		if ($myClass !== null)
 			$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
 
 		$stmt->execute();
@@ -108,37 +100,21 @@ class ARRelationTypeNN extends ARRelationType {
 			// This behaviour would make working with relations like that a little easier.
 
 		// First, we delete the old relation
-		$query = "delete from `{$rel['table']}` where `{$rel['local_id']}` = :id";
-		if (isset($rel['local_type']) && $rel['local_type'] != '') {
-			$myClass =
-				$rel['use_namespace']
-				?
-				get_class($this->activeRecord)
-				:
-				(new \ReflectionClass($this->activeRecord))->getShortName();
-			$query .= " and `{$rel['table']}`.`{$rel['local_type']}` = :myClass";
-		} else {
-			$myClass = false;
-		}
-
-		$stmt = $this->PDO->prepare($query);
-		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
-		if ($myClass !== false)
-			$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
-		$stmt->execute();
+		$this->_deleteRows($rel);
 
 		// We don't need to re-insert anything if we have no values
 		if (count($objects) == 0)
 			return;
 
 		// Now we re-insert again
+		$myClass = $this->_localType($rel);
 		$query = "insert into `{$rel['table']}` (`{$rel['local_id']}`, `{$rel['remote_id']}`";
-		if ($myClass !== false)
+		if ($myClass !== null)
 			$query .= ", `{$rel['local_type']}`";
 		if (isset($rel['order_field']))
 			$query .= ", `{$rel['order_field']}`";
 		$query .= ") values (:{$rel['local_id']}, :{$rel['remote_id']}";
-		if ($myClass !== false)
+		if ($myClass !== null)
 			$query .= ", :{$rel['local_type']}";
 		if (isset($rel['order_field']))
 			$query .= ", :{$rel['order_field']}";
@@ -150,7 +126,7 @@ class ARRelationTypeNN extends ARRelationType {
 		foreach ($objects as $object) {
 			$stmt->bindValue(":{$rel['local_id']}", $this->activeRecord->id, \PDO::PARAM_INT);
 			$stmt->bindValue(":{$rel['remote_id']}", $object->id, \PDO::PARAM_INT);
-			if ($myClass !== false)
+			if ($myClass !== null)
 				$stmt->bindValue(":{$rel['local_type']}", $myClass, \PDO::PARAM_STR);
 			if (isset($rel['order_field'])) {
 				$stmt->bindValue(":{$rel['order_field']}", $counter, \PDO::PARAM_STR);
@@ -161,6 +137,14 @@ class ARRelationTypeNN extends ARRelationType {
 	}
 
 	/**
+	 * Cleans up this relation when the object is deleted.
+	 *
+	 * In a join table, the rows of this object are deleted, whether we own the
+	 * table or not. In a derived relation, where the table is one of the related
+	 * class's own tables, the references to this object are set to NULL, unless
+	 * they are held by a required property: then the deletion is refused. With
+	 * cascade_delete, the related objects are deleted first.
+	 *
 	 * @param array<string, mixed> $rel
 	 */
 	public function delete(array $rel) : void {
@@ -169,6 +153,100 @@ class ARRelationTypeNN extends ARRelationType {
 			foreach ($objects as $object) $object->delete();
 		}
 
-		$this->store($rel, []);
+		/** @var class-string<ActiveRecord> $className */
+		$className = $rel['class'];
+		$meta = ActiveRecord::_getMeta($className);
+		$classTables = array_merge([$meta['table']], array_column($meta['datasets'], 'table'));
+
+		if (!in_array($rel['table'], $classTables))
+			$this->_deleteRows($rel);
+		elseif (!$rel['cascade_delete'])
+			// Deleted objects removed their own rows; softdeleted ones keep
+			// referring to us, like softdeleted objects keep their relations
+			$this->_clearReferences($rel, $meta);
+	}
+
+	/**
+	 * Deletes the rows of this object from the relation table.
+	 *
+	 * @param array<string, mixed> $rel
+	 */
+	private function _deleteRows(array $rel) : void {
+		$query = "delete from `{$rel['table']}` where `{$rel['local_id']}` = :id";
+		$myClass = $this->_localType($rel);
+		if ($myClass !== null)
+			$query .= " and `{$rel['local_type']}` = :myClass";
+
+		$stmt = $this->PDO->prepare($query);
+		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
+		if ($myClass !== null)
+			$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
+		$stmt->execute();
+	}
+
+	/**
+	 * Sets the references to this object in a derived relation to NULL.
+	 *
+	 * This includes the rows of softdeleted objects, so they don't refer to a
+	 * missing object when they are undeleted. The objects already in memory
+	 * are not updated.
+	 *
+	 * @param array<string, mixed> $rel
+	 * @param array<string, mixed> $meta the metadata of the related class
+	 */
+	private function _clearReferences(array $rel, array $meta) : void {
+		$where = "`{$rel['local_id']}` = :id";
+		$myClass = $this->_localType($rel);
+		if ($myClass !== null)
+			$where .= " and `{$rel['local_type']}` = :myClass";
+
+		// The property in the related class that holds the reference
+		$propName = null;
+		foreach ($meta['datasets'] as $dataset) if ($dataset['table'] == $rel['table'])
+			foreach ($dataset['props'] as $key => $prop)
+				if (in_array($rel['local_id'], $prop['fieldnames']) && $prop['required'])
+					$propName = $key;
+
+		// A required reference can't be cleared, so the related objects have
+		// to be deleted first, or be deleted along with cascade_delete
+		if ($propName !== null) {
+			$stmt = $this->PDO->prepare("select count(*) from `{$rel['table']}` where $where");
+			$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
+			if ($myClass !== null)
+				$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
+			$stmt->execute();
+			$count = (int)$stmt->fetchColumn();
+			$stmt->closeCursor();
+
+			if ($count > 0)
+				$this->activeRecord->_error("Cannot delete, because $count ".(new \ReflectionClass($rel['class']))->getShortName()
+					." object".($count == 1 ? '' : 's')." still refer".($count == 1 ? 's' : '')
+					." to it through the required property '$propName'; delete them first, or set cascade_delete on the relation");
+		}
+
+		$set = "`{$rel['local_id']}` = NULL";
+		if ($myClass !== null)
+			$set .= ", `{$rel['local_type']}` = NULL";
+
+		$stmt = $this->PDO->prepare("update `{$rel['table']}` set $set where $where");
+		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
+		if ($myClass !== null)
+			$stmt->bindValue(':myClass', $myClass, \PDO::PARAM_STR);
+		$stmt->execute();
+	}
+
+	/**
+	 * Returns the value that identifies this object's class in the local_type
+	 * column of the relation table.
+	 *
+	 * @param array<string, mixed> $rel
+	 * @return ?string the class name, or null if the relation has no local_type
+	 */
+	private function _localType(array $rel) : ?string {
+		if (!isset($rel['local_type']) || $rel['local_type'] == '')
+			return null;
+		return $rel['use_namespace']
+			? get_class($this->activeRecord)
+			: (new \ReflectionClass($this->activeRecord))->getShortName();
 	}
 }

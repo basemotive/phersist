@@ -123,7 +123,7 @@ For classes with `softdelete="true"`:
 
 - `delete()` marks the row as deleted (`deleted = 1`) rather than physically removing it
 - default finder queries hide deleted rows
-- relation rows are not automatically removed for soft-deleted objects, which supports restore/undelete flows
+- relation rows and references from other objects are left alone, so the record stays usable wherever it is referenced: a `Class` property pointing at a soft-deleted object still returns it, with all its data. Use `exists()` if you need to know whether it is still active.
 
 Use soft delete as a deliberate lifecycle choice; it adds operational complexity and should be applied intentionally.
 

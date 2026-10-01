@@ -446,8 +446,8 @@ class ActiveRecord implements \ArrayAccess {
 			$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 			$stmt->execute();
 		} else {
-			// Delete the relations (for which we are table owner)
-			foreach (static::$_meta['relations'] as $relname => $relation) if ($relation['table_owner']) {
+			// Clean up the relations, so no rows keep referring to us
+			foreach (static::$_meta['relations'] as $relname => $relation) {
 				$relationType = $this->_getRelationType($relation['type']);
 				$relationType->delete($relation);
 			}

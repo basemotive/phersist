@@ -441,7 +441,7 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 | `table_owner` | yes | `true` if this side owns/writes relation rows. |
 | `load_objects` | yes | `true` to load autoload datasets for related objects; `false` for ID-only skeletons. |
 | `order_field` | no | SQL order column when restoring relation. |
-| `cascade_delete` | no | Delete related objects when owner is deleted. |
+| `cascade_delete` | no | `true` to delete the related objects when this object is deleted (default `false`). See [Deleting objects with relations](#deleting-objects-with-relations). |
 | `local_type` | no | Column holding the class name of the local object, for tables that hold rows of several classes. When omitted, every row matching `local_id` is taken to belong to this class. |
 | `use_namespace` | no | Controls what value is stored in `local_type`. `false` (default): store the short class name (e.g. `ForumMessage`). `true`: store the fully-qualified class name (e.g. `MyApp\Model\ForumMessage`). Only used when `local_type` is set. |
 
@@ -450,6 +450,25 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 - **1-N derived relation**: `table_owner="false"` against related class table.
 - **N-N relation with join table**: `table_owner="true"` and dedicated join table.
 - **Polymorphic reverse relation**: add `local_type` when class discriminator is needed.
+
+### Deleting objects with relations
+
+When an object is deleted (without `softdelete`), each of its relations is cleaned up so no rows keep referring to it. What happens depends on the relation's `table`:
+
+| `table` is… | Without `cascade_delete` | With `cascade_delete="true"` |
+|---|---|---|
+| A join table (owned or not) | The object's rows in the join table are deleted; the related objects stay. | The related objects are deleted, then the object's rows in the join table. |
+| One of the related class's own tables (derived relation) | The references are set to `NULL` (both columns for a `local_type` relation). | The related objects are deleted. |
+
+For a derived relation, the reference usually belongs to a property of the related class, like `Page.picture` for a `Picture.pages` relation. If that property is `required`, the reference can't be set to `NULL`, so `delete()` throws an exception when any object still refers to the deleted one. Delete those objects first, or set `cascade_delete="true"` to delete them along.
+
+References from softdeleted objects are set to `NULL` too, so they don't refer to a missing object when they are undeleted, and they also count for the required check above. With `cascade_delete`, softdeleted objects aren't deleted again; related objects of a class with `softdelete="true"` are softdeleted and keep their reference.
+
+The whole delete runs in one transaction, so if one step fails, nothing is deleted. Objects that are already in memory are not updated: a `Page` you loaded before deleting its picture still returns the deleted `Picture` object. Fetch it again to see the change.
+
+Only relations defined on the deleted object's class are cleaned up. If `Page` refers to `Picture` but `Picture` has no `pages` relation, deleting a picture leaves the `picture_id` values in place.
+
+When the deleted object's class uses `softdelete="true"`, relations and references are left alone: the object is only made inactive, and objects that refer to it keep working.
 
 ### Polymorphic relations and `use_namespace`
 

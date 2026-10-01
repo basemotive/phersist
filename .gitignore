@@ -4,3 +4,8 @@
 
 /.*
 !/.gitignore
+
+# local notes and stuff
+/*.md
+/*.sql
+/*.sh

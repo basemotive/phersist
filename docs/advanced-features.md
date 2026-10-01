@@ -81,13 +81,6 @@ Typical flow:
 Use `end()` when you need to close a group and keep building conditions at the level above it.  
 If you do not need to add more parent-level expressions, `end()` is optional because expression objects pass through terminal and ordering methods (such as `orderBy(...)`, `fetch(...)`, `fetchOne()`, and `count()`) to the `ObjectFinder`.
 
-### Soft-delete awareness in finder chains
-
-For classes configured with `softdelete="true"`:
-
-- deleted rows are excluded by default
-- call `includeDeletedRecords(true)` to include them explicitly
-
 ---
 
 ## 3) Dataset loading strategy
@@ -119,10 +112,10 @@ Choose `false` when links are needed but related payload is usually not used.
 
 ## 5) Soft delete runtime behavior
 
-For classes with `softdelete="true"`:
+Soft delete is opt-in and meant for the exceptional case where a record must stay available after it is deleted; by default, `delete()` removes the row. For classes with `softdelete="true"`:
 
 - `delete()` marks the row as deleted (`deleted = 1`) rather than physically removing it
-- default finder queries hide deleted rows
+- default finder queries hide deleted rows; call `includeDeletedRecords(true)` to include them
 - relation rows and references from other objects are left alone, so the record stays usable wherever it is referenced: a `Class` property pointing at a soft-deleted object still returns it, with all its data. Use `exists()` if you need to know whether it is still active.
 
 Use soft delete as a deliberate lifecycle choice; it adds operational complexity and should be applied intentionally.

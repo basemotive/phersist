@@ -110,7 +110,7 @@ Each `<class>` generates one PHP class extending `\PHersist\ActiveRecord`.
 | `id` | no | auto | Primary key column name. Auto value depends on `id_style`. |
 | `table` | no | auto | Base table name for this class. |
 | `database` | no | project `database` | Optional per-class DB override. |
-| `softdelete` | no | `false` | If `true`, `delete()` sets `deleted = 1` instead of removing row. |
+| `softdelete` | no | `false` | If `true`, `delete()` sets `deleted = 1` instead of removing the row. Use sparingly; see [Soft delete runtime behavior](advanced-features.md#5-soft-delete-runtime-behavior). |
 | `trait` | no | auto-detected | Optional trait name to include in generated class. |
 
 ### Extending generated classes with Traits
@@ -453,7 +453,7 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 
 ### Deleting objects with relations
 
-When an object is deleted (without `softdelete`), each of its relations is cleaned up so no rows keep referring to it. What happens depends on the relation's `table`:
+When an object is deleted, each of its relations is cleaned up so no rows keep referring to it. What happens depends on the relation's `table`:
 
 | `table` is… | Without `cascade_delete` | With `cascade_delete="true"` |
 |---|---|---|
@@ -462,13 +462,14 @@ When an object is deleted (without `softdelete`), each of its relations is clean
 
 For a derived relation, the reference usually belongs to a property of the related class, like `Page.picture` for a `Picture.pages` relation. If that property is `required`, the reference can't be set to `NULL`, so `delete()` throws an exception when any object still refers to the deleted one. Delete those objects first, or set `cascade_delete="true"` to delete them along.
 
-References from softdeleted objects are set to `NULL` too, so they don't refer to a missing object when they are undeleted, and they also count for the required check above. With `cascade_delete`, softdeleted objects aren't deleted again; related objects of a class with `softdelete="true"` are softdeleted and keep their reference.
-
 The whole delete runs in one transaction, so if one step fails, nothing is deleted. Objects that are already in memory are not updated: a `Page` you loaded before deleting its picture still returns the deleted `Picture` object. Fetch it again to see the change.
 
 Only relations defined on the deleted object's class are cleaned up. If `Page` refers to `Picture` but `Picture` has no `pages` relation, deleting a picture leaves the `picture_id` values in place.
 
-When the deleted object's class uses `softdelete="true"`, relations and references are left alone: the object is only made inactive, and objects that refer to it keep working.
+If soft delete is involved, two things differ:
+
+- When the deleted object's class uses `softdelete="true"`, relations and references are left alone: the object is only made inactive, and objects that refer to it keep working.
+- Softdeleted objects that refer to the deleted object are cleaned up like any other: their references are set to `NULL`, so they don't refer to a missing object when they are undeleted, and they also count for the required check above. With `cascade_delete`, softdeleted objects aren't deleted again; related objects of a class with `softdelete="true"` are softdeleted and keep their reference.
 
 ### Polymorphic relations and `use_namespace`
 

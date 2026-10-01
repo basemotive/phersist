@@ -86,11 +86,11 @@ Assigning a property the value it already has (compared with `===` after convers
 $user->delete();
 ```
 
-If the class uses `softdelete="true"`, this sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but objects that refer to it keep working.
-
-Otherwise, the object's relations are cleaned up as well: rows in join tables are removed, and objects of other classes that refer to it get `NULL` in that property, or are deleted if the relation has `cascade_delete="true"`. If such a property is required, `delete()` throws an exception instead. See [Deleting objects with relations](creating-model-from-xml.md#deleting-objects-with-relations).
+This removes the object's row. Its relations are cleaned up as well: rows in join tables are removed, and objects of other classes that refer to it get `NULL` in that property, or are deleted if the relation has `cascade_delete="true"`. If such a property is required, `delete()` throws an exception instead. See [Deleting objects with relations](creating-model-from-xml.md#deleting-objects-with-relations).
 
 After `delete()`, the object's lifecycle has ended: its `id` becomes `null`, and setting a property (including map entries) or calling `commit()` on it throws an exception, instead of inserting it again as a new row. Properties that were already loaded can still be read; properties that weren't read as `null`. To store the same data again, create a new object. Use `$user->isDeleted()` to check whether an object has been deleted.
+
+If the class uses `softdelete="true"`, `delete()` only sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but its relations are left alone and objects that refer to it keep working.
 
 ### Transactions
 
@@ -177,7 +177,7 @@ Common methods:
 - `fetch(?int $limit = null, int $offset = 0)`
 - `fetchOne()`
 - `count()`
-- `includeDeletedRecords(true|false)` for soft-delete classes
+- `includeDeletedRecords(true|false)`, only relevant for classes with `softdelete="true"`
 
 Besides the properties from your XML, `id` can be used in `where(...)` (also at the end of a path, such as `forum->id`) and in `orderBy(...)`.
 
@@ -274,6 +274,19 @@ $objects = ObjectFinder::create($class)->fetch(); // list<ActiveRecord>
 ```
 
 In both cases the results are typed as `ActiveRecord`, because the analyser does not know the specific class. If you do know it, use `class-string<User>` in the annotation to get `User` results.
+
+### Soft-deleted records
+
+For the rare class with `softdelete="true"`, finder queries exclude soft-deleted rows. Include them explicitly with `includeDeletedRecords(true)`:
+
+```php
+<?php
+
+$user = ObjectFinder::create(User::class)
+    ->includeDeletedRecords(true)
+    ->where('email', '=', 'joe@example.org')
+    ->fetchOne();
+```
 
 ---
 
@@ -457,25 +470,7 @@ The JSON output is always an object, also for an empty map (`{}`) or one with nu
 
 ---
 
-## 9) Soft-delete query behavior
-
-For classes with `softdelete="true"`:
-
-- normal finder queries exclude deleted rows
-- include them explicitly with `includeDeletedRecords(true)`
-
-```php
-<?php
-
-$user = ObjectFinder::create(User::class)
-    ->includeDeletedRecords(true)
-    ->where('email', '=', 'joe@example.org')
-    ->fetchOne();
-```
-
----
-
-## 10) Practical runtime guidance
+## 9) Practical runtime guidance
 
 - keep high-frequency fields in autoload datasets
 - move heavy/rarely-used fields into separate lazy datasets

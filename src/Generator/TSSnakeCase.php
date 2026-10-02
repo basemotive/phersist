@@ -54,7 +54,7 @@ class TSSnakeCase {
 		} elseif ($term == 'fieldname') {
 			return self::fixup($name);
 		} else {
-			die("Don't know $term\n");
+			throw new \Exception("Don't know $term");
 		}
 	}
 

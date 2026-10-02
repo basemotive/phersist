@@ -568,7 +568,7 @@ class ARGenerator {
 			try {
 				if ($hasDefault) return ARPropertyTypeDecimal::normalizeValue($default, $precision, $scale);
 			} catch (\InvalidArgumentException $e) {
-				die("ERROR: Invalid default for property '{$property->getAttribute('name')}': {$e->getMessage()}\n");
+				throw new \Exception("Invalid default for property '{$property->getAttribute('name')}': {$e->getMessage()}", 0, $e);
 			}
 		} elseif ($type == 'Bool') {
 			if ($hasDefault) return $default == 'true';
@@ -586,7 +586,7 @@ class ARGenerator {
 	private function getUpdateOn(DOMElement $property) : string {
 		$updateOn = $property->getAttribute('update_on');
 		if ($updateOn != 'create' && $updateOn != 'modify')
-			die("ERROR: Invalid update_on '{$updateOn}' for property '{$property->getAttribute('name')}', use 'create' or 'modify'\n");
+			throw new \Exception("Invalid update_on '{$updateOn}' for property '{$property->getAttribute('name')}', use 'create' or 'modify'");
 		return $updateOn;
 	}
 
@@ -602,7 +602,7 @@ class ARGenerator {
 		try {
 			return ARPropertyTypeDecimal::parseSize($precision, $scale);
 		} catch (\InvalidArgumentException $e) {
-			die("ERROR: Invalid Decimal property '{$property->getAttribute('name')}': {$e->getMessage()}\n");
+			throw new \Exception("Invalid Decimal property '{$property->getAttribute('name')}': {$e->getMessage()}", 0, $e);
 		}
 	}
 
@@ -617,7 +617,7 @@ class ARGenerator {
 		$styleConverter = __NAMESPACE__.'\\TS'.$this->root->getAttribute('tablestyle');
 
 		if (!class_exists($styleConverter))
-			die("ERROR: Cannot find table style converter class {$styleConverter}\n");
+			throw new \Exception("Cannot find table style converter class {$styleConverter}");
 
 		if ($term == 'id') {
 			// the root element property 'id_style' if it exists can be 'long' or

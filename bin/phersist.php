@@ -74,41 +74,46 @@ if (!$autoloader) {
 	exit(1);
 }
 
-$xml = file_get_contents($xmlFile);
-$arGenerator = new ARGenerator($xml);
+try {
+	$xml = file_get_contents($xmlFile);
+	$arGenerator = new ARGenerator($xml);
 
-if (!$skipClasses && !$classesDir) {
-	// automagically figure out where to put the classes
-	$namespace = $arGenerator->getNamespace();
- 	$prefixes = $autoloader->getPrefixesPsr4();
-    uksort($prefixes, fn($a, $b) => strlen($b) - strlen($a));
-    foreach ($prefixes as $prefix => $dirs) {
-        if (str_starts_with($namespace, $prefix)) {
-            $relative = str_replace('\\', '/', substr($namespace, strlen($prefix)));
-            $classesDir = realpath("{$dirs[0]}/{$relative}");
-            // realpath may not actually exist, so only break on success
-            if ($classesDir)
-            	break;
-        }
-    }
-}
-
-if (!$skipClasses && !$classesDir) {
-	echo "ERROR: Could not auto-detect classes dir; please specify with --classesdir\n";
-	exit(1);
-}
-
-if (!$skipClasses) {
-	$metasets = $arGenerator->generate();
-	foreach ($metasets as $className => $meta) {
-	    echo "Writing class {$className} to {$classesDir}/{$className}.php\n";
-	    file_put_contents("{$classesDir}/{$className}.php", $meta);
+	if (!$skipClasses && !$classesDir) {
+		// automagically figure out where to put the classes
+		$namespace = $arGenerator->getNamespace();
+		$prefixes = $autoloader->getPrefixesPsr4();
+		uksort($prefixes, fn($a, $b) => strlen($b) - strlen($a));
+		foreach ($prefixes as $prefix => $dirs) {
+			if (str_starts_with($namespace, $prefix)) {
+				$relative = str_replace('\\', '/', substr($namespace, strlen($prefix)));
+				$classesDir = realpath("{$dirs[0]}/{$relative}");
+				// realpath may not actually exist, so only break on success
+				if ($classesDir)
+					break;
+			}
+		}
 	}
-}
 
-if ($mysqlFile) {
-	echo "Writing MySQL schema to {$mysqlFile}\n";
-	$mysqlGenerator = new MySQLGenerator($xml);
-	$sql = $mysqlGenerator->generate();
-	file_put_contents($mysqlFile, $sql);
+	if (!$skipClasses && !$classesDir) {
+		echo "ERROR: Could not auto-detect classes dir; please specify with --classesdir\n";
+		exit(1);
+	}
+
+	if (!$skipClasses) {
+		$metasets = $arGenerator->generate();
+		foreach ($metasets as $className => $meta) {
+			echo "Writing class {$className} to {$classesDir}/{$className}.php\n";
+			file_put_contents("{$classesDir}/{$className}.php", $meta);
+		}
+	}
+
+	if ($mysqlFile) {
+		echo "Writing MySQL schema to {$mysqlFile}\n";
+		$mysqlGenerator = new MySQLGenerator($xml);
+		$sql = $mysqlGenerator->generate();
+		file_put_contents($mysqlFile, $sql);
+	}
+} catch (\Exception $e) {
+	echo "ERROR: {$e->getMessage()}\n";
+	exit(1);
 }

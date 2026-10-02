@@ -46,9 +46,9 @@ class MySQLGenerator {
 			$this->collate = $mysqlElement->getAttribute('collate');
 
 		if (!preg_match('/^[A-Za-z0-9_]+$/', $this->charset))
-			die("ERROR: Invalid MySQL charset '{$this->charset}'\n");
+			throw new \Exception("Invalid MySQL charset '{$this->charset}'");
 		if ($this->collate !== null && !preg_match('/^[A-Za-z0-9_]+$/', $this->collate))
-			die("ERROR: Invalid MySQL collation '{$this->collate}'\n");
+			throw new \Exception("Invalid MySQL collation '{$this->collate}'");
 	}
 
 	/**
@@ -277,7 +277,7 @@ class MySQLGenerator {
 						if ($property->hasAttribute('default'))
 							$fieldSpec['defaultRaw'] = ARPropertyTypeDecimal::normalizeValue($property->getAttribute('default'), $precision, $scale);
 					} catch (\InvalidArgumentException $e) {
-						die("ERROR: Invalid Decimal property '{$propName}': {$e->getMessage()}\n");
+						throw new \Exception("Invalid Decimal property '{$propName}': {$e->getMessage()}", 0, $e);
 					}
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Date' || $propType == 'DateTime') {
@@ -526,7 +526,7 @@ class MySQLGenerator {
 		$styleConverter = __NAMESPACE__.'\\TS'.$this->root->getAttribute('tablestyle');
 
 		if (!class_exists($styleConverter))
-			die("ERROR: Cannot find table style converter class {$styleConverter}\n");
+			throw new \Exception("Cannot find table style converter class {$styleConverter}");
 
 		if ($term == 'id') {
 			// the root element property 'id_style' if it exists can be 'long' or

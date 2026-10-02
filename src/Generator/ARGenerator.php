@@ -155,7 +155,7 @@ class ARGenerator {
 					} elseif ($prop_type == 'TimestampText') {
 						$result .= ' timestamp';
 						if ($property->hasAttribute('update_on'))
-							$result .= ', updates on '.$property->getAttribute('update_on');
+							$result .= ', updates on '.$this->getUpdateOn($property);
 						if ($property->hasAttribute('date_format'))
 							$result .= ', date format: '.$property->getAttribute('date_format');
 					}
@@ -264,7 +264,8 @@ class ARGenerator {
 				} elseif (($prop_type == 'Date' || $prop_type == 'DateTime') && $property->hasAttribute('update_on')) {
 					$metaprop['update_on'] = $this->getUpdateOn($property);
 				} elseif ($prop_type == 'TimestampText') {
-					$metaprop['update_on'] = $property->getAttribute('update_on');
+					if ($property->hasAttribute('update_on'))
+						$metaprop['update_on'] = $this->getUpdateOn($property);
 					if ($property->hasAttribute('date_format'))
 						$metaprop['date_format'] = $property->getAttribute('date_format');
 				}
@@ -578,7 +579,7 @@ class ARGenerator {
 	}
 
 	/**
-	 * Reads the update_on attribute for a Date or DateTime property.
+	 * Reads the update_on attribute for a Date, DateTime or TimestampText property.
 	 *
 	 * @param DOMElement $property the property element in the XML tree
 	 * @return string 'create' or 'modify'

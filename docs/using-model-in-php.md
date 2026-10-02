@@ -375,7 +375,7 @@ $message->commit();
 ```
 
 For `table_owner="true"` relations, commit replaces relation rows for that owning object. The related objects must have been committed already; otherwise `commit()` throws an exception.  
-For derived relations (`table_owner="false"`), treat them as read-only views.
+Relations with `table_owner="false"` (including derived relations) are read-only: assigning to them throws an exception. Change the property or relation on the owning side instead. See [Read-only and derived relations](creating-model-from-xml.md#read-only-and-derived-relations).
 
 With `ObjectCache` enabled, dereferencing relations/properties that point to objects already loaded earlier in the same runtime can also reduce repeated SQL queries.
 

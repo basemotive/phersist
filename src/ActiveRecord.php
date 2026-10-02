@@ -702,11 +702,13 @@ class ActiveRecord implements \ArrayAccess {
 	 * @param mixed $value the value
 	 */
 	public function __set(string $key, mixed $value) : void {
-		// TODO Check for read-only relations (derived relations)
-
 		// A deleted object's lifecycle has ended, so it must not be modified anymore
 		if ($this->_deleted)
 			$this->_error("Cannot set property $key on a deleted object");
+
+		// Changes to a relation we don't own would never be stored
+		if ($this->_isReadOnlyRelation($key))
+			$this->_error("Relation $key is read-only (table_owner is false) and cannot be set");
 
 		if (isset(static::$_meta['maps'][$key])) {
 			// Replace the contents of the map; the map object itself stays in place
@@ -756,6 +758,10 @@ class ActiveRecord implements \ArrayAccess {
 	 * Registers a property as changed, so we know to save it when committing to
 	 * the database later.
 	 *
+	 * Public only so MapStorage can mark its map as changed; not meant to be
+	 * called from application code.
+	 *
+	 * @internal
 	 * @param string $key the key to mark as changed (or not)
 	 * @param bool $changed whether to mark or unmark it as changed
 	 */
@@ -772,6 +778,17 @@ class ActiveRecord implements \ArrayAccess {
 			if (($index = array_search($key, $this->_changed))!==false)
 				unset($this->_changed[$index]);
 		}
+	}
+
+	/**
+	 * Checks if a key is a relation that this class doesn't own (table_owner
+	 * is false), like a derived relation. Such relations are never stored.
+	 *
+	 * @param string $key the key to check
+	 * @return bool if the key is a read-only relation
+	 */
+	private function _isReadOnlyRelation(string $key) : bool {
+		return isset(static::$_meta['relations'][$key]) && !static::$_meta['relations'][$key]['table_owner'];
 	}
 
 	/**

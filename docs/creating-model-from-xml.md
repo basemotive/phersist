@@ -437,10 +437,10 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 | `name` | yes | Relation property name on object. |
 | `type` | yes | Currently `NN`. |
 | `class` | yes | Target class name. |
-| `table` | yes | Relation table (join table or target/base table for derived reads). |
+| `table` | yes | Relation table: a join table, or one of the related class's own tables for a [derived relation](#read-only-and-derived-relations). |
 | `local_id` | yes | Column storing local object ID. |
 | `remote_id` | yes | Column storing related object ID. |
-| `table_owner` | yes | `true` if this side owns/writes relation rows. |
+| `table_owner` | yes | `true` if this side owns and writes the relation rows; `false` makes the relation [read-only](#read-only-and-derived-relations). |
 | `load_objects` | yes | `true` to load autoload datasets for related objects; `false` for ID-only skeletons. |
 | `order_field` | no | SQL order column when restoring relation. |
 | `cascade_delete` | no | `true` to delete the related objects when this object is deleted (default `false`). See [Deleting objects with relations](#deleting-objects-with-relations). |
@@ -449,9 +449,18 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 
 ### Common patterns
 
-- **1-N derived relation**: `table_owner="false"` against related class table.
-- **N-N relation with join table**: `table_owner="true"` and dedicated join table.
+- **1-N derived relation**: `table_owner="false"` against the related class's table.
+- **N-N relation with join table**: `table_owner="true"` and a dedicated join table.
+- **Other side of an N-N relation**: `table_owner="false"` on the same join table, so only one side writes it.
 - **Polymorphic reverse relation**: add `local_type` when class discriminator is needed.
+
+### Read-only and derived relations
+
+A relation with `table_owner="false"` is **read-only**: it is loaded from its table, but never written. Assigning to it throws an exception; change the data on the side that owns it instead.
+
+A **derived relation** is a read-only relation whose `table` is one of the related class's own tables. It is derived from a property of the related class, like a `Forum.messages` relation that reads the `forum_id` column of the `ForumMessage.forum` property. A derived relation must always be read-only, since its rows are the related objects themselves.
+
+A read-only relation can also use a join table, for example to show an N-N relation from the side that doesn't own it: `Tag.messages` reading the `forum_message_tags` table that `ForumMessage.tags` writes.
 
 ### Deleting objects with relations
 

@@ -117,6 +117,19 @@ class ActiveRecord implements \ArrayAccess {
 	}
 
 	/**
+	 * Makes isset() and empty() work on properties, following PHP semantics:
+	 * a property is set if it exists and its value is not null.
+	 *
+	 * @param string $key the property name
+	 * @return bool if the property exists and is not null
+	 */
+	public function __isset(string $key) : bool {
+		if ($key == 'id') return $this->id !== null;
+
+		return $this->_keyExists($key) && $this->__get($key) !== null;
+	}
+
+	/**
 	 * Commits the changes to this object in the database
 	 */
 	public function commit() : void {
@@ -849,7 +862,7 @@ class ActiveRecord implements \ArrayAccess {
 
 	/* ---------- the ArrayAccess methods ----------- */
 
-	function offsetExists($key) : bool { return $key == 'id' || $this->_keyExists($key); }
+	function offsetExists($key) : bool { return $this->__isset($key); }
 	function offsetGet($key) : mixed { return $this->__get($key); }
 	function offsetSet($key, $value) : void { $this->__set($key, $value); }
 	function offsetUnset($offset) : void { $this->_error("Cannot unset property on ActiveRecord"); }

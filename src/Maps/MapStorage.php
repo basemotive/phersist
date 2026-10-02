@@ -40,7 +40,6 @@ class MapStorage {
 			'name' => $this->map['activeRecordKey'],
 			'data' => $this->data,
 			'isRestored' => $this->isRestored,
-			'isChanged' => $this->isChanged,
 		];
 	}
 
@@ -51,7 +50,6 @@ class MapStorage {
 		$this->activeRecord = $data['activeRecord'];
 		$this->data = $data['data'];
 		$this->isRestored = $data['isRestored'];
-		$this->isChanged = $data['isChanged'];
 
 		$meta = ActiveRecord::_getMeta(get_class($this->activeRecord));
 		if (!isset($meta['maps'][$data['name']]))
@@ -117,9 +115,6 @@ class MapStorage {
 			$stmt->bindValue(":$valueField", $querySet[$index++], \PDO::PARAM_STR);
 			$stmt->execute();
 		}
-
-		// The map is stored, so further changes must register with the ActiveRecord again
-		$this->isChanged = false;
 	}
 
 	/**
@@ -196,11 +191,9 @@ class MapStorage {
 	public function _snapshot() : callable {
 		$data = $this->data;
 		$isRestored = $this->isRestored;
-		$isChanged = $this->isChanged;
-		return function() use ($data, $isRestored, $isChanged) : void {
+		return function() use ($data, $isRestored) : void {
 			$this->data = $data;
 			$this->isRestored = $isRestored;
-			$this->isChanged = $isChanged;
 		};
 	}
 
@@ -257,7 +250,7 @@ class MapStorage {
 	 */
 	public function setForArray(array $keys, mixed $value, bool $set_changed = true) : void {
 		// Check this before touching the data, because the ActiveRecord is only
-		// notified on the first change
+		// notified after the data has changed
 		if ($set_changed && $this->activeRecord->isDeleted())
 			$this->activeRecord->_error("Cannot change property {$this->map['activeRecordKey']} on a deleted object");
 
@@ -288,10 +281,8 @@ class MapStorage {
 			unset($arr);
 		}
 
-		if ($set_changed && !$this->isChanged) {
-			$this->isChanged = true;
+		if ($set_changed)
 			$this->activeRecord->setChanged($this->map['activeRecordKey']);
-		}
 	}
 
 	/**
@@ -436,7 +427,4 @@ class MapStorage {
 	protected ?array $data = null;
 
 	protected bool $isRestored = false;
-	protected bool $isChanged = false; // if false and we have multiple key-levels, a submap may still have changed
 }
-
-?>

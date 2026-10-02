@@ -247,6 +247,7 @@ class ARGenerator {
 					throw new \Exception("Class {$classElement->getAttribute('name')} can't have a property named 'id', it is reserved for the object's id");
 				$prop_type = $property->hasAttribute('type') ?
 					$property->getAttribute('type') : 'Text';
+				$this->checkType('Property', $prop_type, $className, $prop_name);
 
 				$metaprop = [
 					'type' => $prop_type,
@@ -289,6 +290,7 @@ class ARGenerator {
 		// The relations
 		$relations = $classElement->getElementsByTagName('relation');
 		foreach ($relations as $relation) {
+			$this->checkType('Relation', $relation->getAttribute('type'), $className, $relation->getAttribute('name'));
 			$relationClass = $this->qualifyClass($relation->getAttribute('class'));
 
 			$metarel = [
@@ -489,6 +491,24 @@ class ARGenerator {
 			throw new \Exception("Property '$name' can't have on_remote_delete=\"null\", because it is required");
 
 		return $onRemoteDelete;
+	}
+
+	/**
+	 * Checks that a property or relation type exists, so a typo fails here
+	 * instead of when the generated class is used.
+	 *
+	 * @param string $kind 'Property' or 'Relation'
+	 * @param string $type the type from the XML, like 'Int' or 'NN'
+	 * @param string $className the class the property or relation is on
+	 * @param string $name the name of the property or relation
+	 */
+	private function checkType(string $kind, string $type, string $className, string $name) : void {
+		$base = "PHersist\\Types\\AR{$kind}Type";
+		$typeClass = $base.$type;
+		// class names are case-insensitive in PHP, but the type names aren't
+		if (!preg_match('/^[A-Za-z][A-Za-z0-9]*$/', $type) || !is_subclass_of($typeClass, $base)
+				|| (new \ReflectionClass($typeClass))->getName() !== $typeClass)
+			throw new \Exception(ucfirst(strtolower($kind))." '$name' of class $className has an unknown type '$type'");
 	}
 
 	/**

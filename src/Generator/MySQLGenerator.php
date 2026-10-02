@@ -209,6 +209,7 @@ class MySQLGenerator {
 					throw new \Exception("Class {$classElement->getAttribute('name')} can't have a property named 'id', it is reserved for the object's id");
 				$propNameTS = $this->getAuto('fieldname', $propName);
 				$propType = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
+				$this->checkType('Property', $propType, $className, $propName);
 				$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
 
 				$fieldNames = null;
@@ -332,6 +333,9 @@ class MySQLGenerator {
 						'required' => $required,
 						'primaryKey' => false,
 					];
+				} else {
+					// a type class without a column definition here
+					throw new \Exception("Property '$propName' of class $className has type '$propType', which has no MySQL column type");
 				}
 			}
 		}
@@ -351,6 +355,7 @@ class MySQLGenerator {
 		// Process the relations
 		$relations = $classElement->getElementsByTagName('relation');
 		foreach ($relations as $relation) {
+			$this->checkType('Relation', $relation->getAttribute('type'), $className, $relation->getAttribute('name'));
 			$tableName = $relation->getAttribute('table');
 			$localID = $relation->getAttribute('local_id');
 			$remoteID = $relation->getAttribute('remote_id');
@@ -466,6 +471,24 @@ class MySQLGenerator {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Checks that a property or relation type exists, so a typo fails here
+	 * instead of when the generated class is used.
+	 *
+	 * @param string $kind 'Property' or 'Relation'
+	 * @param string $type the type from the XML, like 'Int' or 'NN'
+	 * @param string $className the class the property or relation is on
+	 * @param string $name the name of the property or relation
+	 */
+	private function checkType(string $kind, string $type, string $className, string $name) : void {
+		$base = "PHersist\\Types\\AR{$kind}Type";
+		$typeClass = $base.$type;
+		// class names are case-insensitive in PHP, but the type names aren't
+		if (!preg_match('/^[A-Za-z][A-Za-z0-9]*$/', $type) || !is_subclass_of($typeClass, $base)
+				|| (new \ReflectionClass($typeClass))->getName() !== $typeClass)
+			throw new \Exception(ucfirst(strtolower($kind))." '$name' of class $className has an unknown type '$type'");
 	}
 
 	/**

@@ -100,7 +100,13 @@ class OFWhereExpression extends OFExpression {
 						$parts[] = "not `{$tableAlias}`.`{$fieldname}` is null";
 					else {
 						$valueName = $this->of->generateValueName();
-						$parts[] = "`{$tableAlias}`.`{$fieldname}` {$this->operator} :{$valueName}";
+						$field = "`{$tableAlias}`.`{$fieldname}`";
+						// NULL never matches in SQL, but a NULL value does differ
+						// from a non-null one, so include it explicitly
+						if ($this->operator == '!=' || $this->operator == 'NOT LIKE')
+							$parts[] = "({$field} {$this->operator} :{$valueName} or {$field} is null)";
+						else
+							$parts[] = "{$field} {$this->operator} :{$valueName}";
 						$resultValues[$valueName] = $value;
 					}
 				}

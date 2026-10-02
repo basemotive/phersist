@@ -222,6 +222,8 @@ Supported operators include:
 
 To find `NULL` values, use `null` with `=`, like `where('deletedAt', '=', null)`. It is translated to `IS NULL`, and `!=` with `null` to `NOT ... IS NULL`, for properties of any type.
 
+Unlike plain SQL, `!=` and `NOT LIKE` with a non-null value also match objects whose property is `NULL`, as they would in PHP: `where('color', '!=', 'green')` returns objects without a color too. The same holds for a path through a reference that is `NULL`, such as `where('owner->name', '!=', 'Bob')` for objects without an owner. To leave those out, add a condition: `where('color', '!=', 'green')->where('color', '!=', null)`.
+
 The `IS` operator is deprecated: it is treated as `=` and triggers an `E_USER_DEPRECATED` notice.
 
 A property that refers to another object (type `Class`) can be compared with an object of that class or with its id, like `where('forum', '=', $forum)` or `where('forum', '=', 5)`. Other values, and new objects that have no id yet, throw an `\InvalidArgumentException`.

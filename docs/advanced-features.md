@@ -62,6 +62,7 @@ Use `ObjectCache` when object identity consistency matters, especially with rela
 - It is runtime-local (not distributed/shared).
 - It is not a persistence layer.
 - It complements good query and dataset design; it does not replace it.
+- Unserializing an object (for example from a session) puts it in the cache, replacing an instance with the same class and id that is already in use. From then on, `fetch()`, `ObjectFinder` and relations return the unserialized object, while code that holds the original keeps using that one. To avoid two instances for the same row, unserialize stored objects before fetching or querying the same objects.
 
 ---
 

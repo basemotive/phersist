@@ -395,7 +395,9 @@ Extra attribute:
 In the generated MySQL schema, the class-name column is `VARCHAR(191)` and the id column is `INT UNSIGNED`, indexed together.
 
 ### `TimestampText`
-Datetime field with optional auto-updating.
+Date/time stored as a plain string, with optional auto-updating.
+
+This type is mainly meant for existing databases that store dates or datetimes as text in a custom format. If that doesn't apply, use [`DateTime`](#datetime) (or [`Date`](#date)) instead: they validate assigned values and give you `DateTimeImmutable` objects, and support `update_on` as well.
 
 ```xml
 <property name="createdAt" type="TimestampText" update_on="create"/>
@@ -407,9 +409,11 @@ Extra attributes:
 | Attribute | Required | Description |
 |---|---|---|
 | `update_on` | no | `create` or `modify`. |
-| `date_format` | no | PHP `date()` format string. |
+| `date_format` | no | PHP `date()` format string used for `update_on` values. Defaults to `Y-m-d H:i:s`. |
 
-Values are plain strings. For new models, a [`DateTime`](#datetime) or [`Date`](#date) property with `update_on` is usually a better fit, since it gives you `DateTimeImmutable` objects.
+Values are plain strings, which aren't converted. `update_on` fills in the current time, formatted with `date_format`. A value you assign must match `date_format` exactly, as if it was produced by `date()`; otherwise the assignment throws an exception. With the default format, `'2026-01-01 12:30:00'` is accepted, but `'2026-01-01'`, `'2026-01-01 12:30'` and `'2026-02-30 12:00:00'` are not. With `date_format="j-n-Y"`, `'2-10-2026'` is accepted, but `'02-10-2026'` is not, since `j` and `n` have no leading zeros. `null` is allowed for properties that aren't `required`.
+
+In the generated MySQL schema, the column is `DATETIME` when `date_format` is omitted or `Y-m-d H:i:s`, and `TEXT` for any other format.
 
 ---
 

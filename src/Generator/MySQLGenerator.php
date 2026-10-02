@@ -5,6 +5,7 @@ namespace PHersist\Generator;
 use DOMDocument;
 use DOMElement;
 use PHersist\Types\ARPropertyTypeDecimal;
+use PHersist\Types\ARPropertyTypeTimestampText;
 
 /**
  * Generates MySQL tables.
@@ -322,9 +323,12 @@ class MySQLGenerator {
 						'indexName' => 'idx_' . $propNameTS,
 					];
 				} elseif ($propType == 'TimestampText') {
+					// a custom date format doesn't fit a DATETIME column, so store it as text
+					$customFormat = $property->hasAttribute('date_format')
+						&& $property->getAttribute('date_format') != ARPropertyTypeTimestampText::DEFAULT_DATE_FORMAT;
 					$result[$datasetTable][] = [
 						'fieldName' => $fieldNames[0],
-						'fieldType' => 'DATETIME',
+						'fieldType' => $customFormat ? 'TEXT' : 'DATETIME',
 						'required' => $required,
 						'primaryKey' => false,
 					];

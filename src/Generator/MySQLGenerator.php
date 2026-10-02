@@ -2,7 +2,6 @@
 
 namespace PHersist\Generator;
 
-use DOMDocument;
 use DOMElement;
 use PHersist\Types\ARPropertyTypeDecimal;
 use PHersist\Types\ARPropertyTypeTimestampText;
@@ -16,10 +15,7 @@ use PHersist\Types\ARPropertyTypeTimestampText;
  */
 class MySQLGenerator {
 	public function __construct(string $xml) {
-		$this->doc = new DOMDocument();
-		$this->doc->loadXML($xml);
-
-		$this->root = $this->doc->documentElement;
+		$this->root = XMLLoader::load($xml);
 
 		$this->readSettings();
 	}
@@ -541,7 +537,6 @@ class MySQLGenerator {
 		return $styleConverter::translate($term, $name);
 	}
 
-	private DOMDocument $doc;
 	private DOMElement $root;
 	/** @var array<string, bool> the tables that hold a class (base and dataset tables) */
 	private array $classTables = [];

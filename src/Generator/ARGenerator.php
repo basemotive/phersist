@@ -2,7 +2,6 @@
 
 namespace PHersist\Generator;
 
-use DOMDocument;
 use DOMElement;
 use PHersist\Types\ARPropertyTypeDecimal;
 
@@ -15,10 +14,7 @@ use PHersist\Types\ARPropertyTypeDecimal;
  */
 class ARGenerator {
 	public function __construct(string $xml) {
-		$this->doc = new DOMDocument();
-		$this->doc->loadXML($xml);
-
-		$this->root = $this->doc->documentElement;
+		$this->root = XMLLoader::load($xml);
 	}
 
 	public function getNamespace() : string {
@@ -670,6 +666,5 @@ class ARGenerator {
 		return "[\n".implode(",\n", $lines)."\n{$indent}]";
 	}
 
-	private DOMDocument $doc;
 	private DOMElement $root;
 }

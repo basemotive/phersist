@@ -17,10 +17,25 @@ class ARRelationTypeNN extends ARRelationType {
 	}
 
 	/**
+	 * Restores the related objects, including softdeleted ones: like a Class
+	 * property, a relation keeps returning an object after it is softdeleted.
+	 * This also keeps their rows when the relation is stored again.
+	 *
 	 * @param array<string, mixed> $rel
 	 * @return list<object>
 	 */
 	public function restore(array $rel) : array {
+		return $this->_restore($rel, true);
+	}
+
+	/**
+	 * Restores the related objects.
+	 *
+	 * @param array<string, mixed> $rel
+	 * @param bool $includeDeleted if softdeleted objects should be included
+	 * @return list<object>
+	 */
+	private function _restore(array $rel, bool $includeDeleted) : array {
 		$objects = [];
 
 		/** @var class-string<ActiveRecord> $className */
@@ -40,7 +55,7 @@ class ARRelationTypeNN extends ARRelationType {
 
 		// Build the query
 		$query = "select `{$baseTable}`.`{$idField}` $extraFields from `{$rel['table']}`";
-		if ($baseTable != $rel['table']) // Join the related object so we can make sure the it is not deleted
+		if ($baseTable != $rel['table']) // Join the related object so we skip rows that refer to a missing object
 			$query .= " inner join `$baseTable` on `{$rel['table']}`.`{$rel['remote_id']}` = `$baseTable`.`$idField`";
 		// Datasets may live in their own tables, which we then join. The relation
 		// table may itself be a dataset table (a 1-N relation through a property
@@ -52,7 +67,7 @@ class ARRelationTypeNN extends ARRelationType {
 		$myClass = $this->_localType($rel);
 		if ($myClass !== null)
 			$query .= " and `{$rel['table']}`.`{$rel['local_type']}` = :myClass";
-		if ($meta['softdelete']) // Account for softdelete
+		if ($meta['softdelete'] && !$includeDeleted)
 			$query .= " and `$baseTable`.`deleted` = '0'";
 		if (isset($rel['order_field']))
 			$query .= " order by `{$rel['table']}`.`{$rel['order_field']}`";
@@ -139,7 +154,8 @@ class ARRelationTypeNN extends ARRelationType {
 	 * Cleans up this relation when the object is deleted.
 	 *
 	 * In a join table, the rows of this object are deleted, whether we own the
-	 * table or not; with cascade_delete, the related objects are deleted first.
+	 * table or not; with cascade_delete, the related objects are deleted first,
+	 * except the softdeleted ones.
 	 * In a derived relation, where the table is one of the related class's own
 	 * tables, the references to this object are cleaned up according to the
 	 * on_remote_delete of the property that holds them, or deleted along with
@@ -155,7 +171,7 @@ class ARRelationTypeNN extends ARRelationType {
 
 		if (!in_array($rel['table'], $classTables)) {
 			if ($rel['cascade_delete'])
-				foreach ($this->restore($rel) as $object) $object->delete();
+				foreach ($this->_restore($rel, false) as $object) $object->delete();
 			$this->_deleteRows($rel);
 		} else
 			$this->_clearReferences($rel, $meta);

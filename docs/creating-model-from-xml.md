@@ -506,7 +506,7 @@ This matters when you change such a relation afterwards: if you build the new va
 
 If soft delete is involved, two things differ:
 
-- When the deleted object's class uses `softdelete="true"`, relations and references are left alone: the object is only made inactive, and objects that refer to it keep working.
+- When the deleted object's class uses `softdelete="true"`, relations and references are left alone: the object is only made inactive, and objects that refer to it keep working. Their `Class` properties and relations still return it.
 - Softdeleted objects that refer to the deleted object are cleaned up like any other: their references are set to `NULL`, so they don't refer to a missing object when they are undeleted, and they also count for `restrict`. With `cascade_delete` or `on_remote_delete="cascade"`, softdeleted objects aren't deleted again; objects of a class with `softdelete="true"` are softdeleted and keep their reference.
 
 ### Polymorphic relations and `use_namespace`

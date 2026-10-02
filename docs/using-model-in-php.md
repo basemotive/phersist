@@ -104,7 +104,7 @@ This removes the object's row. References to it are cleaned up as well: rows in 
 
 After `delete()`, the object's lifecycle has ended: its `id` becomes `null`, and setting a property (including map entries) or calling `commit()` on it throws an exception, instead of inserting it again as a new row. Properties that were already loaded can still be read; properties that weren't read as `null`. To store the same data again, create a new object. Use `$user->isDeleted()` to check whether an object has been deleted.
 
-If the class uses `softdelete="true"`, `delete()` only sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but its relations are left alone and objects that refer to it keep working.
+If the class uses `softdelete="true"`, `delete()` only sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but its relations are left alone and objects that refer to it keep working: their `Class` properties and relations still return it.
 
 ### Transactions
 
@@ -156,8 +156,21 @@ Some things are not rolled back in memory:
 ```php
 <?php
 
+$user = User::fetch((int)$_GET['user']);
 if ($user->exists()) {
     // row is present
+}
+```
+
+`exists()` checks the database, so it's useful for an object you got by id, for example an id from an HTTP request. It returns `false` for an object that has no id yet or has been deleted.
+
+For a class with `softdelete="true"`, a soft-deleted object doesn't count as existing, so `exists()` also tells you whether an object is still active. Pass `true` to count soft-deleted objects as well:
+
+```php
+<?php
+
+if ($tag->exists(true)) {
+    // row is present, whether the tag is soft-deleted or not
 }
 ```
 
@@ -439,6 +452,8 @@ foreach ($forum->messages as $message) {
     echo $message->title . PHP_EOL;
 }
 ```
+
+A relation also lists related objects that are soft-deleted (see [Soft-deleted records](#soft-deleted-records)), like a `Class` property still returns them; use `exists()` to check whether one is still active.
 
 ### Write owned N-N relations
 

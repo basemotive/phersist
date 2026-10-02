@@ -404,12 +404,16 @@ class ActiveRecord implements \ArrayAccess {
 	/**
 	 * Checks if this object exists in the database.
 	 *
-	 * Useful for checking references to objects that may have been deleted,
-	 * though this is typically a case you want to prevent.
+	 * Useful for checking if an object that you want to access by id (for example
+	 * because you pass id's in HTTP queries) actually exists in the database.
 	 *
+	 * This returns false by default for softdeleted objects, unless you pass
+	 * true for the $softdeletedExists parameter.
+	 *
+	 * @param bool $softdeletedExists whether to treat softdeleted objects as still existing
 	 * @return bool if this object exists in the database
 	 */
-	public function exists() : bool {
+	public function exists(bool $softdeletedExists = false) : bool {
 		if ($this->id === null)
 			return false;
 
@@ -422,7 +426,8 @@ class ActiveRecord implements \ArrayAccess {
 		$query = "select `$id` from `$table` where `$id` = :id";
 
 		// Account for softdelete situations
-		if (static::$_meta['softdelete']) $query .= " and `deleted` = '0'";
+		if (static::$_meta['softdelete'] && !$softdeletedExists)
+			$query .= " and `deleted` = '0'";
 
 		// Perform the check
 		$stmt = $this->_PDO->prepare($query);

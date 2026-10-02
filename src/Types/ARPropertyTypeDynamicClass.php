@@ -22,12 +22,19 @@ class ARPropertyTypeDynamicClass extends ARPropertyType {
 	}
 
 	public function fromDB(array $prop, array $values) : mixed {
-		/** @var class-string<ActiveRecord> $class_name */
 		$class_name = $values[$prop['fieldnames'][0]];
 		$id = $values[$prop['fieldnames'][1]];
+		if ($id == null)
+			return null;
+		// The class name comes from the database, so only ActiveRecord classes
+		// may be instantiated: a renamed class would otherwise cause an Error,
+		// and any other autoloadable class would be constructed with the id.
+		if (!is_string($class_name) || !is_subclass_of(ltrim($class_name, '\\'), ActiveRecord::class))
+			throw new \Exception('Column '.$prop['fieldnames'][0].' refers to '.(is_string($class_name) ? "'$class_name'" : get_debug_type($class_name)).', which is not an existing ActiveRecord class');
+		/** @var class-string<ActiveRecord> $class_name */
 		// We use the fetchObject method instead of the constructor so the
 		// ObjectCache is used
-		return $id==null ? null : ActiveRecord::fetchObject($class_name, (int)$id);
+		return ActiveRecord::fetchObject($class_name, (int)$id);
 	}
 
 	public function toDB(array $prop, mixed $value) : array {

@@ -374,7 +374,7 @@ Extra attribute:
 | `on_remote_delete` | no | What happens to the reference when the referred object is deleted: `null`, `restrict` or `cascade`. Default `restrict` for a `required` property, `null` otherwise. See [Deleting objects with relations](#deleting-objects-with-relations). |
 
 ### `DynamicClass`
-Polymorphic reference: class + id pair. Assigned values must be `ActiveRecord` objects; anything else throws an exception.
+Polymorphic reference: class + id pair. Assigned values must be `ActiveRecord` objects; anything else throws an exception. When the property is read, the stored class name must be an existing `ActiveRecord` class; otherwise an exception is thrown (for example after renaming a class, update the stored names).
 
 ```xml
 <property name="target" type="DynamicClass"/>

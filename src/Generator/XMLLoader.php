@@ -4,6 +4,8 @@ namespace PHersist\Generator;
 
 use DOMDocument;
 use DOMElement;
+use PHersist\Types\ARPropertyTypeFloat;
+use PHersist\Types\ARPropertyTypeInt;
 
 /**
  * Parses the model XML for the generators.
@@ -46,5 +48,53 @@ class XMLLoader {
 		}
 
 		return $doc->documentElement;
+	}
+
+	/**
+	 * Reads and validates the default attribute of a Text, Int, Float or Bool
+	 * property. Decimal defaults depend on the column size, so the generators
+	 * validate those themselves.
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @param string $type the property type
+	 * @return string|int|float|bool|null the default value, or null if there is none
+	 * @throws \Exception if the default is not a valid value for the type
+	 */
+	public static function getDefault(DOMElement $property, string $type) : string|int|float|bool|null {
+		if (!$property->hasAttribute('default'))
+			return null;
+		$default = $property->getAttribute('default');
+
+		try {
+			if ($type == 'Text')
+				return $default;
+
+			if ($type == 'Int') {
+				$value = (new ARPropertyTypeInt())->normalize([], $default);
+				// The column is a MySQL INT, which is 32 bits
+				$signed = !$property->hasAttribute('signed') || $property->getAttribute('signed') == 'true';
+				[$min, $max] = $signed ? [-2147483648, 2147483647] : [0, 4294967295];
+				if ($value < $min || $value > $max)
+					throw new \InvalidArgumentException("$value is out of range for ".($signed ? 'a signed' : 'an unsigned').' INT column');
+				return $value;
+			}
+
+			if ($type == 'Float') {
+				$value = (new ARPropertyTypeFloat())->normalize([], $default);
+				if (!is_finite($value))
+					throw new \InvalidArgumentException("'$default' is not a finite number");
+				return $value;
+			}
+
+			if ($type == 'Bool') {
+				if ($default !== 'true' && $default !== 'false')
+					throw new \InvalidArgumentException("expected 'true' or 'false', got '$default'");
+				return $default === 'true';
+			}
+		} catch (\InvalidArgumentException $e) {
+			throw new \Exception("Invalid default for property '{$property->getAttribute('name')}': {$e->getMessage()}", 0, $e);
+		}
+
+		return null;
 	}
 }

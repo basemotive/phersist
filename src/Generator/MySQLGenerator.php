@@ -233,7 +233,7 @@ class MySQLGenerator {
 						'primaryKey' => false,
 					];
 					if ($property->hasAttribute('default'))
-						$fieldSpec['defaultValue'] = $property->getAttribute('default');
+						$fieldSpec['defaultValue'] = XMLLoader::getDefault($property, $propType);
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Int') {
 					// signed ints by default
@@ -245,7 +245,7 @@ class MySQLGenerator {
 						'primaryKey' => false,
 					];
 					if ($property->hasAttribute('default'))
-						$fieldSpec['defaultValue'] = intval($property->getAttribute('default'));
+						$fieldSpec['defaultValue'] = XMLLoader::getDefault($property, $propType);
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Float') {
 					// DOUBLE matches the precision of PHP floats
@@ -256,7 +256,7 @@ class MySQLGenerator {
 						'primaryKey' => false,
 					];
 					if ($property->hasAttribute('default'))
-						$fieldSpec['defaultValue'] = floatval($property->getAttribute('default'));
+						$fieldSpec['defaultValue'] = XMLLoader::getDefault($property, $propType);
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Decimal') {
 					$precision = $property->hasAttribute('precision') ? $property->getAttribute('precision') : (string)ARPropertyTypeDecimal::DEFAULT_PRECISION;
@@ -291,7 +291,7 @@ class MySQLGenerator {
 						'primaryKey' => false,
 					];
 					if ($property->hasAttribute('default'))
-						$fieldSpec['defaultValue'] = $property->getAttribute('default') == 'true';
+						$fieldSpec['defaultValue'] = XMLLoader::getDefault($property, $propType);
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Class') {
 					$fieldSpec = [

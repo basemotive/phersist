@@ -249,7 +249,7 @@ Extra attribute:
 | `signed` | no | `true` | Set to `false` to emit `INT UNSIGNED`. |
 
 Default value behaviour:
-- If `default` is set, the integer equivalent of that value is used as the default.
+- If `default` is set, it must be a whole number (like `0`, `-5` or `+12`) that fits the `INT` column: `-2147483648` to `2147483647`, or `0` to `4294967295` with `signed="false"`. The generator reports an error otherwise, for example for `1.5` or `abc`.
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Float`
@@ -261,7 +261,7 @@ Floating point field. Maps to a `DOUBLE` column, which has the same (double) pre
 ```
 
 Default value behaviour:
-- If `default` is set, the float equivalent of that value is used as the default.
+- If `default` is set, it must be a finite number, like `2.5`, `-1` or `1e3`; the generator reports an error otherwise.
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 > Floating point values are inexact. Don't use `Float` for money or other values that need exact decimal arithmetic; use [`Decimal`](#decimal) instead.
@@ -300,7 +300,7 @@ Boolean field. Maps to an `TINYINT UNSIGNED` column, storing `1` for true and `0
 ```
 
 Default value behaviour:
-- If `default` is set, use `"true"` to default to `true` (`1`) or any other value to default to `false` (`0`).
+- If `default` is set, it must be `"true"` (stored as `1`) or `"false"` (stored as `0`); the generator reports an error for any other value, like `"1"` or `"True"`.
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Date`

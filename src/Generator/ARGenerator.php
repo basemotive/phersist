@@ -551,27 +551,16 @@ class ARGenerator {
 	 * @return string|int|float|bool|null the default value, or null if there is none
 	 */
 	private function getDefault(DOMElement $property, string $type) : string|int|float|bool|null {
-		$hasDefault = $property->hasAttribute('default');
-		$default = $property->getAttribute('default');
-
-		if ($type == 'Text') {
-			if ($hasDefault) return $default;
-		} elseif ($type == 'Int') {
-			if ($hasDefault) return intval($default);
-		} elseif ($type == 'Float') {
-			if ($hasDefault) return floatval($default);
-		} elseif ($type == 'Decimal') {
+		if ($type == 'Decimal' && $property->hasAttribute('default')) {
 			[$precision, $scale] = $this->getDecimalSize($property);
 			try {
-				if ($hasDefault) return ARPropertyTypeDecimal::normalizeValue($default, $precision, $scale);
+				return ARPropertyTypeDecimal::normalizeValue($property->getAttribute('default'), $precision, $scale);
 			} catch (\InvalidArgumentException $e) {
 				throw new \Exception("Invalid default for property '{$property->getAttribute('name')}': {$e->getMessage()}", 0, $e);
 			}
-		} elseif ($type == 'Bool') {
-			if ($hasDefault) return $default == 'true';
 		}
 
-		return null;
+		return XMLLoader::getDefault($property, $type);
 	}
 
 	/**

@@ -37,41 +37,56 @@ class MySQLtoMSSQLPDO extends \PDO {
     }
 
     private function convertMySQLToMSSQL(string $query) : string {
+        // --- mask string literals, so the conversions below don't touch them ---
+        $literals = [];
+        $query = preg_replace_callback(
+            '/\'(?:[^\'\\\\]|\\\\.|\'\')*\'|"(?:[^"\\\\]|\\\\.|"")*"/s',
+            function (array $m) use (&$literals) : string {
+                $literals[] = $m[0];
+                return "\0" . (count($literals) - 1) . "\0";
+            },
+            $query
+        );
+
         // --- replace MySQL backticks (`col`) with MSSQL brackets ([col]) ---
         $query = preg_replace('/`([^`]*)`/', '[$1]', $query);
 
-        // --- convert LIMIT syntax to OFFSET/FETCH ---
-        $limitPattern = '/\s+LIMIT\s+(\d+)(\s*,\s*(\d+))?(\s+OFFSET\s+(\d+))?/i';
-        if (preg_match($limitPattern, $query, $matches)) {
-            $offset = 0;
-            $count = 0;
-
-            if (!empty($matches[5])) {
-                // LIMIT x OFFSET y
+        // --- convert a trailing LIMIT clause to OFFSET/FETCH ---
+        $limitPattern = '/\s+LIMIT\s+(\d+)(?:\s*,\s*(\d+)|\s+OFFSET\s+(\d+))?\s*;?\s*$/i';
+        if (preg_match($limitPattern, $query, $matches, PREG_UNMATCHED_AS_NULL)) {
+            if ($matches[3] !== null) {
+                // LIMIT count OFFSET offset
                 $count = (int)$matches[1];
-                $offset = (int)$matches[5];
-            } elseif (!empty($matches[3])) {
+                $offset = (int)$matches[3];
+            } elseif ($matches[2] !== null) {
                 // LIMIT offset, count
                 $offset = (int)$matches[1];
-                $count = (int)$matches[3];
+                $count = (int)$matches[2];
             } else {
                 // LIMIT count
+                $offset = 0;
                 $count = (int)$matches[1];
             }
 
-            // Ensure ORDER BY exists (required for OFFSET/FETCH)
-            if (!preg_match('/ORDER\s+BY/i', $query)) {
-                $query .= " ORDER BY (SELECT NULL)";
-            }
+            $query = substr($query, 0, -strlen($matches[0]));
 
-            // Replace LIMIT with OFFSET/FETCH
-            $replacement = " OFFSET $offset ROWS";
-            if ($count > 0) {
-                $replacement .= " FETCH NEXT $count ROWS ONLY";
+            if ($count == 0) {
+                // FETCH NEXT 0 ROWS is invalid, so use TOP 0 instead
+                $query = preg_replace('/^(\s*SELECT(?:\s+DISTINCT)?)\s/i', '$1 TOP 0 ', $query, 1);
+            } else {
+                // OFFSET/FETCH requires an ORDER BY, which must come before it
+                if (!preg_match('/\bORDER\s+BY\b/i', $query))
+                    $query .= " ORDER BY (SELECT NULL)";
+                $query .= " OFFSET $offset ROWS FETCH NEXT $count ROWS ONLY";
             }
-
-            $query = preg_replace($limitPattern, $replacement, $query);
         }
+
+        // --- restore the string literals ---
+        $query = preg_replace_callback(
+            '/\0(\d+)\0/',
+            fn(array $m) : string => $literals[(int)$m[1]],
+            $query
+        );
 
         return trim($query);
     }

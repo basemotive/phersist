@@ -110,6 +110,14 @@ class Map implements \ArrayAccess, \IteratorAggregate, \Countable, \JsonSerializ
 	}
 
 	/**
+	 * @internal used by ActiveRecord for transactions
+	 * @return callable(): void a function that restores the current state of the map
+	 */
+	public function _snapshot() : callable {
+		return $this->mapObject->_snapshot();
+	}
+
+	/**
 	 * @deprecated use toArray(), or pass the map to json_encode() directly
 	 * @return array<mixed>
 	 */

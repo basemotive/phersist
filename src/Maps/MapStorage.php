@@ -187,6 +187,23 @@ class MapStorage {
 		$stmt->execute();
 	}
 
+	/**
+	 * Captures the data of this map, so a rolled back transaction can restore it.
+	 *
+	 * @internal used by ActiveRecord for transactions
+	 * @return callable(): void a function that restores the captured state
+	 */
+	public function _snapshot() : callable {
+		$data = $this->data;
+		$isRestored = $this->isRestored;
+		$isChanged = $this->isChanged;
+		return function() use ($data, $isRestored, $isChanged) : void {
+			$this->data = $data;
+			$this->isRestored = $isRestored;
+			$this->isChanged = $isChanged;
+		};
+	}
+
 	public function restore() : void {
 		$this->isRestored = true;
 

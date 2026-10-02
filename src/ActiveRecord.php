@@ -148,23 +148,19 @@ class ActiveRecord implements \ArrayAccess {
 		// Referenced objects need an id before we can store a reference to them
 		$this->_checkReferences();
 
-		$isNew = $this->id === null;
+		// If this fails, the transaction restores the state from before, so a
+		// new object loses the id it got from the rolled back insert
+		$this->_transaction(function() {
+			$isNew = $this->id === null;
+			$this->_store($isNew);
 
-		try {
-			$this->_transaction(fn() => $this->_store($isNew));
-		} catch (\Throwable $e) {
-			// The inserts have been rolled back, so the id we got from them is invalid
+			// Everything is stored now, so nothing has changed anymore
+			$this->_changed = [];
+
+			// A new object has an id now, so it can be found in the ObjectCache
 			if ($isNew)
-				$this->_data[static::$_meta['id']] = null;
-			throw $e;
-		}
-
-		// Everything is stored now, so nothing has changed anymore
-		$this->_changed = [];
-
-		// A new object has an id now, so it can be found in the ObjectCache
-		if ($isNew)
-			ObjectCache::put($this);
+				ObjectCache::put($this);
+		});
 	}
 
 	/**
@@ -293,13 +289,14 @@ class ActiveRecord implements \ArrayAccess {
 	}
 
 	/**
-	 * Runs the given function in a database transaction, so its statements
-	 * are stored either all or not at all.
+	 * Runs the given function in a Transaction, so its statements are stored
+	 * either all or not at all.
 	 *
-	 * If a transaction is already active, for example one the application
-	 * started itself or an outer commit() or delete(), the function simply runs
-	 * in that transaction and the caller that started it decides whether it
-	 * gets committed.
+	 * The state of this object is recorded first, so it is restored when this
+	 * or an outer Transaction is rolled back. If a transaction is already
+	 * active, for example one the application started itself or an outer
+	 * commit() or delete(), the function runs in a savepoint inside it, and
+	 * the caller that started it decides whether it gets committed.
 	 *
 	 * @param callable(): void $fn the function that performs the statements
 	 */
@@ -311,31 +308,48 @@ class ActiveRecord implements \ArrayAccess {
 		$this->_PDO->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
 		try {
-			$ownTransaction = !$this->_PDO->inTransaction();
-			if ($ownTransaction)
-				$this->_PDO->beginTransaction();
-
-			try {
+			Transaction::_run($this->_PDO, function() use ($fn) {
+				Transaction::_record($this->_PDO, $this, fn() => $this->_snapshot());
 				$fn();
-				if ($ownTransaction)
-					$this->_PDO->commit();
-			} catch (\Throwable $e) {
-				if ($ownTransaction)
-					$this->_rollBack();
-				throw $e;
-			}
+			});
 		} finally {
 			$this->_PDO->setAttribute(\PDO::ATTR_ERRMODE, $errorMode);
 		}
 	}
 
 	/**
-	 * Rolls back the active transaction, if there still is one.
+	 * Captures the state of this object that commit() and delete() change.
+	 *
+	 * Properties that are loaded after this are dropped again on restore, so
+	 * they get reloaded from the database.
+	 *
+	 * @return callable(): void a function that restores the captured state
 	 */
-	private function _rollBack() : void {
-		// Some databases end the transaction themselves on certain errors
-		if ($this->_PDO->inTransaction())
-			$this->_PDO->rollBack();
+	private function _snapshot() : callable {
+		$data = $this->_data;
+		$changed = $this->_changed;
+		$deleted = $this->_deleted;
+		$cached = $this->id !== null && ObjectCache::get(static::class, $this->id) === $this;
+
+		// Maps keep their data in their own object, which stays in $data
+		$maps = [];
+		foreach (array_keys(static::$_meta['maps']) as $key)
+			if (isset($this->_data[$key]))
+				$maps[] = $this->_data[$key]->_snapshot();
+
+		return function() use ($data, $changed, $deleted, $cached, $maps) : void {
+			// Evict the entry for the id we may have gotten after the snapshot
+			ObjectCache::evict($this);
+
+			$this->_data = $data;
+			$this->_changed = $changed;
+			$this->_deleted = $deleted;
+			foreach ($maps as $restore)
+				$restore();
+
+			if ($cached)
+				ObjectCache::put($this);
+		};
 	}
 
 	/**
@@ -467,16 +481,19 @@ class ActiveRecord implements \ArrayAccess {
 
 		self::$_deleting[$key] = true;
 		try {
-			$this->_transaction(fn() => $this->_deleteRows());
+			// If this or an outer transaction fails, the object is restored
+			$this->_transaction(function() {
+				$this->_deleteRows();
+
+				// Self-evict this instance from the ObjectCache
+				ObjectCache::evict($this);
+
+				$this->_data[static::$_meta['id']] = null;
+				$this->_deleted = true;
+			});
 		} finally {
 			unset(self::$_deleting[$key]);
 		}
-
-		// Self-evict this instance from the ObjectCache
-		ObjectCache::evict($this);
-
-		$this->_data[static::$_meta['id']] = null;
-		$this->_deleted = true;
 	}
 
 	/**

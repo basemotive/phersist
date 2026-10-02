@@ -11,7 +11,7 @@ Welcome to the PHersist docs.
   Full reference for the model XML format (`<project>`, `<class>`, `<dataset>`, `<property>`, `<relation>`, and `<map>`), including property types (`Text`, `Int`, `Float`, `Decimal`, `Bool`, `Date`, `DateTime`, `Class`, `DynamicClass`, `TimestampText`), default values, table style, and id field configuration.
 
 - [Using the model in PHP](using-model-in-php.md)  
-  Work with generated classes, create/update/delete records, use relations and maps, and query with `ObjectFinder` (including result types for static analysers like PHPStan).
+  Work with generated classes, create/update/delete records, group changes in transactions that also roll back objects in memory, use relations and maps, and query with `ObjectFinder` (including result types for static analysers like PHPStan).
 
 - [Advanced features](advanced-features.md)  
   Runtime and performance features such as `ObjectCache`, soft delete behavior, and trait-based class extension.

@@ -108,26 +108,48 @@ If the class uses `softdelete="true"`, `delete()` only sets `deleted = 1` instea
 
 ### Transactions
 
-A single `commit()` or `delete()` can run many statements: inserts or updates for every dataset table, and rewriting relations and maps. These run in a database transaction, so if one of them fails, none of them are stored and `commit()` or `delete()` throws the database's `PDOException`. This happens even if you switched the connection to `PDO::ERRMODE_SILENT` or `PDO::ERRMODE_WARNING`: PHersist uses `PDO::ERRMODE_EXCEPTION` for the duration of the call and then restores your setting, because otherwise a failed statement would go unnoticed and the others would still be stored. (The connections that `DBConnectionManager` creates use `PDO::ERRMODE_EXCEPTION` anyway.) The object stays as it was: its changes are still pending, so you can fix the cause and call `commit()` again, and a new object whose commit failed has no `id`. A failed `delete()` doesn't mark the object as deleted.
+A single `commit()` or `delete()` can run many statements: inserts or updates for every dataset table, and rewriting relations and maps. These run in a database transaction, so if one of them fails, none of them are stored and `commit()` or `delete()` throws the database's `PDOException`. This happens even if you switched the connection to `PDO::ERRMODE_SILENT` or `PDO::ERRMODE_WARNING`: PHersist uses `PDO::ERRMODE_EXCEPTION` for the duration of the call and then restores your setting, because otherwise a failed statement would go unnoticed and the others would still be stored. (The connections that `DBConnectionManager` creates use `PDO::ERRMODE_EXCEPTION` anyway.) The object stays as it was: its changes are still pending, so you can fix the cause and call `commit()` again, and a new object whose commit failed has no `id`. A failed `delete()` doesn't mark the object as deleted, and neither are the objects its cascade (`cascade_delete` or `on_remote_delete="cascade"`) had already deleted.
 
-If a transaction is already active on the connection, `commit()` and `delete()` run in that transaction instead of starting their own, and leave committing or rolling back to you. Use this to store several objects together:
+To store several objects together, run them in a `PHersist\Transaction`. It commits the transaction when your function returns, and rolls it back when it throws, after which the exception is thrown again. `run()` returns what your function returns.
 
 ```php
 <?php
 
-$pdo = DBConnectionManager::getPDO('myapp');
-$pdo->beginTransaction();
+use PHersist\Transaction;
+
+Transaction::run('myapp', function () use ($user, $message) {
+    $user->commit();
+    $message->commit();
+});
+```
+
+Rolling back also restores the objects in memory: every object that was committed or deleted in the transaction gets back the state it had just before its first `commit()` or `delete()` in it. Changes that were pending at that point are pending again, a new object has no `id` again, a deleted object is no longer deleted, and the `ObjectCache` is restored to match. Changes you made to such an object after that first call are undone, and so is data that was loaded into it in the meantime; that data is loaded from the database again when you use it.
+
+If you can't wrap the work in a function, start the transaction yourself and end it with `commit()` or `rollBack()`:
+
+```php
+<?php
+
+$transaction = Transaction::begin('myapp');
 try {
     $user->commit();
     $message->commit();
-    $pdo->commit();
+    $transaction->commit();
 } catch (\Throwable $e) {
-    $pdo->rollBack();
+    $transaction->rollBack();
     throw $e;
 }
 ```
 
-Only the database is rolled back, not the objects in memory. After rolling back your own transaction, objects that were committed in it no longer have pending changes, and new ones keep the `id` they received, even though nothing was stored. Call `reload()` on the objects that already existed, so they get their values from the database again, and discard the new ones. Objects removed by a cascade (`cascade_delete` or `on_remote_delete="cascade"`) when the `delete()` that removed them fails are out of date as well: they are marked as deleted, though their rows are still there. `reload()` doesn't work on them, so discard them and fetch them again. A related object in a different database is deleted in a transaction on its own connection, which a failure on the other connection doesn't roll back.
+Transactions can be nested, on the same connection. A nested transaction uses a savepoint: rolling it back only undoes what happened inside it, and the outer transaction can still be committed. Committing it makes its changes part of the outer transaction, which can still roll them back. Nested transactions must be ended before the transaction they are in, or `commit()` and `rollBack()` throw an exception. A single `commit()` or `delete()` inside a transaction is a nested transaction too, so when it fails, only its own statements are rolled back; your transaction stays active, and you decide whether to continue or roll back. Each of them costs two extra statements (setting and releasing the savepoint), which you may notice when you commit many small objects in one transaction.
+
+Until the transaction ends, it keeps every object that was committed or deleted in it in memory, so it can restore them. For a very large batch, consider several smaller transactions.
+
+Some things are not rolled back in memory:
+
+- Objects that weren't committed or deleted in the transaction themselves. For example, when a `delete()` sets references to `NULL` in the database, objects that are already loaded don't see that, whether the transaction is rolled back or not; see [Deleting objects with relations](creating-model-from-xml.md#deleting-objects-with-relations). The same goes for data that such an object loaded during the transaction, which may contain changes that were rolled back afterwards; call `reload()` on it.
+- Work on another connection. A transaction belongs to one connection, and an object in a different database is committed or deleted in a transaction on its own connection, which a failure on the first connection doesn't roll back.
+- A transaction you start directly on the PDO object with `beginTransaction()`. PHersist can't see when that one ends, so `commit()` and `delete()` run in a savepoint inside it, but rolling it back with `$pdo->rollBack()` only rolls back the database: objects that were committed in it no longer have pending changes, new ones keep the `id` they received, and deleted ones stay marked as deleted. Use `Transaction` instead. Likewise, don't end a `Transaction` by calling `commit()` or `rollBack()` on the PDO object.
 
 ### Check existence
 

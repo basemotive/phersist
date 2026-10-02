@@ -222,7 +222,7 @@ On a new object, a property without a default reads as `null` until it is assign
 ## Property types
 
 ### `Text`
-Default string-like field. Maps to a `TEXT` column.
+Default string-like field. Maps to a `TEXT` column. Assigned ints, floats and `Stringable` objects are converted to `string`; other values, like arrays and bools, throw an exception.
 
 ```xml
 <property name="description" type="Text"/>

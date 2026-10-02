@@ -324,6 +324,55 @@ $user = ObjectFinder::create(User::class)
     ->fetchOne();
 ```
 
+### Loading objects from your own queries
+
+For queries that `ObjectFinder` can't express, you can write the SQL yourself and pass each row to `ActiveRecord::fetchObject()`. It fills the object's datasets with the values from the row, so reading those properties doesn't cost another query.
+
+Select each column under the alias `ds_<dataset>#<column>`. `<dataset>` is the dataset's `name`, or its position in the class if it has no name (the first `<dataset>` element is `1`). Name the datasets you load this way, so your queries keep working when datasets are added or reordered in the XML:
+
+```xml
+<class name="User">
+    <dataset name="main" autoload="true">
+        <property name="email"/>
+        <property name="password"/>
+        <property name="name"/>
+    </dataset>
+</class>
+```
+
+```php
+<?php
+
+use PHersist\ActiveRecord;
+use PHersist\DB\DBConnectionManager;
+
+// Users who posted more than 10 messages in the last week
+$stmt = DBConnectionManager::getPDO('default')->prepare("
+    select `users`.`id`,
+        `users`.`email` as `ds_main#email`,
+        `users`.`password` as `ds_main#password`,
+        `users`.`name` as `ds_main#name`
+    from `users`
+    inner join `forum_messages` on `forum_messages`.`user_id` = `users`.`id`
+    where `forum_messages`.`created_at` > now() - interval 7 day
+    group by `users`.`id`, `users`.`email`, `users`.`password`, `users`.`name`
+    having count(*) > 10
+");
+$stmt->execute();
+
+$users = [];
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC))
+    $users[] = ActiveRecord::fetchObject(User::class, (int) $row['id'], $row);
+```
+
+Without the `name` attribute, the aliases would be `ds_1#email` and so on.
+
+- Use the database column names, not the property names. A property with several columns, like a `DynamicClass`, needs all of them.
+- A dataset is loaded as a whole: the row must hold all of its columns or none of them, otherwise `fetchObject()` throws an exception. This applies to every dataset, not just the `autoload` ones. Datasets that aren't in the row are loaded when you first read one of their properties, as usual. Columns whose name doesn't start with `ds_`, like `id` above, are ignored, but a `ds_` column that doesn't belong to any dataset of the class (usually a typo) throws an exception, so don't use that prefix for other columns. When an exception is thrown, none of the row is assigned.
+- Select the columns as they are stored. The values go through the property types like any other loaded data, so don't format them in SQL.
+- The query is entirely yours: `fetchObject()` doesn't check that the rows exist, and it doesn't leave out soft-deleted objects; add `` `deleted` = 0 `` to the query for that.
+- With `ObjectCache` enabled, an object that is already in use gets the values from the row. Properties you changed but haven't committed keep their new values.
+
 ---
 
 ## 5) Chainability and query flow

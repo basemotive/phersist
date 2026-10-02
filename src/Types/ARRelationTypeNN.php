@@ -31,27 +31,23 @@ class ARRelationTypeNN extends ARRelationType {
 
 		// We also want to load the data for the related objects immediately
 		$extraFields = '';
-		$datasetTable = $baseTable;
+		$datasetTables = [];
 		if ($rel['load_objects'])
-			foreach ($meta['datasets'] as $dataset) if ($dataset['autoload']) {
-				$extraFieldList = [];
-				foreach ($dataset['props'] as $prop)
-					$extraFieldList = array_merge($extraFieldList, $prop['fieldnames']);
-				// The dataset may live in its own table, which we then join
-				$datasetTable = $dataset['table'];
-				foreach (array_unique($extraFieldList) as $extraField)
-					$extraFields .= ", `$datasetTable`.`$extraField`";
-				break;
+			foreach (ActiveRecord::_getAutoloadColumns($className) as $column) {
+				$extraFields .= ", `{$column['table']}`.`{$column['field']}` as `{$column['alias']}`";
+				$datasetTables[$column['table']] = true;
 			}
 
 		// Build the query
 		$query = "select `{$baseTable}`.`{$idField}` $extraFields from `{$rel['table']}`";
 		if ($baseTable != $rel['table']) // Join the related object so we can make sure the it is not deleted
 			$query .= " inner join `$baseTable` on `{$rel['table']}`.`{$rel['remote_id']}` = `$baseTable`.`$idField`";
-		// The relation table may itself be the dataset table (a 1-N relation
-		// through a property in that dataset), in which case it's already there
-		if ($datasetTable != $baseTable && $datasetTable != $rel['table'])
-			$query .= " left join `$datasetTable` on `$datasetTable`.`$idField` = `$baseTable`.`$idField`";
+		// Datasets may live in their own tables, which we then join. The relation
+		// table may itself be a dataset table (a 1-N relation through a property
+		// in that dataset), in which case it's already there.
+		foreach (array_keys($datasetTables) as $datasetTable)
+			if ($datasetTable != $baseTable && $datasetTable != $rel['table'])
+				$query .= " left join `$datasetTable` on `$datasetTable`.`$idField` = `$baseTable`.`$idField`";
 		$query .= " where `{$rel['table']}`.`{$rel['local_id']}` = :id";
 		$myClass = $this->_localType($rel);
 		if ($myClass !== null)

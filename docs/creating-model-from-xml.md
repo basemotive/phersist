@@ -163,7 +163,8 @@ Properties are grouped into datasets. A dataset is loaded in one query.
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `autoload` | no | `false` | Load this dataset automatically in bulk fetches. |
+| `name` | no | position | Name used in the column aliases for [loading objects from your own queries](using-model-in-php.md#loading-objects-from-your-own-queries) (`ds_<name>#<column>`). Without a name, the dataset's position in the class is used (`ds_1#<column>` for the first). Must start with a letter, contain only letters, digits and underscores, and be unique within the class. |
+| `autoload` | no | `false` | Load this dataset automatically in bulk fetches. A class may have several autoload datasets; they are all loaded in the same query. |
 | `table` | no | class base table | Optional table override for dataset-backed properties. The table shares the id of the base table: every object has exactly one row in it, created on the first commit and removed on a hard delete. |
 
 ### Why split datasets?

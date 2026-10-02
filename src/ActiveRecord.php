@@ -593,15 +593,84 @@ class ActiveRecord implements \ArrayAccess {
 			$object = new $class($id);
 		}
 
-		// If we got values for our autoload dataset, then handle them
+		// If we got values for datasets, then handle them. The row holds their
+		// columns under the aliases from _datasetAlias(); datasets that aren't in
+		// it are restored when they're needed. The whole row is checked before
+		// anything is assigned, so a bad row leaves the object as it was.
 		if ($row != null) {
-			foreach ($class::$_meta['datasets'] as $datasetkey => $dataset) if ($dataset['autoload']) {
-				$object->_assignDatasetValues($dataset, $row);
-				break;
+			$aliases = [];
+			$assignments = [];
+			foreach ($class::$_meta['datasets'] as $datasetkey => $dataset) {
+				$values = [];
+				$missing = [];
+				foreach ($dataset['props'] as $prop)
+					foreach ($prop['fieldnames'] as $fieldname) {
+						$alias = self::_datasetAlias($dataset, $datasetkey, $fieldname);
+						$aliases[$alias] = true;
+						if (array_key_exists($alias, $row))
+							$values[$fieldname] = $row[$alias];
+						else
+							$missing[] = $alias;
+					}
+				if (count($values) == 0)
+					continue;
+				// A dataset is always loaded as a whole
+				if (count($missing) > 0)
+					$object->_error("The row has only part of a dataset, it lacks ".implode(', ', array_unique($missing)));
+				$assignments[] = [$dataset, $values];
 			}
+
+			// A ds_ column that isn't one of ours is most likely a typo, which would
+			// otherwise go unnoticed
+			$unknown = array_filter(array_keys($row), fn($key) => str_starts_with((string) $key, 'ds_') && !isset($aliases[$key]));
+			if (count($unknown) > 0)
+				$object->_error("The row has columns that don't belong to any of its datasets: ".implode(', ', $unknown));
+
+			foreach ($assignments as [$dataset, $values])
+				$object->_assignDatasetValues($dataset, $values);
 		}
 
 		return $object;
+	}
+
+	/**
+	 * Lists the columns of all autoload datasets of a class. Queries that
+	 * restore full objects select these under their alias, so fetchObject() can
+	 * assign them from the resulting row. The alias keeps columns with the same
+	 * name in different dataset tables apart.
+	 *
+	 * @param string $className the name of the class
+	 * @return list<array{table: string, field: string, alias: string}> the columns
+	 */
+	public static function _getAutoloadColumns(string $className) : array {
+		$columns = [];
+		foreach ($className::$_meta['datasets'] as $datasetkey => $dataset) if ($dataset['autoload']) {
+			$fieldnames = [];
+			foreach ($dataset['props'] as $prop)
+				$fieldnames = array_merge($fieldnames, $prop['fieldnames']);
+			foreach (array_unique($fieldnames) as $fieldname)
+				$columns[] = [
+					'table' => $dataset['table'],
+					'field' => $fieldname,
+					'alias' => self::_datasetAlias($dataset, $datasetkey, $fieldname),
+				];
+		}
+		return $columns;
+	}
+
+	/**
+	 * Returns the alias under which a column of a dataset is selected:
+	 * ds_<name>#<column> for a named dataset, or ds_<position>#<column> with
+	 * the position of the dataset in the class (starting at 1) otherwise.
+	 *
+	 * @param array<string, mixed> $dataset the dataset definition
+	 * @param int $datasetkey the index of the dataset in the class's meta
+	 * @param string $fieldname the name of the column
+	 * @return string the alias
+	 */
+	private static function _datasetAlias(array $dataset, int $datasetkey, string $fieldname) : string {
+		$name = $dataset['name'] ?? $datasetkey + 1;
+		return "ds_{$name}#{$fieldname}";
 	}
 
 	/**

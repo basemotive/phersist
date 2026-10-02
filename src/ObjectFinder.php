@@ -200,17 +200,11 @@ class ObjectFinder {
 		$extraFields='';
 		$groupBys = [ "`$baseTable`.`$idField`" ];
 		if ($this->full) {
-			foreach ($meta['datasets'] as $dataset) if ($dataset['autoload']) {
-				$extraFieldList = [];
-				foreach ($dataset['props'] as $prop)
-					$extraFieldList = array_merge($extraFieldList, $prop['fieldnames']);
+			foreach (ActiveRecord::_getAutoloadColumns($this->className) as $column) {
 				// The dataset may live in its own table, which we then join
-				$datasetTable = $this->_addDatasetTable('', $dataset['table']);
-				foreach (array_unique($extraFieldList) as $extraField) {
-					$extraFields .= ", `$datasetTable`.`$extraField`";
-					$groupBys[] = "`$datasetTable`.`$extraField`";
-				}
-				break;
+				$datasetTable = $this->_addDatasetTable('', $column['table']);
+				$extraFields .= ", `$datasetTable`.`{$column['field']}` as `{$column['alias']}`";
+				$groupBys[] = "`$datasetTable`.`{$column['field']}`";
 			}
 		}
 

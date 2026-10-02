@@ -231,8 +231,10 @@ class ARGenerator {
 		foreach ($datasets as $dataset) {
 			$ds_autoload = $dataset->hasAttribute('autoload') && $dataset->getAttribute('autoload')=='true';
 			$ds_table = $dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $table;
+			$ds_name = $dataset->hasAttribute('name') ? $this->getDatasetName($dataset, $className, $meta['datasets']) : null;
 
 			$metads = [
+				'name' => $ds_name,
 				'autoload' => $ds_autoload,
 				'table' => $ds_table,
 				'props' => [],
@@ -510,6 +512,25 @@ class ARGenerator {
 		if (!preg_match('/^[A-Za-z][A-Za-z0-9]*$/', $type) || !is_subclass_of($typeClass, $base)
 				|| (new \ReflectionClass($typeClass))->getName() !== $typeClass)
 			throw new \Exception(ucfirst(strtolower($kind))." '$name' of class $className has an unknown type '$type'");
+	}
+
+	/**
+	 * Validates the name of a dataset. It is used in column aliases, like
+	 * ds_<name>#<column>, so it must be an identifier, and unique in its class.
+	 *
+	 * @param DOMElement $dataset the dataset element
+	 * @param string $className the name of the class
+	 * @param list<array<string, mixed>> $datasets the class's datasets so far
+	 * @return string the name
+	 */
+	private function getDatasetName(DOMElement $dataset, string $className, array $datasets) : string {
+		$name = $dataset->getAttribute('name');
+		if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $name))
+			throw new \Exception("Dataset name '$name' of class $className is invalid, it must start with a letter and contain only letters, digits and underscores");
+		foreach ($datasets as $other)
+			if ($other['name'] === $name)
+				throw new \Exception("Class $className has more than one dataset named '$name'");
+		return $name;
 	}
 
 	/**

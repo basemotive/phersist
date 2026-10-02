@@ -38,6 +38,7 @@
 			When a dataset has the autoload="true" property, they are retrieved from the database by default when retrieving objects in bulk with the ObjectFinder class.
 			A dataset node may also have these properties:
 			- table_name: the table these properties are found in
+			- name: a name for the dataset, used in the column aliases when you load objects from your own SQL queries (like ds_main#email for the User class below)
 		-->
 		<dataset autoload="true">
 			<!--
@@ -167,7 +168,7 @@
 	</class>
 
 	<class name="User">
-		<dataset autoload="true">
+		<dataset name="main" autoload="true">
 			<property name="email"/>
 			<property name="password"/>
 			<property name="name"/>

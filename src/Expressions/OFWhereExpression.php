@@ -30,8 +30,13 @@ class OFWhereExpression extends OFExpression {
 		// properties that need to be dereferenced like otherObject->prop
 		//if (!$of->hasProperty($property))
 			//$of->error("Object does not have property $property");
-		if (!in_array(strtoupper($operator), $this->allowedOperators))
+		$operator = strtoupper($operator);
+		if (!in_array($operator, $this->allowedOperators))
 			$of->error("Operator '{$operator}' unknown");
+		if ($operator == 'IS') {
+			trigger_error("The 'IS' operator is deprecated, use '=' instead (also for null)", E_USER_DEPRECATED);
+			$operator = '=';
+		}
 		// TODO check if operator can work with the property's type
 		// TODO if the property is required, checking for NULL is nonsense
 
@@ -89,10 +94,9 @@ class OFWhereExpression extends OFExpression {
 				$parts = [];
 				foreach ($values as $fieldname => $value) {
 					// Comparing with null using = or != never matches in SQL, so use 'is null'
-					$operator = strtoupper($this->operator);
-					if ($value === null && ($operator == 'IS' || $operator == '='))
+					if ($value === null && $this->operator == '=')
 						$parts[] = "`{$tableAlias}`.`{$fieldname}` is null";
-					elseif ($value === null && $operator == '!=')
+					elseif ($value === null && $this->operator == '!=')
 						$parts[] = "not `{$tableAlias}`.`{$fieldname}` is null";
 					else {
 						$valueName = $this->of->generateValueName();
@@ -102,7 +106,7 @@ class OFWhereExpression extends OFExpression {
 				}
 
 				// A property with several fields differs if any of its fields does
-				$result = implode(strtoupper($this->operator) == '!=' ? ' or ' : ' and ', $parts);
+				$result = implode($this->operator == '!=' ? ' or ' : ' and ', $parts);
 				if (count($parts) > 1) $result = "($result)";
 			}
 		}

@@ -218,13 +218,15 @@ Common methods:
 Besides the properties from your XML, `id` can be used in `where(...)` (also at the end of a path, such as `forum->id`) and in `orderBy(...)`.
 
 Supported operators include:
-`=`, `IS`, `>`, `<`, `>=`, `<=`, `!=`, `LIKE`, `NOT LIKE`.
+`=`, `>`, `<`, `>=`, `<=`, `!=`, `LIKE`, `NOT LIKE`.
 
-To find `NULL` values, use `null` with `=` or `IS`, like `where('deletedAt', '=', null)`. It is translated to `IS NULL`, and `!=` with `null` to `NOT ... IS NULL`, for properties of any type.
+To find `NULL` values, use `null` with `=`, like `where('deletedAt', '=', null)`. It is translated to `IS NULL`, and `!=` with `null` to `NOT ... IS NULL`, for properties of any type.
+
+The `IS` operator is deprecated: it is treated as `=` and triggers an `E_USER_DEPRECATED` notice.
 
 A property that refers to another object (type `Class`) can be compared with an object of that class or with its id, like `where('forum', '=', $forum)` or `where('forum', '=', 5)`. Other values, and new objects that have no id yet, throw an `\InvalidArgumentException`.
 
-A `DynamicClass` property can only be compared with an object (or `null`), because an id alone doesn't say which class is meant. Only `=`, `IS` and `!=` are meaningful for it.
+A `DynamicClass` property can only be compared with an object (or `null`), because an id alone doesn't say which class is meant. Only `=` and `!=` are meaningful for it.
 
 ### Simple lookup
 

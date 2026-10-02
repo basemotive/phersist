@@ -636,7 +636,7 @@ PHersist’s `TSSnakeCase` converter maps camel/Pascal case names to snake_case 
 
 For generated table names (from singular class name), `TSSnakeCase` applies basic English plural handling to the last word of the name. The first matching rule wins:
 
-- a few irregular words: `person` -> `people`, `child` -> `children`, `man` -> `men`, `woman` -> `women`, `series`/`species` stay the same, and `hero`, `potato`, `tomato`, `echo`, `veto` -> add `es`
+- a few irregular words: `child` -> `children`, `man` -> `men`, `woman` -> `women`, `series`/`species` stay the same, and `hero`, `potato`, `tomato`, `echo`, `veto` -> add `es`
 - ending `iz` -> `izzes`
 - ending `sis` -> `ses`
 - endings `s`, `sh`, `ch`, `x`, `z` -> add `es`
@@ -650,7 +650,6 @@ Examples:
 | Class | Table |
 |---|---|
 | `ForumMessage` | `forum_messages` |
-| `ContactPerson` | `contact_people` |
 | `Category` | `categories` |
 | `Box` | `boxes` |
 | `Quiz` | `quizzes` |
@@ -662,8 +661,6 @@ Examples:
 | `Hero` | `heroes` |
 
 These rules don't cover every English word. If a generated name is wrong, set the `table` attribute on the `<class>` element.
-
-Up to version 0.7.6, any word ending in `f`/`fe` got `ves` and any word ending in a consonant + `o` got `es` (`Chief` -> `chieves`, `Photo` -> `photoes`), and irregular words, `iz` and `sis` endings weren't handled. If an existing database uses one of those old names, set `table` to keep it.
 
 ### Case transition handling
 

@@ -24,6 +24,29 @@ namespace PHersist\Generator;
 class TSSnakeCase {
 
 	/**
+	 * Plurals the suffix rules don't produce, applied to the last word of a name.
+	 * Not pluralizing "person" to "people" because that's just weird.
+	 * Most of these are admittely pretty rare to want to pluralize.
+	 */
+	private const IRREGULAR_PLURALS = [
+		'child' => 'children', 'man' => 'men', 'woman' => 'women',
+		'series' => 'series', 'species' => 'species',
+		'hero' => 'heroes', 'potato' => 'potatoes', 'tomato' => 'tomatoes', 'echo' => 'echoes', 'veto' => 'vetoes',
+	];
+
+	/**
+	 * Basic English pluralization rules (pattern => replacement), the first match wins.
+	 */
+	private const PLURAL_RULES = [
+		'/iz$/' => 'izzes',               // quiz
+		'/sis$/' => 'ses',                // analysis, crisis
+		'/(s|sh|ch|x|z)$/' => '$1es',     // bus, dish, match, box, waltz
+		'/([^aeiou])y$/' => '$1ies',      // category (but not key)
+		'/(l|ea|oa)f$/' => '$1ves',       // shelf, leaf, loaf (but not chief, roof, cliff)
+		'/ife$/' => 'ives',               // knife, life (but not safe, giraffe)
+	];
+
+	/**
 	 * Converts a term from camel case to snake case.
 	 *
 	 * @param string $term what kind of term to translate: table | id | fieldname
@@ -32,20 +55,7 @@ class TSSnakeCase {
 	 */
 	public static function translate(string $term, string $name) : string {
 		if ($term == 'table') {
-			$singular = self::fixup($name);
-			// Apply basic English pluralization rules
-			if (preg_match('/(s|sh|ch|x|z)$/', $singular))
-				return $singular . 'es';
-			elseif (preg_match('/[^aeiou]y$/', $singular))
-				return substr($singular, 0, -1) . 'ies';
-			elseif (preg_match('/f$/', $singular))
-				return substr($singular, 0, -1) . 'ves';
-			elseif (preg_match('/fe$/', $singular))
-				return substr($singular, 0, -2) . 'ves';
-			elseif (preg_match('/o$/', $singular) && !preg_match('/(oo|eo|io|uo)$/', $singular))
-				return $singular . 'es';
-			else
-				return $singular . 's';
+			return self::pluralize(self::fixup($name));
 		} elseif ($term == 'id' || $term == 'relation_id') {
 			return self::fixup($name).'_id';
 		} elseif ($term == 'relation_combo') {
@@ -56,6 +66,26 @@ class TSSnakeCase {
 		} else {
 			throw new \Exception("Don't know $term");
 		}
+	}
+
+	/**
+	 * Pluralizes the last word of a snake case name.
+	 *
+	 * @param string $singular the snake case name
+	 * @return string the name with its last word pluralized
+	 */
+	private static function pluralize(string $singular) : string {
+		$pos = strrpos($singular, '_');
+		$prefix = $pos === false ? '' : substr($singular, 0, $pos + 1);
+		$word = substr($singular, strlen($prefix));
+		if (isset(self::IRREGULAR_PLURALS[$word]))
+			return $prefix . self::IRREGULAR_PLURALS[$word];
+
+		foreach (self::PLURAL_RULES as $pattern => $replacement) {
+			if (preg_match($pattern, $singular))
+				return (string)preg_replace($pattern, $replacement, $singular);
+		}
+		return $singular . 's';
 	}
 
 	/**

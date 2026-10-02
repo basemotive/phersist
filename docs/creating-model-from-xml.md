@@ -634,13 +634,15 @@ PHersist’s `TSSnakeCase` converter maps camel/Pascal case names to snake_case 
 
 ### Table pluralization rules
 
-For generated table names (from singular class name), `TSSnakeCase` applies English plural handling:
+For generated table names (from singular class name), `TSSnakeCase` applies basic English plural handling to the last word of the name. The first matching rule wins:
 
+- a few irregular words: `person` -> `people`, `child` -> `children`, `man` -> `men`, `woman` -> `women`, `series`/`species` stay the same, and `hero`, `potato`, `tomato`, `echo`, `veto` -> add `es`
+- ending `iz` -> `izzes`
+- ending `sis` -> `ses`
 - endings `s`, `sh`, `ch`, `x`, `z` -> add `es`
 - consonant + `y` -> replace `y` with `ies`
-- ending `f` -> `ves`
-- ending `fe` -> `ves`
-- ending `o` -> add `es` (except patterns like `oo`, `eo`, `io`, `uo`)
+- endings `lf`, `eaf`, `oaf` -> replace `f` with `ves`
+- ending `ife` -> replace `fe` with `ves`
 - otherwise -> add `s`
 
 Examples:
@@ -648,11 +650,20 @@ Examples:
 | Class | Table |
 |---|---|
 | `ForumMessage` | `forum_messages` |
+| `ContactPerson` | `contact_people` |
 | `Category` | `categories` |
 | `Box` | `boxes` |
+| `Quiz` | `quizzes` |
+| `Analysis` | `analyses` |
+| `Shelf` | `shelves` |
+| `Chief` | `chiefs` |
 | `Knife` | `knives` |
+| `Photo` | `photos` |
 | `Hero` | `heroes` |
-| `Zoo` | `zoos` |
+
+These rules don't cover every English word. If a generated name is wrong, set the `table` attribute on the `<class>` element.
+
+Up to version 0.7.6, any word ending in `f`/`fe` got `ves` and any word ending in a consonant + `o` got `es` (`Chief` -> `chieves`, `Photo` -> `photoes`), and irregular words, `iz` and `sis` endings weren't handled. If an existing database uses one of those old names, set `table` to keep it.
 
 ### Case transition handling
 

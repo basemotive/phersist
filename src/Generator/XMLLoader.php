@@ -97,4 +97,69 @@ class XMLLoader {
 
 		return null;
 	}
+
+	/**
+	 * Returns the column names for a property: from the fieldname or fieldnames
+	 * attribute, or generated from the property name with the table style.
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @param string $type the property type
+	 * @return list<string> the column names; two for a DynamicClass (class name and id), one otherwise
+	 * @throws \Exception if both attributes are set, or a name is empty, or the number of names is wrong for the type
+	 */
+	public static function getFieldNames(DOMElement $property, string $type) : array {
+		$name = $property->getAttribute('name');
+		$expected = $type == 'DynamicClass' ? 2 : 1;
+
+		if ($property->hasAttribute('fieldname') && $property->hasAttribute('fieldnames'))
+			throw new \Exception("Property '$name' has both a fieldname and a fieldnames attribute, use only one");
+
+		if ($property->hasAttribute('fieldname'))
+			$fieldNames = [ $property->getAttribute('fieldname') ];
+		elseif ($property->hasAttribute('fieldnames'))
+			$fieldNames = explode(',', $property->getAttribute('fieldnames'));
+		else {
+			$root = $property->ownerDocument->documentElement;
+			if ($type == 'Class')
+				return [ self::getAuto($root, 'relation_id', $name) ];
+			if ($type == 'DynamicClass')
+				return explode(',', self::getAuto($root, 'relation_combo', $name));
+			return [ self::getAuto($root, 'fieldname', $name) ];
+		}
+
+		$fieldNames = array_map('trim', $fieldNames);
+		if (in_array('', $fieldNames, true))
+			throw new \Exception("Property '$name' has an empty field name");
+		if (count($fieldNames) != $expected)
+			throw new \Exception("Property '$name' of type $type needs $expected field name".($expected == 1 ? '' : 's').', got '.count($fieldNames));
+
+		return $fieldNames;
+	}
+
+	/**
+	 * Uses a table style converter to convert class and property names into table and column names.
+	 *
+	 * @param DOMElement $root the root element of the XML tree
+	 * @param string $term what kind of term to translate: table | id | fieldname | relation_id | relation_combo
+	 * @param string $name the name to translate
+	 * @return string the converted name
+	 */
+	public static function getAuto(DOMElement $root, string $term, string $name) : string {
+		$styleConverter = __NAMESPACE__.'\\TS'.$root->getAttribute('tablestyle');
+
+		if (!class_exists($styleConverter))
+			throw new \Exception("Cannot find table style converter class {$styleConverter}");
+
+		if ($term == 'id') {
+			// the root element property 'id_style' if it exists can be 'long' or
+			// 'short', with the default being 'short', which means the main primary
+			// key field for tables will be named 'id', whereas the long version uses
+			// the converted class name + '_id'
+			$idStyle = $root->hasAttribute('id_style') ? $root->getAttribute('id_style') : 'short';
+			if ($idStyle == 'short')
+				return 'id';
+		}
+
+		return $styleConverter::translate($term, $name);
+	}
 }

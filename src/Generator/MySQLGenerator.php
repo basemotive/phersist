@@ -208,22 +208,7 @@ class MySQLGenerator {
 				$this->checkType('Property', $propType, $className, $propName);
 				$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
 
-				$fieldNames = null;
-				if ($property->hasAttribute('fieldname')) {
-					$fieldNames = [ $property->getAttribute('fieldname') ];
-				} elseif ($property->hasAttribute('fieldnames')) {
-					$fieldNames = explode(',', $property->getAttribute('fieldnames'));
-				}
-
-				if ($fieldNames == null) {
-					if ($propType == 'Class') {
-						$fieldNames = [ $this->getAuto('relation_id', $propName) ];
-					} elseif ($propType == 'DynamicClass') {
-						$fieldNames = explode(',', $this->getAuto('relation_combo', $propName));
-					} else {
-						$fieldNames = [ $this->getAuto('fieldname', $propName) ];
-					}
-				}
+				$fieldNames = XMLLoader::getFieldNames($property, $propType);
 
 				if ($propType == 'Text') {
 					$fieldSpec = [
@@ -519,22 +504,7 @@ class MySQLGenerator {
 	 * @return string the converted name
  	 */
 	private function getAuto(string $term, string $name) : string {
-		$styleConverter = __NAMESPACE__.'\\TS'.$this->root->getAttribute('tablestyle');
-
-		if (!class_exists($styleConverter))
-			throw new \Exception("Cannot find table style converter class {$styleConverter}");
-
-		if ($term == 'id') {
-			// the root element property 'id_style' if it exists can be 'long' or
-			// 'short', with the default being 'short', which means the main primary
-			// key field for tables will be named 'id', whereas the long version uses
-			// the converted class name + '_id'
-			$idStyle = $this->root->hasAttribute('id_style') ? $this->root->getAttribute('id_style') : 'short';
-			if ($idStyle == 'short')
-				return 'id';
-		}
-
-		return $styleConverter::translate($term, $name);
+		return XMLLoader::getAuto($this->root, $term, $name);
 	}
 
 	private DOMElement $root;

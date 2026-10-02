@@ -251,7 +251,7 @@ class ARGenerator {
 
 				$metaprop = [
 					'type' => $prop_type,
-					'fieldnames' => $this->getFieldNames($property, $prop_type),
+					'fieldnames' => XMLLoader::getFieldNames($property, $prop_type),
 				];
 
 				// Special types - TODO Can we make this more generic?
@@ -394,9 +394,9 @@ class ARGenerator {
 					if ($type == 'Class') {
 						if ($this->qualifyClass($property->getAttribute('class')) != $className)
 							continue;
-						$column = $this->getFieldNames($property, $type)[0];
+						$column = XMLLoader::getFieldNames($property, $type)[0];
 					} elseif ($type == 'DynamicClass') {
-						$column = $this->getFieldNames($property, $type)[1];
+						$column = XMLLoader::getFieldNames($property, $type)[1];
 					} else
 						continue;
 
@@ -440,34 +440,6 @@ class ARGenerator {
 				$tables[] = $dataset->getAttribute('table');
 
 		return array_values(array_unique($tables));
-	}
-
-	/**
-	 * Returns the column names for a property.
-	 *
-	 * @param DOMElement $property the property element in the XML tree
-	 * @param string $type the property type
-	 * @return list<string> the column names; two for a DynamicClass (class name and id), one otherwise
-	 */
-	private function getFieldNames(DOMElement $property, string $type) : array {
-		$fieldNames = '';
-		if ($property->hasAttribute('fieldnames'))
-			$fieldNames = $property->getAttribute('fieldnames');
-		if ($fieldNames == '' && $property->hasAttribute('fieldname'))
-			$fieldNames = $property->getAttribute('fieldname');
-
-		$name = $property->getAttribute('name');
-		if ($fieldNames == '') {
-			if ($type == 'Class') {
-				$fieldNames = $this->getAuto('relation_id', $name);
-			} elseif ($type == 'DynamicClass') {
-				$fieldNames = $this->getAuto('relation_combo', $name);
-			} else {
-				$fieldNames = $this->getAuto('fieldname', $name);
-			}
-		}
-
-		return explode(',', $fieldNames);
 	}
 
 	/**
@@ -602,22 +574,7 @@ class ARGenerator {
 	 * @return string the converted name
  	 */
 	private function getAuto(string $term, string $name) : string {
-		$styleConverter = __NAMESPACE__.'\\TS'.$this->root->getAttribute('tablestyle');
-
-		if (!class_exists($styleConverter))
-			throw new \Exception("Cannot find table style converter class {$styleConverter}");
-
-		if ($term == 'id') {
-			// the root element property 'id_style' if it exists can be 'long' or
-			// 'short', with the default being 'short', which means the main primary
-			// key field for tables will be named 'id', whereas the long version uses
-			// the converted class name + '_id'
-			$idStyle = $this->root->hasAttribute('id_style') ? $this->root->getAttribute('id_style') : 'short';
-			if ($idStyle == 'short')
-				return 'id';
-		}
-
-		return $styleConverter::translate($term, $name);
+		return XMLLoader::getAuto($this->root, $term, $name);
 	}
 
 	/**

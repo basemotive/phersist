@@ -192,7 +192,7 @@ Properties define class fields and column mapping.
 | `type` | no | `Text` | Property type (`Text`, `Int`, `Float`, `Decimal`, `Bool`, `Date`, `DateTime`, `Class`, `DynamicClass`, `TimestampText`). |
 | `required` | no | `false` | If `true`, must not be null. A new object must have a value for every required property (assigned or from `default`), or `commit()` throws an exception. |
 | `fieldname` | no | auto | Custom single-column field name. |
-| `fieldnames` | no | auto | Custom comma-separated multi-column names (used by multi-field types). |
+| `fieldnames` | no | auto | Custom comma-separated multi-column names (used by multi-field types); spaces around the names are ignored. Use either `fieldname` or `fieldnames`, not both. A `DynamicClass` needs two names, other types one. |
 | `default` | no | — | Default value. Applies to `Text`, `Int`, `Float`, `Decimal`, and `Bool` properties. There are no implicit defaults, also not for `required` properties. See [Default values](#default-values). |
 
 > `fieldnames` is optional for `DynamicClass`.  

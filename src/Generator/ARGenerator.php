@@ -22,8 +22,9 @@ class ARGenerator {
 	}
 
 	public function getNamespace() : string {
-		$namespace = $this->root->hasAttribute('namespace') ? $this->root->getAttribute('namespace') : '';
-		return trim($namespace, '\\').'\\';
+		$namespace = $this->root->hasAttribute('namespace') ? trim($this->root->getAttribute('namespace'), '\\') : '';
+		// Without a namespace, class names must not get a leading backslash
+		return $namespace == '' ? '' : $namespace.'\\';
 	}
 
 	/**

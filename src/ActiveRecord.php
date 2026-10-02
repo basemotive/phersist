@@ -566,6 +566,9 @@ class ActiveRecord implements \ArrayAccess {
 		if ($id === null)
 			return null;
 
+		// The cache is keyed on get_class(), which has no leading backslash
+		/** @var class-string<T> $class */
+		$class = ltrim($class, '\\');
 		$object = ObjectCache::get($class, $id);
 		if ($object === null) {
 			// Tells the constructor that it may accept an id this time

@@ -22,12 +22,12 @@ class ARPropertyTypeClass extends ARPropertyType {
 		/** @var class-string<ActiveRecord> $class_name */
 		$class_name = $prop['class'];
 		$id = $values[$prop['fieldnames'][0]];
-		return $id==null ? null : \PHersist\ActiveRecord::fetchObject($class_name, (int)$id);
+		return $id === null ? null : \PHersist\ActiveRecord::fetchObject($class_name, (int)$id);
 	}
 
 	public function toDB(array $prop, mixed $value) : array {
 		// ActiveRecord::commit() makes sure the related object has been committed already
-		return [ $prop['fieldnames'][0] => $value==null ? null : $value->id ];
+		return [ $prop['fieldnames'][0] => $value === null ? null : $value->id ];
 	}
 
 	public function normalize(array $prop, mixed $value) : mixed {

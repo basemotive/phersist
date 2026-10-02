@@ -26,7 +26,7 @@ class ARPropertyTypeDynamicClass extends ARPropertyType {
 	public function fromDB(array $prop, array $values) : mixed {
 		$class_name = $values[$prop['fieldnames'][0]];
 		$id = $values[$prop['fieldnames'][1]];
-		if ($id == null)
+		if ($id === null)
 			return null;
 		if (is_string($class_name))
 			$class_name = $this->_qualify($prop, $class_name);
@@ -43,8 +43,8 @@ class ARPropertyTypeDynamicClass extends ARPropertyType {
 
 	public function toDB(array $prop, mixed $value) : array {
 		// ActiveRecord::commit() makes sure the related object has been committed already
-		$class_name = $value==null ? null : $this->_storedName($prop, get_class($value));
-		$id = $value==null ? null : $value->id;
+		$class_name = $value === null ? null : $this->_storedName($prop, get_class($value));
+		$id = $value === null ? null : $value->id;
 		// A reference to null is stored as NULL in both fields.
 		return [
 			$prop['fieldnames'][0] => $class_name,

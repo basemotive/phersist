@@ -50,7 +50,7 @@ class ActiveRecord implements \ArrayAccess {
 
 		$this->_data[static::$_meta['id']] = $id;
 
-		if ($id != null)
+		if ($id !== null)
 			ObjectCache::put($this);
 		else
 			$this->_applyDefaults();

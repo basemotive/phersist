@@ -48,7 +48,9 @@ class ARRelationTypeNN extends ARRelationType {
 		$query = "select `{$baseTable}`.`{$idField}` $extraFields from `{$rel['table']}`";
 		if ($baseTable != $rel['table']) // Join the related object so we can make sure the it is not deleted
 			$query .= " inner join `$baseTable` on `{$rel['table']}`.`{$rel['remote_id']}` = `$baseTable`.`$idField`";
-		if ($datasetTable != $baseTable)
+		// The relation table may itself be the dataset table (a 1-N relation
+		// through a property in that dataset), in which case it's already there
+		if ($datasetTable != $baseTable && $datasetTable != $rel['table'])
 			$query .= " left join `$datasetTable` on `$datasetTable`.`$idField` = `$baseTable`.`$idField`";
 		$query .= " where `{$rel['table']}`.`{$rel['local_id']}` = :id";
 		$myClass = $this->_localType($rel);

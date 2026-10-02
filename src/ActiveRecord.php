@@ -718,6 +718,9 @@ class ActiveRecord implements \ArrayAccess {
 			return;
 		}
 
+		if (isset(static::$_meta['relations'][$key]))
+			$value = $this->_normalizeRelation($key, $value);
+
 		if ($this->_keyExists($key)) {
 			if ($value === null && $this->_isRequired($key))
 				$this->_error("Property $key is required and cannot be set to null");
@@ -752,6 +755,42 @@ class ActiveRecord implements \ArrayAccess {
 			else
 				$this->_error("Property $key does not exist");
 		}
+	}
+
+	/**
+	 * Checks a value assigned to a relation and returns it as a list.
+	 *
+	 * The value must be an array of instances of the related class. Unless the
+	 * relation has an order_field, an object may only occur once; objects are
+	 * the same if they have the same id, or are the same instance if they have
+	 * no id yet.
+	 *
+	 * @param string $key the relation name
+	 * @param mixed $value the assigned value
+	 * @return list<ActiveRecord> the related objects
+	 */
+	private function _normalizeRelation(string $key, mixed $value) : array {
+		$rel = static::$_meta['relations'][$key];
+		if (!is_array($value))
+			$this->_error("Relation $key can only be set to an array of {$rel['class']} objects");
+
+		$objects = [];
+		$seen = [];
+		foreach ($value as $object) {
+			if (!($object instanceof $rel['class']))
+				$this->_error("Relation $key can only contain {$rel['class']} objects, ".get_debug_type($object)." given");
+
+			if (!isset($rel['order_field'])) {
+				$identity = $object->id !== null ? 'id:'.$object->id : 'object:'.spl_object_id($object);
+				if (isset($seen[$identity]))
+					$this->_error("Relation $key cannot contain the same object more than once"
+						.($object->id !== null ? " ({$rel['class']} {$object->id})" : ''));
+				$seen[$identity] = true;
+			}
+
+			$objects[] = $object;
+		}
+		return $objects;
 	}
 
 	/**

@@ -375,6 +375,7 @@ $message->commit();
 ```
 
 For `table_owner="true"` relations, commit replaces relation rows for that owning object. The related objects must have been committed already; otherwise `commit()` throws an exception.  
+A relation can only be set to an array of objects of its `class`; anything else, like a single object or `null`, throws an exception (use `[]` to clear it). An object can only occur once (by id, or by instance for objects that have no id yet), unless the relation has an `order_field`: then its position is stored with each row, so a list like `[$a, $b, $a]` is kept as it is.  
 Relations with `table_owner="false"` (including derived relations) are read-only: assigning to them throws an exception. Change the property or relation on the owning side instead. See [Read-only and derived relations](creating-model-from-xml.md#read-only-and-derived-relations).
 
 With `ObjectCache` enabled, dereferencing relations/properties that point to objects already loaded earlier in the same runtime can also reduce repeated SQL queries.

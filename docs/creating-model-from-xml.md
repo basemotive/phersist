@@ -442,7 +442,7 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 | `remote_id` | yes | Column storing related object ID. |
 | `table_owner` | yes | `true` if this side owns and writes the relation rows; `false` makes the relation [read-only](#read-only-and-derived-relations). |
 | `load_objects` | yes | `true` to load autoload datasets for related objects; `false` for ID-only skeletons. |
-| `order_field` | no | SQL order column when restoring relation. |
+| `order_field` | no | SQL order column when restoring relation. An owned relation stores each object's position in it, and even allows the same object more than once. |
 | `cascade_delete` | no | `true` to delete the related objects when this object is deleted (default `false`). See [Deleting objects with relations](#deleting-objects-with-relations). |
 | `local_type` | no | Column holding the class name of the local object, for tables that hold rows of several classes. When omitted, every row matching `local_id` is taken to belong to this class. |
 | `use_namespace` | no | Controls what value is stored in `local_type`. `false` (default): store the short class name (e.g. `ForumMessage`). `true`: store the fully-qualified class name (e.g. `MyApp\Model\ForumMessage`). Only used when `local_type` is set. |

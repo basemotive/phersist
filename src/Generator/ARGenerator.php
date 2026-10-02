@@ -278,6 +278,15 @@ class ARGenerator {
 				elseif ($property->hasAttribute('on_remote_delete'))
 					throw new \Exception("Property '$prop_name' of class $className can't have on_remote_delete, only Class and DynamicClass properties can");
 
+				// Whether a DynamicClass property stores the class name with its namespace,
+				// or (the default) without it if the class is in this class's namespace
+				if ($prop_type == 'DynamicClass') {
+					$metaprop['use_namespace'] = $property->getAttribute('use_namespace') === 'true';
+					if (!$metaprop['use_namespace'])
+						$metaprop['namespace'] = rtrim($this->getNamespace(), '\\');
+				} elseif ($property->hasAttribute('use_namespace'))
+					throw new \Exception("Property '$prop_name' of class $className can't have use_namespace, only DynamicClass properties can");
+
 				// The default value for new objects; mirrors the column default in the schema
 				$default = $this->getDefault($property, $prop_type);
 				if ($default !== null)

@@ -392,6 +392,11 @@ Extra attribute:
 |---|---|---|
 | `fieldnames` | no | Optional two-field override (class-name column, id column). If omitted, PHersist auto-generates `propname_type,propname_id` using the configured table style. |
 | `on_remote_delete` | no | Like for [`Class`](#class): `null`, `restrict` or `cascade`. |
+| `use_namespace` | no | Controls what value is stored in the class-name column. `false` (default): leave out the namespace when the referred class is in the same namespace as the class with the property (e.g. `User`); classes in other namespaces are stored fully qualified (e.g. `Other\Lib\Thing`, or `\Thing` for a class without namespace). `true`: always store the fully-qualified class name (e.g. `MyApp\Model\User`). |
+
+When reading the property, a name with a namespace is used as is. With `use_namespace="false"`, a name without one is taken to be in the namespace of the class with the property, so fully-qualified stored names always load. Searches and the cleanup of references on delete, however, only match the form the property currently writes. When changing `use_namespace` on an existing property, update the stored names.
+
+A [derived relation](#polymorphic-relations-and-use_namespace) whose `local_type` is the class-name column of a `DynamicClass` property should use the same `use_namespace` value, so it matches the stored names.
 
 In the generated MySQL schema, the class-name column is `VARCHAR(191)` and the id column is `INT UNSIGNED`, indexed together.
 

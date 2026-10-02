@@ -48,6 +48,7 @@
 				- type: the property type, like Text, Int, Float, Decimal, Bool, Date, DateTime, Class, DynamicClass, TimestampText
 				- default: the value for new objects and the column default in the schema (Text, Int, Float, Decimal and Bool only); there are no implicit defaults, so required properties without a default must always be set before committing
 				- fieldname/fieldnames: overrides the generated column name from the name based on the tablestyle defined in the project node; for most types only one column is needed, but the DynamicClass type needs both a column for the class name and the object id
+				- use_namespace: (DynamicClass only, default false) if the class name is always stored with its namespace; by default the namespace is left out for classes in the same namespace as this class
 			-->
 			<property name="name" required="true"/>
 			<property name="description" required="false"/>

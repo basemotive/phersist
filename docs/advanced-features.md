@@ -145,7 +145,7 @@ This keeps generated names predictable and reduces manual naming overrides.
 ## 7) Polymorphic discriminator columns and `use_namespace`
 
 Both polymorphic relations (`local_type`) and shared map tables (`type`) write a class name into a database column to distinguish rows from different object types.  
-The `use_namespace` attribute on `<relation>` and `<map>` controls which form of the class name is stored.
+The `use_namespace` attribute on `<relation>` and `<map>` controls which form of the class name is stored. A `DynamicClass` property has the same attribute for the class name it stores; see below for how it differs.
 
 ### Default: short class name (`use_namespace="false"`)
 
@@ -175,6 +175,7 @@ Set `use_namespace="true"` when you need the full namespace in the column, for e
 
 - **`<relation local_type="...">` + `use_namespace`**: affects the discriminator column written during store/delete/restore of a polymorphic NN relation.
 - **`<map type="...">` + `use_namespace`**: affects the discriminator column written during commit/delete/restore of a shared map table.
+- **`<property type="DynamicClass">` + `use_namespace`**: affects the class-name column of the property. Because this name is used to load the referred object, the namespace is only left out for classes in the same namespace as the class with the property; others are stored fully qualified. When reading, a name without namespace is taken to be in that namespace.
 
 See the [XML reference](creating-model-from-xml.md) for the exact attribute syntax.
 

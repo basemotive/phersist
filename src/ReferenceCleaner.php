@@ -61,12 +61,10 @@ class ReferenceCleaner {
 		foreach ($meta['datasets'] as $dataset) if (isset($dataset['props'][$ref['property']])) {
 			$prop = $dataset['props'][$ref['property']];
 
-			// A DynamicClass property also stores the (fully qualified) class name
+			// A DynamicClass property also stores the class name, in the form its
+			// type writes it
 			if ($prop['type'] == 'DynamicClass')
-				$match = [
-					$prop['fieldnames'][0] => get_class($this->activeRecord),
-					$prop['fieldnames'][1] => $this->activeRecord->id,
-				];
+				$match = (new Types\ARPropertyTypeDynamicClass())->toDB($prop, $this->activeRecord);
 			else
 				$match = [ $prop['fieldnames'][0] => $this->activeRecord->id ];
 

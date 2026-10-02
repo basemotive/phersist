@@ -11,6 +11,8 @@ use PHersist\ActiveRecord;
  * Contrary to the Class property, this object reference is not
  * statically typed, but stored in the database next to the id. Assigned
  * values can be any ActiveRecord object; other values throw an exception.
+ * The class name is stored without namespace if it's in the namespace of
+ * the class with the property, or always fully qualified with use_namespace.
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -26,10 +28,12 @@ class ARPropertyTypeDynamicClass extends ARPropertyType {
 		$id = $values[$prop['fieldnames'][1]];
 		if ($id == null)
 			return null;
+		if (is_string($class_name))
+			$class_name = $this->_qualify($prop, $class_name);
 		// The class name comes from the database, so only ActiveRecord classes
 		// may be instantiated: a renamed class would otherwise cause an Error,
 		// and any other autoloadable class would be constructed with the id.
-		if (!is_string($class_name) || !is_subclass_of(ltrim($class_name, '\\'), ActiveRecord::class))
+		if (!is_string($class_name) || !is_subclass_of($class_name, ActiveRecord::class))
 			throw new \Exception('Column '.$prop['fieldnames'][0].' refers to '.(is_string($class_name) ? "'$class_name'" : get_debug_type($class_name)).', which is not an existing ActiveRecord class');
 		/** @var class-string<ActiveRecord> $class_name */
 		// We use the fetchObject method instead of the constructor so the
@@ -39,16 +43,49 @@ class ARPropertyTypeDynamicClass extends ARPropertyType {
 
 	public function toDB(array $prop, mixed $value) : array {
 		// ActiveRecord::commit() makes sure the related object has been committed already
-		$class_name = $value==null ? null : get_class($value);
+		$class_name = $value==null ? null : $this->_storedName($prop, get_class($value));
 		$id = $value==null ? null : $value->id;
 		// A reference to null is stored as NULL in both fields.
-		//
-		// The stored class name is fully qualified here. This is because we would be
-		// unable to instantiate it without the namespace.
 		return [
 			$prop['fieldnames'][0] => $class_name,
 			$prop['fieldnames'][1] => $id
 		];
+	}
+
+	/**
+	 * Returns the class name to store for a class. That is the fully qualified
+	 * name, unless use_namespace is false and the class is in the namespace of
+	 * the class that has the property: then the namespace is left out. A class
+	 * without a namespace then gets a leading backslash, so it isn't mistaken
+	 * for one in that namespace.
+	 *
+	 * @param array<string, mixed> $prop the property definition from the metadata
+	 * @param string $class the fully qualified class name, without leading backslash
+	 * @return string the name to store
+	 */
+	private function _storedName(array $prop, string $class) : string {
+		if ($prop['use_namespace'])
+			return $class;
+		$pos = strrpos($class, '\\');
+		$namespace = $pos === false ? '' : substr($class, 0, $pos);
+		if ($namespace === $prop['namespace'])
+			return $pos === false ? $class : substr($class, $pos + 1);
+		return $namespace === '' ? '\\'.$class : $class;
+	}
+
+	/**
+	 * Turns a stored class name back into a fully qualified one; the reverse of
+	 * _storedName(). With use_namespace false, a name without namespace is in
+	 * the namespace of the class that has the property.
+	 *
+	 * @param array<string, mixed> $prop the property definition from the metadata
+	 * @param string $class the stored class name
+	 * @return string the fully qualified class name, without leading backslash
+	 */
+	private function _qualify(array $prop, string $class) : string {
+		if (!$prop['use_namespace'] && $prop['namespace'] !== '' && !str_contains($class, '\\'))
+			return $prop['namespace'].'\\'.$class;
+		return ltrim($class, '\\');
 	}
 
 	public function normalize(array $prop, mixed $value) : mixed {

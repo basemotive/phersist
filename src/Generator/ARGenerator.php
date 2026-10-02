@@ -322,7 +322,8 @@ class ARGenerator {
 		foreach ($maps as $map) {
 			$metamap = [
 				'table' => $map->getAttribute('table'),
-				'id' => $map->getAttribute('id'),
+				'id' => $map->getAttribute('id') != '' ?
+					$map->getAttribute('id') : $this->getAuto('relation_id', $className),
 				'type' => $map->hasAttribute('type') ? $map->getAttribute('type') : false,
 				'activeRecordKey' => $map->getAttribute('name'),
 				'keys' => [],

@@ -416,7 +416,10 @@ class MySQLGenerator {
 		$maps = $classElement->getElementsByTagName('map');
 		foreach ($maps as $map) {
 			$tableName = $map->getAttribute('table');
-			$idField = $map->getAttribute('id');
+			// the owner id column defaults to the long id style of the class name,
+			// like a relation column
+			$idField = $map->getAttribute('id') != '' ?
+				$map->getAttribute('id') : $this->getAuto('relation_id', $className);
 			$objectTypeField = $map->hasAttribute('type') ? $map->getAttribute('type') : false;
 
 			$result[$tableName] = [];

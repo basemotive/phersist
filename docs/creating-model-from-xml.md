@@ -557,7 +557,7 @@ Maps provide key/value data attached to an object through a table.
 |---|---|---|---|
 | `name` | yes | — | Map property name on object. |
 | `table` | yes | — | Backing table. |
-| `id` | no | auto | Owner ID column name. |
+| `id` | no | `<class>_id` | Owner ID column name. Defaults to the class name converted by the table style with `_id` appended (for example `person_id` for class `Person` with `SnakeCase`), regardless of `id_style`. |
 | `type` | no | none | Optional class discriminator column for shared map tables. |
 | `use_namespace` | no | `false` | Controls what value is stored in the `type` column. `false` (default): store the short class name (e.g. `User`). `true`: store the fully-qualified class name (e.g. `MyApp\Model\User`). Only used when `type` is set. |
 

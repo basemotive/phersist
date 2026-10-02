@@ -151,7 +151,7 @@
            	The XML properties are:
             - name: what the property on the object is going to be called
             - table: the table name
-            - id: (optional, auto-generated) the id-field in the table
+            - id: (optional, defaults to the class name in the long id style, like "forum_message_id") the id-field in the table
             - type: (optional, if the prop_map contains properties for multiple classes) the field name where the current class name is stored
         -->
         <map name="prop" table="prop_map" id="id" type="object_type">

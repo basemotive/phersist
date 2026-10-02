@@ -131,6 +131,8 @@ class ARGenerator {
 						$phpType = 'float';
 					} elseif ($prop_type == 'Date' || $prop_type == 'DateTime') {
 						$phpType = '\\DateTimeImmutable';
+					} elseif ($prop_type == 'DynamicClass') {
+						$phpType = '\\PHersist\\ActiveRecord';
 					}
 
 					$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';

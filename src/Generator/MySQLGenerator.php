@@ -57,18 +57,6 @@ class MySQLGenerator {
 
 		$classElements = $this->root->getElementsByTagName('class');
 
-		// Collect the tables that hold the classes themselves, so that a relation
-		// on such a table knows that its columns come from that class
-		$this->classTables = [];
-		foreach ($classElements as $classElement) {
-			$table = $classElement->hasAttribute('table') ?
-				$classElement->getAttribute('table') : $this->getAuto('table', $classElement->getAttribute('name'));
-			$this->classTables[$table] = true;
-			foreach ($classElement->getElementsByTagName('dataset') as $dataset)
-				if ($dataset->hasAttribute('table'))
-					$this->classTables[$dataset->getAttribute('table')] = true;
-		}
-
 		// A table can be shared by multiple classes (a join table that is defined
 		// from both sides, or one that holds the relations of several classes), so
 		// each class adds the columns that the table doesn't have yet
@@ -344,10 +332,8 @@ class MySQLGenerator {
 
 			// only create the table if we're the table owner, because if it's a
 			// derived relation, it references another table that we don't write to
+			// (XMLLoader makes sure an owned table never holds a class)
 			if (!$tableOwner)
-				continue;
-			// if the table holds a class, that class already defines the columns
-			if (isset($this->classTables[$tableName]))
 				continue;
 
 			$fields = [
@@ -508,8 +494,6 @@ class MySQLGenerator {
 	}
 
 	private DOMElement $root;
-	/** @var array<string, bool> the tables that hold a class (base and dataset tables) */
-	private array $classTables = [];
 	private string $charset = 'utf8mb4';
 	private ?string $collate = 'utf8mb4_unicode_ci';
 }

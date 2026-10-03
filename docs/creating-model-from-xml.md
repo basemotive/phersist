@@ -447,10 +447,10 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 | `name` | yes | Relation property name on object. |
 | `type` | yes | Currently `NN`. |
 | `class` | yes | Target class name. |
-| `table` | yes | Relation table: a join table, or one of the related class's own tables for a [derived relation](#read-only-and-derived-relations). |
+| `table` | yes | Relation table: a join table, or one of the related class's own tables for a [derived relation](#read-only-and-derived-relations). It can't be one of this class's own tables, unless the relation is to the same class (like `replies` of a `ForumMessage`). |
 | `local_id` | yes | Column storing local object ID. |
 | `remote_id` | yes | Column storing related object ID. |
-| `table_owner` | yes | `true` if this side owns and writes the relation rows; `false` makes the relation [read-only](#read-only-and-derived-relations). |
+| `table_owner` | yes | `true` if this side owns and writes the relation rows; `false` makes the relation [read-only](#read-only-and-derived-relations). `true` is not allowed when `table` is the base or dataset table of a class. |
 | `load_objects` | yes | `true` to load autoload datasets for related objects; `false` for ID-only skeletons. |
 | `order_field` | no | SQL order column when restoring relation. An owned relation stores each object's position in it, and even allows the same object more than once. |
 | `cascade_delete` | no | `true` to delete the related objects when this object is deleted (default `false`). See [Deleting objects with relations](#deleting-objects-with-relations). |
@@ -468,7 +468,9 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 
 A relation with `table_owner="false"` is **read-only**: it is loaded from its table, but never written. Assigning to it throws an exception; change the data on the side that owns it instead.
 
-A **derived relation** is a read-only relation whose `table` is one of the related class's own tables. It is derived from a property of the related class, like a `Forum.messages` relation that reads the `forum_id` column of the `ForumMessage.forum` property. A derived relation must always be read-only, since its rows are the related objects themselves.
+A **derived relation** is a read-only relation whose `table` is one of the related class's own tables. It is derived from a property of the related class, like a `Forum.messages` relation that reads the `forum_id` column of the `ForumMessage.forum` property. A derived relation must be read-only, since its rows are the related objects themselves: writing the relation would delete their data. The generator therefore rejects `table_owner="true"` when `table` is the base or dataset table of any class in the XML. To change which objects a derived relation lists, set the property of the related objects instead, like `$message->forum = $forum`.
+
+A relation can't use one of its own class's tables, unless it relates to that same class, like a `ForumMessage.replies` relation that reads the `parent_message_id` column of other messages. To another class, such a relation would hold at most one object, read from the object's own row: use a `Class` property for that instead.
 
 A read-only relation can also use a join table, for example to show an N-N relation from the side that doesn't own it: `Tag.messages` reading the `forum_message_tags` table that `ForumMessage.tags` writes.
 
@@ -519,7 +521,7 @@ By default (`use_namespace="false"`), the **short class name** is stored — jus
     name="comments"
     type="NN"
     class="Comment"
-    table="comments"
+    table="comment_links"
     local_id="owner_id"
     remote_id="comment_id"
     local_type="owner_type"
@@ -533,7 +535,7 @@ This keeps the stored values short and human-readable, and avoids tying your dat
 
 Without `local_type`, PHersist assumes no discriminator is needed: any row with the object's ID in `local_id` belongs to the current class.
 
-In the generated MySQL schema, a join table (`table_owner="true"`) gets the `local_type` column as `VARCHAR(191) NOT NULL`, indexed together with `local_id`. A join table shared by several classes gets the combined columns of all relations that use it. When `table` is a class's own base or dataset table, the relation adds nothing to the schema: the columns are expected to be defined by that class (for example by a `DynamicClass` property).
+In the generated MySQL schema, a join table (`table_owner="true"`) gets the `local_type` column as `VARCHAR(191) NOT NULL`, indexed together with `local_id`. A join table shared by several classes gets the combined columns of all relations that use it.
 
 Set `use_namespace="true"` only when you need the fully-qualified name — for example to match values an external system has already stored:
 

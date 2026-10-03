@@ -374,7 +374,7 @@ class ARGenerator {
 	 */
 	private function generateReferences(DOMElement $classElement) : array {
 		$className = $this->qualifyClass($classElement->getAttribute('name'));
-		$classTables = $this->getClassTables($classElement);
+		$classTables = XMLLoader::getClassTables($classElement);
 
 		// The table and column of every reference our own relations clean up
 		$covered = [];
@@ -384,7 +384,7 @@ class ARGenerator {
 		$references = [];
 		foreach ($this->root->getElementsByTagName('class') as $otherElement) {
 			$otherClass = $this->qualifyClass($otherElement->getAttribute('name'));
-			$otherTables = $this->getClassTables($otherElement);
+			$otherTables = XMLLoader::getClassTables($otherElement);
 			$defaultTable = $otherTables[0];
 
 			foreach ($otherElement->getElementsByTagName('dataset') as $dataset) {
@@ -423,35 +423,13 @@ class ARGenerator {
 	}
 
 	/**
-	 * Returns the tables of a class: its base table, then those of its datasets.
-	 *
-	 * @param DOMElement $classElement the class element in the XML tree
-	 * @return non-empty-list<string> the table names
-	 */
-	private function getClassTables(DOMElement $classElement) : array {
-		$table = $classElement->hasAttribute('table') ?
-			$classElement->getAttribute('table')
-			:
-			$this->getAuto('table', $classElement->getAttribute('name'));
-
-		$tables = [$table];
-		foreach ($classElement->getElementsByTagName('dataset') as $dataset)
-			if ($dataset->hasAttribute('table'))
-				$tables[] = $dataset->getAttribute('table');
-
-		return array_values(array_unique($tables));
-	}
-
-	/**
 	 * Returns the fully qualified name of a class referred to in the XML.
 	 *
 	 * @param string $class the class name; without a namespace, the project's is used
 	 * @return string the class name with namespace, without leading backslash
 	 */
 	private function qualifyClass(string $class) : string {
-		if (strpos($class, '\\') === false)
-			return $this->getNamespace().$class;
-		return ltrim($class, '\\');
+		return XMLLoader::qualifyClass($this->root, $class);
 	}
 
 	/**

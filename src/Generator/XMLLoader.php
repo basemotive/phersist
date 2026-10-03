@@ -47,7 +47,89 @@ class XMLLoader {
 			throw new \Exception('Invalid XML: '.($messages ? implode('; ', $messages) : 'the document could not be parsed'));
 		}
 
+		self::checkRelations($doc->documentElement);
+
 		return $doc->documentElement;
+	}
+
+	/**
+	 * Checks the tables of the relations:
+	 *
+	 * - A relation can't use one of its own class's tables, unless that table
+	 *   also holds the related class (like a parent/children relation). Its rows
+	 *   would be the object itself, so it holds at most one related object,
+	 *   which a Class property already does.
+	 * - A relation can't own a table that holds a class. Such a relation is
+	 *   derived: its rows are the objects of that class, so writing the
+	 *   relation would delete their data.
+	 *
+	 * @param DOMElement $root the root element of the XML tree
+	 * @throws \Exception if a relation uses a table that it can't
+	 */
+	private static function checkRelations(DOMElement $root) : void {
+		$classElements = $root->getElementsByTagName('class');
+
+		$tableClasses = [];
+		$classTables = [];
+		foreach ($classElements as $classElement) {
+			$tables = self::getClassTables($classElement);
+			$classTables[self::qualifyClass($root, $classElement->getAttribute('name'))] = $tables;
+			foreach ($tables as $table)
+				$tableClasses[$table] ??= $classElement->getAttribute('name');
+		}
+
+		foreach ($classElements as $classElement)
+			foreach ($classElement->getElementsByTagName('relation') as $relation) {
+				$className = $classElement->getAttribute('name');
+				$relationName = $relation->getAttribute('name');
+				$table = $relation->getAttribute('table');
+
+				$ownTables = $classTables[self::qualifyClass($root, $className)];
+				$relatedTables = $classTables[self::qualifyClass($root, $relation->getAttribute('class'))] ?? [];
+				if (in_array($table, $ownTables) && !in_array($table, $relatedTables))
+					throw new \Exception("Relation '$relationName' of class '$className' cannot use its own class's table '$table'."
+						.' Its rows would be the object itself, so it holds at most one related object: use a Class property instead');
+
+				if ($relation->getAttribute('table_owner') == 'true' && isset($tableClasses[$table]))
+					throw new \Exception("Relation '$relationName' of class '$className'"
+						." cannot have table_owner=\"true\", because its table '$table' is a table of class '{$tableClasses[$table]}'."
+						.' A relation on a class\'s table is derived and must be read-only: use table_owner="false",'
+						.' and change the property of the related objects instead');
+			}
+	}
+
+	/**
+	 * Returns the fully qualified name of a class referred to in the XML.
+	 *
+	 * @param DOMElement $root the root element of the XML tree
+	 * @param string $class the class name; without a namespace, the project's is used
+	 * @return string the class name with namespace, without leading backslash
+	 */
+	public static function qualifyClass(DOMElement $root, string $class) : string {
+		if (strpos($class, '\\') !== false)
+			return ltrim($class, '\\');
+		$namespace = trim($root->getAttribute('namespace'), '\\');
+		return $namespace == '' ? $class : $namespace.'\\'.$class;
+	}
+
+	/**
+	 * Returns the tables of a class: its base table, then those of its datasets.
+	 *
+	 * @param DOMElement $classElement the class element in the XML tree
+	 * @return non-empty-list<string> the table names
+	 */
+	public static function getClassTables(DOMElement $classElement) : array {
+		$table = $classElement->hasAttribute('table') ?
+			$classElement->getAttribute('table')
+			:
+			self::getAuto($classElement->ownerDocument->documentElement, 'table', $classElement->getAttribute('name'));
+
+		$tables = [$table];
+		foreach ($classElement->getElementsByTagName('dataset') as $dataset)
+			if ($dataset->hasAttribute('table'))
+				$tables[] = $dataset->getAttribute('table');
+
+		return array_values(array_unique($tables));
 	}
 
 	/**

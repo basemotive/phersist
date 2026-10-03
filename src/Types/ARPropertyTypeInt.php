@@ -36,6 +36,13 @@ class ARPropertyTypeInt extends ARPropertyType {
 		return $int;
 	}
 
+	public function normalizeSearch(array $prop, string $operator, mixed $value) : mixed {
+		// Comparing with a value outside the column's range is still meaningful
+		if (self::_isOrderOperator($operator))
+			return $this->_toInt($value);
+		return parent::normalizeSearch($prop, $operator, $value);
+	}
+
 	/**
 	 * Converts a value to int, without checking the range of the column.
 	 *

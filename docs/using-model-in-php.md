@@ -237,6 +237,13 @@ To find `NULL` values, use `null` with `=`, like `where('deletedAt', '=', null)`
 
 Unlike plain SQL, `!=` and `NOT LIKE` with a non-null value also match objects whose property is `NULL`, as they would in PHP: `where('color', '!=', 'green')` returns objects without a color too. The same holds for a path through a reference that is `NULL`, such as `where('owner->name', '!=', 'Bob')` for objects without an owner. To leave those out, add a condition: `where('color', '!=', 'green')->where('color', '!=', null)`.
 
+The value must suit the property's type, just like a value you assign to it: `where('name', '=', ['ann', 'bob'])` or `where('viewCount', '=', 'five')` throws an `\InvalidArgumentException` right away. Values are converted as on assignment too, so `where('viewCount', '=', '5')` works. There are a few exceptions:
+
+- `LIKE` and `NOT LIKE` only work on `Text` and `TimestampText` properties (and throw for other types, including `id`). The value is a pattern and must be a string, like `where('createdAt', 'LIKE', '2026-%')`. For dates and numbers, use a range instead, like `where('date', '>=', '2026-10-01')->where('date', '<', '2026-11-01')`.
+- With `<`, `>`, `<=` and `>=`, values that could never be stored still make sense, so they're accepted: an `Int` may be out of the column's range, a `Decimal` may be any number (like `'1.005'` for a `scale` of 2), and a `TimestampText` may be any string (like `'2026-10'`).
+- `null` can only be used with `=` and `!=`.
+- `id` takes an int or an integer string.
+
 The `IS` operator is deprecated: it is treated as `=` and triggers an `E_USER_DEPRECATED` notice.
 
 A property that refers to another object (type `Class`) can be compared with an object of that class or with its id, like `where('forum', '=', $forum)` or `where('forum', '=', 5)`. Other values, and new objects that have no id yet, throw an `\InvalidArgumentException`.

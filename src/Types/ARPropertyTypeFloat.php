@@ -37,11 +37,4 @@ class ARPropertyTypeFloat extends ARPropertyType {
 	public function toDB(array $prop, mixed $value) : array {
 		return [ $prop['fieldnames'][0] => $value === null ? null : var_export(floatval($value), true) ];
 	}
-
-	public function toDBSearch(array $prop, mixed $value) : array {
-		// Strings are passed as-is, so patterns for LIKE keep working
-		if (is_int($value) || is_float($value))
-			$value = var_export(floatval($value), true);
-		return [ $prop['fieldnames'][0] => $value ];
-	}
 }

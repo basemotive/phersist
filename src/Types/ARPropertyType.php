@@ -60,6 +60,47 @@ abstract class ARPropertyType {
 	}
 
 	/**
+	 * Checks if LIKE and NOT LIKE can be used to search for this property. Only
+	 * text columns support them: other columns would first be converted to text
+	 * in a way that differs between databases, and can't use an index.
+	 *
+	 * @return bool if this property can be searched with LIKE
+	 */
+	public function supportsLike() : bool {
+		return false;
+	}
+
+	/**
+	 * Checks a value that is used to search for this property with
+	 * ObjectFinder::where(), and converts it like normalize() does. For LIKE
+	 * and NOT LIKE (if supportsLike()) the value is a pattern, so it must be a
+	 * string; otherwise it must be a value that could be assigned to the property.
+	 * This is never called with null.
+	 *
+	 * @param array<string, mixed> $prop the property definition from the metadata
+	 * @param string $operator the (uppercase) operator it is compared with
+	 * @param mixed $value the value to search for
+	 * @return mixed the normalized value
+	 * @throws \InvalidArgumentException if the value is not valid for this type
+	 */
+	public function normalizeSearch(array $prop, string $operator, mixed $value) : mixed {
+		if ($operator == 'LIKE' || $operator == 'NOT LIKE') {
+			if (!is_string($value))
+				throw new \InvalidArgumentException("expected a string pattern for $operator, got ".get_debug_type($value));
+			return $value;
+		}
+		return $this->normalize($prop, $value);
+	}
+
+	/**
+	 * Returns if an operator compares by order (<, >, <=, >=), for which values
+	 * that could never be stored, like ones out of range, still make sense.
+	 */
+	protected static function _isOrderOperator(string $operator) : bool {
+		return in_array($operator, [ '<', '>', '<=', '>=' ]);
+	}
+
+	/**
 	 * Translates the value to database fields for a search. Usually this
 	 * can be expected to be the same as toDB, but it can be overloaded.
 	 *

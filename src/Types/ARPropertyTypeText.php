@@ -22,6 +22,10 @@ class ARPropertyTypeText extends ARPropertyType {
 		return $values[$prop['fieldnames'][0]];
 	}
 
+	public function supportsLike() : bool {
+		return true;
+	}
+
 	public function normalize(array $prop, mixed $value) : mixed {
 		if (is_string($value))
 			return $value;

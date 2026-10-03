@@ -38,9 +38,20 @@ class ARPropertyTypeDecimal extends ARPropertyType {
 		return [ $prop['fieldnames'][0] => $value === null ? null : $this->normalize($prop, $value) ];
 	}
 
+	public function normalizeSearch(array $prop, string $operator, mixed $value) : mixed {
+		// Comparing with a value of a different scale or out of range is still
+		// meaningful, so only check that it's a number
+		if (self::_isOrderOperator($operator)) {
+			if (!(is_int($value) || (is_float($value) && is_finite($value)) || (is_string($value) && is_numeric($value))))
+				throw new \InvalidArgumentException('expected a decimal, got '.(is_string($value) ? "'$value'" : get_debug_type($value)));
+			return $value;
+		}
+		return parent::normalizeSearch($prop, $operator, $value);
+	}
+
 	public function toDBSearch(array $prop, mixed $value) : array {
-		// Strings are passed as-is, so patterns for LIKE keep working and
-		// comparisons with values of a different scale are still possible
+		// Strings are passed as-is, so comparisons with values of a different
+		// scale are still possible
 		if (is_int($value) || is_float($value))
 			$value = var_export($value, true);
 		return [ $prop['fieldnames'][0] => $value ];

@@ -21,6 +21,10 @@ class ARPropertyTypeTimestampText extends ARPropertyType {
 		return $values[$prop['fieldnames'][0]];
 	}
 
+	public function supportsLike() : bool {
+		return true;
+	}
+
 	public function normalize(array $prop, mixed $value) : mixed {
 		if (!is_string($value))
 			throw new \InvalidArgumentException('expected a string, got '.get_debug_type($value));
@@ -33,6 +37,16 @@ class ARPropertyTypeTimestampText extends ARPropertyType {
 			throw new \InvalidArgumentException("'$value' does not match the date format '$dateFormat'");
 
 		return $value;
+	}
+
+	public function normalizeSearch(array $prop, string $operator, mixed $value) : mixed {
+		// Comparing with a partial timestamp, like '2026-10', is still meaningful
+		if (self::_isOrderOperator($operator)) {
+			if (!is_string($value))
+				throw new \InvalidArgumentException('expected a string, got '.get_debug_type($value));
+			return $value;
+		}
+		return parent::normalizeSearch($prop, $operator, $value);
 	}
 
 	public function toDB(array $prop, mixed $value) : array {

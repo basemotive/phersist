@@ -36,6 +36,12 @@ class ARPropertyTypeClass extends ARPropertyType {
 		return $value;
 	}
 
+	public function normalizeSearch(array $prop, string $operator, mixed $value) : mixed {
+		// toDBSearch() checks the value, as it accepts other values than normalize()
+		$this->toDBSearch($prop, $value);
+		return $value;
+	}
+
 	public function toDBSearch(array $prop, mixed $value) : array {
 		// Besides an object, searching by its id is possible too
 		if ($value instanceof ActiveRecord) {

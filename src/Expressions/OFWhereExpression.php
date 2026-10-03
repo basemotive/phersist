@@ -26,7 +26,8 @@ class OFWhereExpression extends OFExpression {
 	 * @internal
 	 */
 	public function __construct(string $property, string $operator, mixed $value, ObjectFinder $of) {
-		if (!$of->hasProperty($property))
+		$resolved = $of->resolveProperty($property);
+		if ($resolved === null)
 			$of->error("Object does not have property $property");
 		$operator = strtoupper($operator);
 		if (!in_array($operator, $this->allowedOperators))
@@ -35,8 +36,26 @@ class OFWhereExpression extends OFExpression {
 			trigger_error("The 'IS' operator is deprecated, use '=' instead (also for null)", E_USER_DEPRECATED);
 			$operator = '=';
 		}
-		// TODO check if operator can work with the property's type
 		// TODO if the property is required, checking for NULL is nonsense
+
+		// The id is an unsigned int, but not part of any dataset
+		$prop = $resolved['prop'] ?? [ 'type' => 'Int', 'signed' => false ];
+		$type = self::_getPropertyType($prop['type']);
+		if (($operator == 'LIKE' || $operator == 'NOT LIKE') && !$type->supportsLike())
+			$of->error("Operator '{$operator}' only works on text properties, not on $property (type {$prop['type']}); use = or a range instead");
+
+		// Check the value like on assignment, so for example an array isn't
+		// silently compared with the string 'Array'
+		if ($value === null) {
+			if ($operator != '=' && $operator != '!=')
+				$of->error("Property $property can only be compared with null using = or !=");
+		} else {
+			try {
+				$value = $type->normalizeSearch($prop, $operator, $value);
+			} catch (\InvalidArgumentException $e) {
+				throw new \InvalidArgumentException("ObjectFinder({$of->getClassName()}): Invalid value for property $property: ".$e->getMessage(), 0, $e);
+			}
+		}
 
 		$this->property = $property;
 		$this->operator = $operator;

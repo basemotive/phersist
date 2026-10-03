@@ -458,6 +458,22 @@ class ObjectFinder {
 	 * @return bool if the property exists
 	 */
 	public function hasProperty(string $prop, ?string $className = null) : bool {
+		return $this->resolveProperty($prop, $className) !== null;
+	}
+
+	/**
+	 * Looks up the definition of a property, which may be a path like
+	 * otherObject->prop, as for hasProperty().
+	 *
+	 * @internal
+	 *
+	 * @param string $prop the property name or path
+	 * @param ?string $className the class to start from, or null for the class to find
+	 * @return ?array{class_name: string, prop: ?array<string, mixed>} the class that has
+	 *   the last property and its definition from the metadata, which is null for the
+	 *   id; or null if the property doesn't exist
+	 */
+	public function resolveProperty(string $prop, ?string $className = null) : ?array {
 		if ($className == null)
 			$className = $this->className;
 
@@ -474,22 +490,23 @@ class ObjectFinder {
 					break;
 				}
 			if ($propDef == null)
-				return false;
+				return null;
 
 			$derefData = $this->_getPropertyType($propDef['type'])->dereference($propDef, $meta['table']);
 			if ($derefData === false)
-				return false;
+				return null;
 			$className = $derefData['class_name'];
 		}
 
-		if ($last == 'id') return true;
+		if ($last == 'id')
+			return [ 'class_name' => $className, 'prop' => null ];
 
 		$meta = ActiveRecord::_getMeta($className);
 		foreach ($meta['datasets'] as $dataset)
 			if (isset($dataset['props'][$last]))
-				return true;
+				return [ 'class_name' => $className, 'prop' => $dataset['props'][$last] ];
 
-		return false;
+		return null;
 	}
 
 	/**

@@ -42,13 +42,4 @@ class ARPropertyTypeDate extends ARPropertyType {
 	public function requiresAutoUpdate(array $prop) : bool {
 		return $this->_updateOnApplies($prop);
 	}
-
-	public function toDBSearch(array $prop, mixed $value) : array {
-		// Values that aren't dates, like patterns for LIKE, are passed as-is
-		try {
-			return $this->toDB($prop, $value);
-		} catch (\InvalidArgumentException $e) {
-			return [ $prop['fieldnames'][0] => $value ];
-		}
-	}
 }

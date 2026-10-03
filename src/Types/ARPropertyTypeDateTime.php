@@ -52,15 +52,6 @@ class ARPropertyTypeDateTime extends ARPropertyType {
 		return $this->_updateOnApplies($prop);
 	}
 
-	public function toDBSearch(array $prop, mixed $value) : array {
-		// Values that aren't dates, like patterns for LIKE, are passed as-is
-		try {
-			return $this->toDB($prop, $value);
-		} catch (\InvalidArgumentException $e) {
-			return [ $prop['fieldnames'][0] => $value ];
-		}
-	}
-
 	/**
 	 * Parses a date/time value, keeping its own timezone. Strings without an
 	 * offset are interpreted in the default timezone.

@@ -384,11 +384,8 @@ class MapStorage {
 		foreach ($path as $key)
 			$name .= "[$key]";
 
-		if ($depth == 0) {
-			if (!self::_isStringLike($value))
-				throw new \InvalidArgumentException("$name must be a string, not ".get_debug_type($value));
-			return (string)$value;
-		}
+		if ($depth == 0)
+			return self::_toString($value, $name);
 
 		if ($value instanceof Map)
 			$value = $value->toArray();
@@ -397,6 +394,7 @@ class MapStorage {
 
 		$result = [];
 		foreach ($value as $key => $subValue) {
+			self::_toString($key, "Key of $name");
 			$subPath = $path;
 			$subPath[] = $key;
 			$subValue = $this->_normalize($subValue, $depth - 1, $subPath);
@@ -411,18 +409,34 @@ class MapStorage {
 	 *
 	 * @param list<mixed> $keys the key path
 	 * @return list<string>
-	 * @throws \InvalidArgumentException if a key isn't string-like
+	 * @throws \InvalidArgumentException if a key isn't string-like or not valid UTF-8
 	 */
 	private function _normalizeKeys(array $keys) : array {
 		$name = $this->map['activeRecordKey'];
 		$result = [];
 		foreach ($keys as $key) {
-			if (!self::_isStringLike($key))
-				throw new \InvalidArgumentException("Key of $name must be a string, not ".get_debug_type($key));
-			$result[] = (string)$key;
+			$result[] = self::_toString($key, "Key of $name");
 			$name .= "[$key]";
 		}
 		return $result;
+	}
+
+	/**
+	 * Converts a map key or value to a string. It must be valid UTF-8, so that
+	 * the database stores it unchanged and it can be queried as text.
+	 *
+	 * @param mixed $value the key or value
+	 * @param string $name the name of the key or value, for error messages
+	 * @return string
+	 * @throws \InvalidArgumentException if it isn't string-like or not valid UTF-8
+	 */
+	private static function _toString(mixed $value, string $name) : string {
+		if (!self::_isStringLike($value))
+			throw new \InvalidArgumentException("$name must be a string, not ".get_debug_type($value));
+		$string = (string)$value;
+		if (preg_match('//u', $string) !== 1)
+			throw new \InvalidArgumentException("$name must be valid UTF-8");
+		return $string;
 	}
 
 	/**

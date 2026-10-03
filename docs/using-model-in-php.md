@@ -526,7 +526,7 @@ $page->commit();
 
 An array that doesn't fit the key structure (too deep, too shallow, or a non-string-like value) throws an `\InvalidArgumentException` and leaves the map unchanged.
 
-Map keys and values are strings. Like for `Text` properties, ints, floats and `Stringable` objects are converted to strings; other keys and values, like bools, arrays and `null` keys, throw an `\InvalidArgumentException`. So `$user->settings['flag'] = false` and `$user->settings[] = 'x'` (an append, which has no key) both throw. Store a flag as `'0'`/`'1'` instead. Note that PHP turns numeric string keys into ints in the arrays `toArray()` returns, so `'5'` comes back as `5`.
+Map keys and values are strings. Like for `Text` properties, ints, floats and `Stringable` objects are converted to strings; other keys and values, like bools, arrays and `null` keys, throw an `\InvalidArgumentException`. Keys and values must also be valid UTF-8, so they are stored as text that you can query in the database directly; other strings, like raw binary data, throw an `\InvalidArgumentException` too. Encode binary data first, for example with `base64_encode()`. So `$user->settings['flag'] = false` and `$user->settings[] = 'x'` (an append, which has no key) both throw. Store a flag as `'0'`/`'1'` instead. Note that PHP turns numeric string keys into ints in the arrays `toArray()` returns, so `'5'` comes back as `5`.
 
 To add entries without removing the others, assign them by key, or merge first: `$page->texts = array_replace_recursive($page->texts->toArray(), $new);`
 

@@ -14,6 +14,12 @@ use PHersist\Types\ARPropertyTypeTimestampText;
  * // SPDX-License-Identifier: LGPL-2.1-or-later
  */
 class MySQLGenerator {
+	/**
+	 * The collation of map key and value columns: binary, so case-sensitive,
+	 * and NO PAD, so trailing spaces count. Requires MySQL 8.0.
+	 */
+	protected const MAP_COLLATION = 'utf8mb4_0900_bin';
+
 	public function __construct(string $xml) {
 		$this->root = XMLLoader::load($xml);
 
@@ -416,12 +422,14 @@ class MySQLGenerator {
 				'primaryKey' => false,
 			] + $ownerIndex;
 
-			// Keys use a binary collation, so that they are as distinct in the
-			// database as they are in a PHP array ('Theme' is not 'theme')
+			// Keys use a binary NO PAD collation, so that they are as distinct in
+			// the database as they are in a PHP array ('Theme' is not 'theme',
+			// 'a' is not 'a '). Map keys and values are always UTF-8, whatever
+			// the charset of the table.
 			foreach ($keyElements as $keyElement)
 				$result[$tableName][] = [
 					'fieldName' => $keyElement->getAttribute('name'),
-					'fieldType' => "VARCHAR(191) CHARACTER SET {$this->charset} COLLATE {$this->charset}_bin",
+					'fieldType' => 'VARCHAR(191) CHARACTER SET utf8mb4 COLLATE ' . static::MAP_COLLATION,
 					'required' => true,
 					'primaryKey' => false,
 				] + $keyIndex;
@@ -432,7 +440,7 @@ class MySQLGenerator {
 			foreach ($valueElements as $valueElement)
 			$result[$tableName][] = [
 				'fieldName' => $valueElement->getAttribute('name'),
-				'fieldType' => 'TEXT',
+				'fieldType' => 'TEXT CHARACTER SET utf8mb4 COLLATE ' . static::MAP_COLLATION,
 				'required' => true,
 				'primaryKey' => false,
 			];

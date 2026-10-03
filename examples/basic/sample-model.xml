@@ -37,7 +37,7 @@
 			Every dataset can be restored in one go, from a set of columns. When a property from a dataset is accessed but was not restored yet, all the properties in that dataset will be restored. Of course, for new objects nothing will ever be restored.
 			When a dataset has the autoload="true" property, they are retrieved from the database by default when retrieving objects in bulk with the ObjectFinder class.
 			A dataset node may also have these properties:
-			- table_name: the table these properties are found in
+			- table: the table these properties are found in
 			- name: a name for the dataset, used in the column aliases when you load objects from your own SQL queries (like ds_main#email for the User class below)
 		-->
 		<dataset autoload="true">

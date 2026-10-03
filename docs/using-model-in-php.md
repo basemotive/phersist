@@ -228,7 +228,7 @@ Common methods:
 - `count()`
 - `includeDeletedRecords(true|false)`, only relevant for classes with `softdelete="true"`
 
-Besides the properties from your XML, `id` can be used in `where(...)` (also at the end of a path, such as `forum->id`) and in `orderBy(...)`.
+Besides the properties from your XML, `id` can be used in `where(...)` (also at the end of a path, such as `forum->id`) and in `orderBy(...)`. A property or path that doesn't exist makes `where(...)` throw right away. `orderBy(...)` only takes properties of the class itself, not paths.
 
 Supported operators include:
 `=`, `>`, `<`, `>=`, `<=`, `!=`, `LIKE`, `NOT LIKE`.

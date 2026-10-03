@@ -26,10 +26,8 @@ class OFWhereExpression extends OFExpression {
 	 * @internal
 	 */
 	public function __construct(string $property, string $operator, mixed $value, ObjectFinder $of) {
-		// this check is disabled for now because hasProperty cannot handle
-		// properties that need to be dereferenced like otherObject->prop
-		//if (!$of->hasProperty($property))
-			//$of->error("Object does not have property $property");
+		if (!$of->hasProperty($property))
+			$of->error("Object does not have property $property");
 		$operator = strtoupper($operator);
 		if (!in_array($operator, $this->allowedOperators))
 			$of->error("Operator '{$operator}' unknown");

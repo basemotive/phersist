@@ -112,6 +112,9 @@ class ObjectFinder {
 	public function orderBy(string $propname, string $direction = ObjectFinder::DIRECTION_ASC) : ObjectFinder {
 		if (!$this->hasProperty($propname))
 			$this->error("Does not have property $propname");
+		// See the TODO in fetch()
+		if (str_contains($propname, '->'))
+			$this->error("Cannot order by dereferenced property $propname");
 
 		// The direction ends up in the SQL as is, so only the known ones will do
 		$direction = strtolower($direction);
@@ -446,21 +449,44 @@ class ObjectFinder {
 	}
 
 	/**
-	 * Check if $className or the current set class has the property.
+	 * Check if $className or the current set class has the property. The
+	 * property may be a path like otherObject->prop, where every part but the
+	 * last must be a property that can be dereferenced (a Class property).
 	 *
-	 * @param string $prop the property name
+	 * @param string $prop the property name or path
 	 * @param ?string $className the class to check for the property
 	 * @return bool if the property exists
 	 */
 	public function hasProperty(string $prop, ?string $className = null) : bool {
-		if ($prop == 'id') return true;
-
 		if ($className == null)
 			$className = $this->className;
 
+		$propertyList = explode('->', $prop);
+		$last = array_pop($propertyList);
+
+		// Follow the path to the class that should have the last property
+		foreach ($propertyList as $propertyName) {
+			$meta = ActiveRecord::_getMeta($className);
+			$propDef = null;
+			foreach ($meta['datasets'] as $dataset)
+				if (isset($dataset['props'][$propertyName])) {
+					$propDef = $dataset['props'][$propertyName];
+					break;
+				}
+			if ($propDef == null)
+				return false;
+
+			$derefData = $this->_getPropertyType($propDef['type'])->dereference($propDef, $meta['table']);
+			if ($derefData === false)
+				return false;
+			$className = $derefData['class_name'];
+		}
+
+		if ($last == 'id') return true;
+
 		$meta = ActiveRecord::_getMeta($className);
 		foreach ($meta['datasets'] as $dataset)
-			if (isset($dataset['props'][$prop]))
+			if (isset($dataset['props'][$last]))
 				return true;
 
 		return false;

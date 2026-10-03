@@ -28,7 +28,10 @@ class ARPropertyTypeFloat extends ARPropertyType {
 	public function normalize(array $prop, mixed $value) : mixed {
 		if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric($value)))
 			throw new \InvalidArgumentException('expected a float, got '.get_debug_type($value));
-		return floatval($value);
+		$float = floatval($value);
+		if (!is_finite($float))
+			throw new \InvalidArgumentException('expected a finite float, got '.var_export($value, true));
+		return $float;
 	}
 
 	public function toDB(array $prop, mixed $value) : array {

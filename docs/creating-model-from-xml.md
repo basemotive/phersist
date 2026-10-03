@@ -234,7 +234,7 @@ Default value behaviour:
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Int`
-Integer field. Maps to an `INT` column (signed by default, `INT UNSIGNED` when `signed="false"`). Values read from the database are returned as `int`. Assigned integer strings (like `'42'`) and floats without a fractional part (like `42.0`) are converted to `int`; other values, like `3.5`, `'3.0'` or `'1e3'`, throw an exception.
+Integer field. Maps to an `INT` column (signed by default, `INT UNSIGNED` when `signed="false"`). Values read from the database are returned as `int`. Assigned integer strings (like `'42'`) and floats without a fractional part (like `42.0`) are converted to `int`; other values, like `3.5`, `'3.0'` or `'1e3'`, throw an exception. So do values that don't fit the column: `-2147483648` to `2147483647`, or `0` to `4294967295` with `signed="false"`.
 
 ```xml
 <property name="price" type="Int"/>
@@ -253,7 +253,7 @@ Default value behaviour:
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Float`
-Floating point field. Maps to a `DOUBLE` column, which has the same (double) precision as a PHP `float`. Values read from the database are returned as `float`. Assigned ints and numeric strings are converted to `float`; other values throw an exception.
+Floating point field. Maps to a `DOUBLE` column, which has the same (double) precision as a PHP `float`. Values read from the database are returned as `float`. Assigned ints and numeric strings are converted to `float`; other values throw an exception, and so do `INF`, `-INF` and `NAN` (and strings like `'1e999'` that convert to `INF`), which the column can't store.
 
 ```xml
 <property name="weight" type="Float"/>

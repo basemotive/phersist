@@ -133,6 +133,16 @@ class XMLLoader {
 	}
 
 	/**
+	 * Returns whether an Int property is signed: it is, unless signed="false".
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @return bool true for an INT column, false for INT UNSIGNED
+	 */
+	public static function isSigned(DOMElement $property) : bool {
+		return !$property->hasAttribute('signed') || $property->getAttribute('signed') == 'true';
+	}
+
+	/**
 	 * Reads and validates the default attribute of a Text, Int, Float or Bool
 	 * property. Decimal defaults depend on the column size, so the generators
 	 * validate those themselves.
@@ -151,22 +161,11 @@ class XMLLoader {
 			if ($type == 'Text')
 				return $default;
 
-			if ($type == 'Int') {
-				$value = (new ARPropertyTypeInt())->normalize([], $default);
-				// The column is a MySQL INT, which is 32 bits
-				$signed = !$property->hasAttribute('signed') || $property->getAttribute('signed') == 'true';
-				[$min, $max] = $signed ? [-2147483648, 2147483647] : [0, 4294967295];
-				if ($value < $min || $value > $max)
-					throw new \InvalidArgumentException("$value is out of range for ".($signed ? 'a signed' : 'an unsigned').' INT column');
-				return $value;
-			}
+			if ($type == 'Int')
+				return (new ARPropertyTypeInt())->normalize([ 'signed' => self::isSigned($property) ], $default);
 
-			if ($type == 'Float') {
-				$value = (new ARPropertyTypeFloat())->normalize([], $default);
-				if (!is_finite($value))
-					throw new \InvalidArgumentException("'$default' is not a finite number");
-				return $value;
-			}
+			if ($type == 'Float')
+				return (new ARPropertyTypeFloat())->normalize([], $default);
 
 			if ($type == 'Bool') {
 				if ($default !== 'true' && $default !== 'false')

@@ -209,11 +209,9 @@ class MySQLGenerator {
 						$fieldSpec['defaultValue'] = XMLLoader::getDefault($property, $propType);
 					$result[$datasetTable][] = $fieldSpec;
 				} elseif ($propType == 'Int') {
-					// signed ints by default
-					$signed = !$property->hasAttribute('signed') || $property->getAttribute('signed') == 'true';
 					$fieldSpec = [
 						'fieldName' => $fieldNames[0],
-						'fieldType' => 'INT' . ($signed ? '' : ' UNSIGNED'),
+						'fieldType' => 'INT' . (XMLLoader::isSigned($property) ? '' : ' UNSIGNED'),
 						'required' => $required,
 						'primaryKey' => false,
 					];

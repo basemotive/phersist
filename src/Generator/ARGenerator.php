@@ -257,6 +257,8 @@ class ARGenerator {
 				// Special types - TODO Can we make this more generic?
 				if ($prop_type == 'Class') {
 					$metaprop['class'] = $this->qualifyClass($property->getAttribute('class'));
+				} elseif ($prop_type == 'Int') {
+					$metaprop['signed'] = XMLLoader::isSigned($property);
 				} elseif ($prop_type == 'Decimal') {
 					[$metaprop['precision'], $metaprop['scale']] = $this->getDecimalSize($property);
 				} elseif (($prop_type == 'Date' || $prop_type == 'DateTime') && $property->hasAttribute('update_on')) {

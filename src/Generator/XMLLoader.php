@@ -47,9 +47,198 @@ class XMLLoader {
 			throw new \Exception('Invalid XML: '.($messages ? implode('; ', $messages) : 'the document could not be parsed'));
 		}
 
+		self::checkElements($doc->documentElement);
 		self::checkRelations($doc->documentElement);
 
 		return $doc->documentElement;
+	}
+
+	/**
+	 * The elements of the model XML: their allowed child elements, and their
+	 * known and required attributes.
+	 */
+	private const ELEMENTS = [
+		'project' => [
+			'children' => [ 'mysql', 'class' ],
+			'attributes' => [ 'database', 'tablestyle', 'namespace', 'id_style' ],
+			'required' => [ 'database', 'tablestyle' ],
+		],
+		'mysql' => [
+			'children' => [],
+			'attributes' => [ 'charset', 'collate' ],
+			'required' => [],
+		],
+		'class' => [
+			'children' => [ 'dataset', 'relation', 'map' ],
+			'attributes' => [ 'name', 'id', 'table', 'database', 'softdelete', 'trait' ],
+			'required' => [ 'name' ],
+		],
+		'dataset' => [
+			'children' => [ 'property' ],
+			'attributes' => [ 'name', 'autoload', 'table' ],
+			'required' => [],
+		],
+		'property' => [
+			'children' => [],
+			// Attributes for all types; PROPERTY_TYPE_ATTRIBUTES has the type-specific ones
+			'attributes' => [ 'name', 'type', 'required', 'fieldname', 'fieldnames' ],
+			'required' => [ 'name' ],
+		],
+		'relation' => [
+			'children' => [],
+			'attributes' => [ 'name', 'type', 'class', 'table', 'local_id', 'remote_id', 'table_owner',
+				'load_objects', 'order_field', 'cascade_delete', 'local_type', 'use_namespace' ],
+			'required' => [ 'name', 'type', 'class', 'table', 'local_id', 'remote_id' ],
+		],
+		'map' => [
+			'children' => [ 'key', 'value' ],
+			'attributes' => [ 'name', 'table', 'id', 'type', 'use_namespace' ],
+			'required' => [ 'name', 'table' ],
+		],
+		'key' => [
+			'children' => [],
+			'attributes' => [ 'name' ],
+			'required' => [ 'name' ],
+		],
+		'value' => [
+			'children' => [],
+			'attributes' => [ 'name' ],
+			'required' => [ 'name' ],
+		],
+	];
+
+	/**
+	 * The type-specific attributes of a property, and which of them are required.
+	 */
+	private const PROPERTY_TYPE_ATTRIBUTES = [
+		'Text' => [ 'attributes' => [ 'default' ], 'required' => [] ],
+		'Int' => [ 'attributes' => [ 'default', 'signed' ], 'required' => [] ],
+		'Float' => [ 'attributes' => [ 'default' ], 'required' => [] ],
+		'Decimal' => [ 'attributes' => [ 'default', 'precision', 'scale' ], 'required' => [] ],
+		'Bool' => [ 'attributes' => [ 'default' ], 'required' => [] ],
+		'Date' => [ 'attributes' => [ 'update_on' ], 'required' => [] ],
+		'DateTime' => [ 'attributes' => [ 'update_on' ], 'required' => [] ],
+		'TimestampText' => [ 'attributes' => [ 'update_on', 'date_format' ], 'required' => [] ],
+		'Class' => [ 'attributes' => [ 'class', 'on_remote_delete' ], 'required' => [ 'class' ] ],
+		'DynamicClass' => [ 'attributes' => [ 'on_remote_delete', 'use_namespace' ], 'required' => [] ],
+	];
+
+	/**
+	 * Checks the structure of the XML: that every element is known and in the
+	 * right place, has only known attributes, and has its required attributes
+	 * (with a non-empty value). Without this check, a typo like requried="true"
+	 * or a missing local_id would be ignored, or only fail at runtime.
+	 *
+	 * @param DOMElement $root the root element of the XML tree
+	 * @throws \Exception listing all the problems, with their line numbers
+	 */
+	private static function checkElements(DOMElement $root) : void {
+		$problems = [];
+		if ($root->tagName != 'project')
+			$problems[] = "line {$root->getLineNo()}: the root element must be <project>, not <{$root->tagName}>";
+		else
+			self::checkElement($root, $problems);
+
+		if ($problems)
+			throw new \Exception("Invalid model XML:\n- ".implode("\n- ", $problems));
+	}
+
+	/**
+	 * Checks an element and its children, see checkElements().
+	 *
+	 * @param DOMElement $element the element to check, with a tag name in ELEMENTS
+	 * @param list<string> $problems the problems found so far, to add to
+	 */
+	private static function checkElement(DOMElement $element, array &$problems) : void {
+		$spec = self::ELEMENTS[$element->tagName];
+		$known = $spec['attributes'];
+		$required = $spec['required'];
+
+		if ($element->tagName == 'property') {
+			$type = $element->hasAttribute('type') ? $element->getAttribute('type') : 'Text';
+			if (isset(self::PROPERTY_TYPE_ATTRIBUTES[$type])) {
+				$known = array_merge($known, self::PROPERTY_TYPE_ATTRIBUTES[$type]['attributes']);
+				$required = array_merge($required, self::PROPERTY_TYPE_ATTRIBUTES[$type]['required']);
+			} else {
+				// The generators report the unknown type; accept the attributes of any type
+				foreach (self::PROPERTY_TYPE_ATTRIBUTES as $typeSpec)
+					$known = array_merge($known, $typeSpec['attributes']);
+			}
+		}
+
+		$description = self::describe($element);
+		foreach ($element->attributes as $attribute) {
+			// Attributes in a namespace, like xsi:schemaLocation, aren't ours
+			if ($attribute->namespaceURI !== null || in_array($attribute->name, $known))
+				continue;
+
+			$problem = "line {$element->getLineNo()}: $description has unknown attribute '{$attribute->name}'";
+			if (isset($type)) {
+				foreach (self::PROPERTY_TYPE_ATTRIBUTES as $typeSpec)
+					if (in_array($attribute->name, $typeSpec['attributes'])) {
+						$problem = "line {$element->getLineNo()}: $description has attribute '{$attribute->name}', which a property of type $type can't have";
+						break;
+					}
+			}
+			$suggestion = self::suggest($attribute->name, $known);
+			if ($suggestion !== null)
+				$problem .= ", did you mean '$suggestion'?";
+			$problems[] = $problem;
+		}
+
+		foreach ($required as $name)
+			if (trim($element->getAttribute($name)) === '')
+				$problems[] = "line {$element->getLineNo()}: $description ".($element->hasAttribute($name) ? "has an empty '$name' attribute" : "is missing the required attribute '$name'");
+
+		foreach ($element->childNodes as $child) {
+			if (!$child instanceof DOMElement)
+				continue;
+			if (in_array($child->tagName, $spec['children']))
+				self::checkElement($child, $problems);
+			else
+				$problems[] = "line {$child->getLineNo()}: unexpected element <{$child->tagName}> in $description"
+					.($spec['children'] ? ', expected '.implode(' or ', array_map(fn($name) => "<$name>", $spec['children'])) : '');
+		}
+	}
+
+	/**
+	 * Describes an element for an error message, like "<property> 'title' of class 'Forum'".
+	 *
+	 * @param DOMElement $element the element
+	 * @return string the description
+	 */
+	private static function describe(DOMElement $element) : string {
+		$description = "<{$element->tagName}>";
+		if ($element->getAttribute('name') !== '')
+			$description .= " '{$element->getAttribute('name')}'";
+
+		for ($parent = $element->parentNode; $parent instanceof DOMElement; $parent = $parent->parentNode)
+			if ($parent->tagName == 'class') {
+				$description .= " of class '{$parent->getAttribute('name')}'";
+				break;
+			}
+
+		return $description;
+	}
+
+	/**
+	 * Returns the known name closest to a misspelled one, if it is close enough.
+	 *
+	 * @param string $name the unknown name
+	 * @param list<string> $known the known names
+	 * @return ?string the suggested name, or null if none is close
+	 */
+	private static function suggest(string $name, array $known) : ?string {
+		$best = null;
+		$bestDistance = 3;
+		foreach ($known as $candidate) {
+			$distance = levenshtein(strtolower($name), $candidate);
+			if ($distance < $bestDistance) {
+				$best = $candidate;
+				$bestDistance = $distance;
+			}
+		}
+		return $best;
 	}
 
 	/**

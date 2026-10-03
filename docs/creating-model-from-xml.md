@@ -442,20 +442,20 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 
 ### Attributes
 
-| Attribute | Required | Description |
-|---|---|---|
-| `name` | yes | Relation property name on object. |
-| `type` | yes | Currently `NN`. |
-| `class` | yes | Target class name. |
-| `table` | yes | Relation table: a join table, or one of the related class's own tables for a [derived relation](#read-only-and-derived-relations). It can't be one of this class's own tables, unless the relation is to the same class (like `replies` of a `ForumMessage`). |
-| `local_id` | yes | Column storing local object ID. |
-| `remote_id` | yes | Column storing related object ID. |
-| `table_owner` | yes | `true` if this side owns and writes the relation rows; `false` makes the relation [read-only](#read-only-and-derived-relations). `true` is not allowed when `table` is the base or dataset table of a class. |
-| `load_objects` | yes | `true` to load autoload datasets for related objects; `false` for ID-only skeletons. |
-| `order_field` | no | SQL order column when restoring relation. An owned relation stores each object's position in it, and even allows the same object more than once. |
-| `cascade_delete` | no | `true` to delete the related objects when this object is deleted (default `false`). See [Deleting objects with relations](#deleting-objects-with-relations). |
-| `local_type` | no | Column holding the class name of the local object, for tables that hold rows of several classes. When omitted, every row matching `local_id` is taken to belong to this class. |
-| `use_namespace` | no | Controls what value is stored in `local_type`. `false` (default): store the short class name (e.g. `ForumMessage`). `true`: store the fully-qualified class name (e.g. `MyApp\Model\ForumMessage`). Only used when `local_type` is set. |
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `name` | yes | — | Relation property name on object. |
+| `type` | yes | — | Currently `NN`. |
+| `class` | yes | — | Target class name. |
+| `table` | yes | — | Relation table: a join table, or one of the related class's own tables for a [derived relation](#read-only-and-derived-relations). It can't be one of this class's own tables, unless the relation is to the same class (like `replies` of a `ForumMessage`). |
+| `local_id` | yes | — | Column storing local object ID. |
+| `remote_id` | yes | — | Column storing related object ID. |
+| `table_owner` | no | `false` | `true` if this side owns and writes the relation rows; `false` makes the relation [read-only](#read-only-and-derived-relations). `true` is not allowed when `table` is the base or dataset table of a class. |
+| `load_objects` | no | `false` | `true` to load autoload datasets for related objects; `false` for ID-only skeletons. |
+| `order_field` | no | none | SQL order column when restoring relation. An owned relation stores each object's position in it, and even allows the same object more than once. Without it, the order of the related objects is undefined. |
+| `cascade_delete` | no | `false` | `true` to delete the related objects when this object is deleted. See [Deleting objects with relations](#deleting-objects-with-relations). |
+| `local_type` | no | none | Column holding the class name of the local object, for tables that hold rows of several classes. When omitted, every row matching `local_id` is taken to belong to this class. |
+| `use_namespace` | no | `false` | Controls what value is stored in `local_type`. `false`: store the short class name (e.g. `ForumMessage`). `true`: store the fully-qualified class name (e.g. `MyApp\Model\ForumMessage`). Only used when `local_type` is set. |
 
 ### Common patterns
 
@@ -704,6 +704,8 @@ vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql --skip-classe
 # Include custom class snippets
 vendor/bin/phersist --xml=model/model.xml --includesdir=model/includes
 ```
+
+The generator checks the XML before generating anything. It reports, with line numbers, every element that is unknown or in the wrong place (like a `<property>` directly under `<class>`), every unknown attribute (like `requried="true"`, or `default` on a `Date` property), and every required attribute that is missing or empty (like a relation's `local_id`). Attributes in an XML namespace, like `xsi:noNamespaceSchemaLocation`, are ignored. For an element that spans several lines, the line number is the one where its start tag ends.
 
 ---
 

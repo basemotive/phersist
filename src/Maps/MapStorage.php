@@ -40,6 +40,7 @@ class MapStorage {
 			'name' => $this->map['activeRecordKey'],
 			'data' => $this->data,
 			'isRestored' => $this->isRestored,
+			'detached' => $this->detached,
 		];
 	}
 
@@ -50,6 +51,7 @@ class MapStorage {
 		$this->activeRecord = $data['activeRecord'];
 		$this->data = $data['data'];
 		$this->isRestored = $data['isRestored'];
+		$this->detached = $data['detached'] ?? false;
 
 		$meta = ActiveRecord::_getMeta(get_class($this->activeRecord));
 		if (!isset($meta['maps'][$data['name']]))
@@ -191,10 +193,23 @@ class MapStorage {
 	public function _snapshot() : callable {
 		$data = $this->data;
 		$isRestored = $this->isRestored;
-		return function() use ($data, $isRestored) : void {
+		$detached = $this->detached;
+		return function() use ($data, $isRestored, $detached) : void {
 			$this->data = $data;
 			$this->isRestored = $isRestored;
+			$this->detached = $detached;
 		};
+	}
+
+	/**
+	 * Marks this map as no longer part of its object, after the object
+	 * dropped it. It can still be read, but changing it throws an exception,
+	 * because the change would never be committed.
+	 *
+	 * @internal used by ActiveRecord::reload() and transaction rollbacks
+	 */
+	public function _detach() : void {
+		$this->detached = true;
 	}
 
 	public function restore() : void {
@@ -253,6 +268,8 @@ class MapStorage {
 		// notified after the data has changed
 		if ($set_changed && $this->activeRecord->isDeleted())
 			$this->activeRecord->_error("Cannot change property {$this->map['activeRecordKey']} on a deleted object");
+		if ($set_changed && $this->detached)
+			$this->activeRecord->_error("Cannot change map {$this->map['activeRecordKey']}: the object dropped it in reload() or a rolled back transaction, read the property again");
 
 		if (count($keys) > count($this->map['keys']))
 			throw new \InvalidArgumentException("Map {$this->map['activeRecordKey']} has only ".count($this->map['keys']).' key(s)');
@@ -427,4 +444,6 @@ class MapStorage {
 	protected ?array $data = null;
 
 	protected bool $isRestored = false;
+
+	protected bool $detached = false;
 }

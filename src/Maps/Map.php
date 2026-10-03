@@ -118,6 +118,13 @@ class Map implements \ArrayAccess, \IteratorAggregate, \Countable, \JsonSerializ
 	}
 
 	/**
+	 * @internal used by ActiveRecord::reload() and transaction rollbacks
+	 */
+	public function _detach() : void {
+		$this->mapObject->_detach();
+	}
+
+	/**
 	 * @deprecated use toArray(), or pass the map to json_encode() directly
 	 * @return array<mixed>
 	 */

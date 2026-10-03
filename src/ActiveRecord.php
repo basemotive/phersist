@@ -341,6 +341,11 @@ class ActiveRecord implements \ArrayAccess {
 			// Evict the entry for the id we may have gotten after the snapshot
 			ObjectCache::evict($this);
 
+			// Maps loaded after the snapshot are dropped, like in reload()
+			foreach (array_keys(static::$_meta['maps']) as $key)
+				if (isset($this->_data[$key]) && ($data[$key] ?? null) !== $this->_data[$key])
+					$this->_data[$key]->_detach();
+
 			$this->_data = $data;
 			$this->_changed = $changed;
 			$this->_deleted = $deleted;
@@ -466,6 +471,12 @@ class ActiveRecord implements \ArrayAccess {
 
 		if (count($this->_changed) > 0 && !$discard)
 			$this->_error('Cannot reload an object with uncommitted changes');
+
+		// A map that the application still holds must not mark this object as
+		// changed anymore, because commit() wouldn't find it
+		foreach (array_keys(static::$_meta['maps']) as $key)
+			if (isset($this->_data[$key]))
+				$this->_data[$key]->_detach();
 
 		$this->_data = [static::$_meta['id'] => $this->id];
 		$this->_changed = [];

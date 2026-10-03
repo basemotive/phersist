@@ -36,7 +36,9 @@ class OFWhereExpression extends OFExpression {
 			trigger_error("The 'IS' operator is deprecated, use '=' instead (also for null)", E_USER_DEPRECATED);
 			$operator = '=';
 		}
-		// TODO if the property is required, checking for NULL is nonsense
+
+		// if the property is required, checking for NULL is nonsense, but
+		// restricting that is probably not productive
 
 		// The id is an unsigned int, but not part of any dataset
 		$prop = $resolved['prop'] ?? [ 'type' => 'Int', 'signed' => false ];

@@ -55,11 +55,11 @@ class ARGenerator {
 	private function generateClass(DOMElement $classElement) : string {
 		$className = $classElement->getAttribute('name');
 		$meta = $this->generateMeta($classElement);
-		$namespace = $this->root->hasAttribute('namespace') ? rtrim($this->root->getAttribute('namespace'), '\\') : null;
+		$namespace = rtrim($this->getNamespace(), '\\');
 
 		$txt = "<?php\n\n";
 
-		if ($namespace != null)
+		if ($namespace != '')
 			$txt .= "namespace {$namespace};\n\n";
 
 		$txt .= "use PHersist\ActiveRecord;\n";
@@ -71,7 +71,7 @@ class ARGenerator {
 		// If a Trait exists for this class, use it
 		if ($classElement->hasAttribute('trait')) {
 			$txt .= "\tuse {$classElement->getAttribute('trait')};\n\n";
-		} elseif (trait_exists("{$namespace}\\{$className}Trait")) {
+		} elseif (trait_exists("{$this->getNamespace()}{$className}Trait")) {
 			$txt .= "\tuse {$className}Trait;\n\n";
 		}
 

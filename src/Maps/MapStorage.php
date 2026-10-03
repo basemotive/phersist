@@ -273,6 +273,7 @@ class MapStorage {
 
 		if (count($keys) > count($this->map['keys']))
 			throw new \InvalidArgumentException("Map {$this->map['activeRecordKey']} has only ".count($this->map['keys']).' key(s)');
+		$keys = $this->_normalizeKeys($keys);
 
 		// Validate before touching the data, so a bad value leaves the map as it was
 		$value = $this->_normalize($value, count($this->map['keys']) - count($keys), $keys);
@@ -307,8 +308,10 @@ class MapStorage {
 	 *
 	 * @param list<mixed> $keys
 	 * @return mixed the value (null if it doesn't exist), or an Map for a submap
+	 * @throws \InvalidArgumentException if a key isn't a string or Stringable
 	 */
 	public function getForArray(array $keys) : mixed {
+		$keys = $this->_normalizeKeys($keys);
 		if (count($keys) < count($this->map['keys']))
 			return new Map($this, $keys);
 
@@ -329,8 +332,10 @@ class MapStorage {
 	 *
 	 * @param list<mixed> $keys
 	 * @return bool
+	 * @throws \InvalidArgumentException if a key isn't a string or Stringable
 	 */
 	public function has(array $keys) : bool {
+		$keys = $this->_normalizeKeys($keys);
 		if (!$this->isRestored) $this->restore();
 
 		$arr = $this->data;
@@ -380,8 +385,8 @@ class MapStorage {
 			$name .= "[$key]";
 
 		if ($depth == 0) {
-			if (!is_scalar($value) && !($value instanceof \Stringable))
-				throw new \InvalidArgumentException("$name must be a single value, not ".get_debug_type($value));
+			if (!self::_isStringLike($value))
+				throw new \InvalidArgumentException("$name must be a string, not ".get_debug_type($value));
 			return (string)$value;
 		}
 
@@ -399,6 +404,34 @@ class MapStorage {
 				$result[$key] = $subValue;
 		}
 		return $result;
+	}
+
+	/**
+	 * Checks the keys of a key path and converts them to strings.
+	 *
+	 * @param list<mixed> $keys the key path
+	 * @return list<string>
+	 * @throws \InvalidArgumentException if a key isn't string-like
+	 */
+	private function _normalizeKeys(array $keys) : array {
+		$name = $this->map['activeRecordKey'];
+		$result = [];
+		foreach ($keys as $key) {
+			if (!self::_isStringLike($key))
+				throw new \InvalidArgumentException("Key of $name must be a string, not ".get_debug_type($key));
+			$result[] = (string)$key;
+			$name .= "[$key]";
+		}
+		return $result;
+	}
+
+	/**
+	 * Tells whether a value can be used as a map key or value: a string, or an
+	 * int, float or Stringable that is converted to one. Ints are accepted
+	 * because PHP turns numeric string array keys into ints.
+	 */
+	private static function _isStringLike(mixed $value) : bool {
+		return is_string($value) || is_int($value) || is_float($value) || $value instanceof \Stringable;
 	}
 
 	/**

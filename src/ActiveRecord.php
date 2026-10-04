@@ -243,7 +243,12 @@ class ActiveRecord implements \ArrayAccess {
 					$values_part .= ':p'.$index++;
 				}
 
-				$query = "insert into `$table` ($fields_part) values ($values_part)";
+				// Without any columns (a base table without set properties), MySQL
+				// takes an empty column list, but other databases need DEFAULT VALUES
+				if ($fields_part == '' && $this->_PDO->getAttribute(\PDO::ATTR_DRIVER_NAME) != 'mysql')
+					$query = "insert into `$table` default values";
+				else
+					$query = "insert into `$table` ($fields_part) values ($values_part)";
 
 				$stmt = $this->_PDO->prepare($query);
 				$index = 0;

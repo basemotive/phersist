@@ -588,7 +588,7 @@ class ARGenerator {
 			if ($isList)
 				$lines[] = "{$innerIndent}{$exportedValue}";
 			else
-				$lines[] = "{$innerIndent}'{$key}' => {$exportedValue}";
+				$lines[] = "{$innerIndent}".(is_int($key) ? $key : "'".addcslashes($key, "'\\")."'")." => {$exportedValue}";
 		}
 
 		return "[\n".implode(",\n", $lines)."\n{$indent}]";

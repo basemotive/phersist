@@ -55,8 +55,10 @@ class XMLLoader {
 
 	/**
 	 * The elements of the model XML: their allowed child elements, their
-	 * known and required attributes, and the attributes that hold a table or
-	 * column name (see checkName()).
+	 * known and required attributes, the attributes that hold a table or
+	 * column name (see checkName()), and those that end up in the generated
+	 * PHP code as a name (an identifier, or a qualified name with namespace,
+	 * see checkIdentifier()).
 	 */
 	private const ELEMENTS = [
 		'project' => [
@@ -64,24 +66,32 @@ class XMLLoader {
 			'attributes' => [ 'database', 'tablestyle', 'namespace', 'id_style' ],
 			'required' => [ 'database', 'tablestyle' ],
 			'names' => [],
+			'identifiers' => [],
+			'qualified' => [ 'namespace' ],
 		],
 		'mysql' => [
 			'children' => [],
 			'attributes' => [ 'charset', 'collate' ],
 			'required' => [],
 			'names' => [],
+			'identifiers' => [],
+			'qualified' => [],
 		],
 		'class' => [
 			'children' => [ 'dataset', 'relation', 'map' ],
 			'attributes' => [ 'name', 'id', 'table', 'database', 'softdelete', 'trait' ],
 			'required' => [ 'name' ],
 			'names' => [ 'id', 'table' ],
+			'identifiers' => [ 'name' ],
+			'qualified' => [ 'trait' ],
 		],
 		'dataset' => [
 			'children' => [ 'property' ],
 			'attributes' => [ 'name', 'autoload', 'table' ],
 			'required' => [],
 			'names' => [ 'table' ],
+			'identifiers' => [],
+			'qualified' => [],
 		],
 		'property' => [
 			'children' => [],
@@ -90,6 +100,8 @@ class XMLLoader {
 			'required' => [ 'name' ],
 			// fieldnames is a list; getFieldNames() checks those names
 			'names' => [ 'fieldname' ],
+			'identifiers' => [ 'name' ],
+			'qualified' => [],
 		],
 		'relation' => [
 			'children' => [],
@@ -97,24 +109,32 @@ class XMLLoader {
 				'load_objects', 'order_field', 'cascade_delete', 'local_type', 'use_namespace' ],
 			'required' => [ 'name', 'type', 'class', 'table', 'local_id', 'remote_id' ],
 			'names' => [ 'table', 'local_id', 'remote_id', 'order_field', 'local_type' ],
+			'identifiers' => [ 'name' ],
+			'qualified' => [],
 		],
 		'map' => [
 			'children' => [ 'key', 'value' ],
 			'attributes' => [ 'name', 'table', 'id', 'type', 'use_namespace' ],
 			'required' => [ 'name', 'table' ],
 			'names' => [ 'table', 'id', 'type' ],
+			'identifiers' => [ 'name' ],
+			'qualified' => [],
 		],
 		'key' => [
 			'children' => [],
 			'attributes' => [ 'name' ],
 			'required' => [ 'name' ],
 			'names' => [ 'name' ],
+			'identifiers' => [],
+			'qualified' => [],
 		],
 		'value' => [
 			'children' => [],
 			'attributes' => [ 'name' ],
 			'required' => [ 'name' ],
 			'names' => [ 'name' ],
+			'identifiers' => [],
+			'qualified' => [],
 		],
 	];
 
@@ -205,6 +225,14 @@ class XMLLoader {
 			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkName($element->getAttribute($name))) !== null)
 				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";
 
+		foreach ($spec['identifiers'] as $name)
+			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkIdentifier($element->getAttribute($name), false)) !== null)
+				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";
+
+		foreach ($spec['qualified'] as $name)
+			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkIdentifier($element->getAttribute($name), true)) !== null)
+				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";
+
 		foreach ($element->childNodes as $child) {
 			if (!$child instanceof DOMElement)
 				continue;
@@ -234,6 +262,27 @@ class XMLLoader {
 			return "'{$name}' ends with a space, which MySQL doesn't allow in names";
 		if (preg_match_all('/./su', $name) > 64)
 			return "'{$name}' is longer than 64 characters, the maximum for MySQL names";
+		return null;
+	}
+
+	/**
+	 * Checks a name that the generator writes into the PHP code: a class,
+	 * property, relation or map name must be a PHP identifier (letters,
+	 * digits and underscores, not starting with a digit; like PHP, any
+	 * non-ASCII character counts as a letter). A qualified name is a list of
+	 * identifiers separated by backslashes, optionally with a leading one.
+	 *
+	 * @param string $name the name
+	 * @param bool $qualified whether the name may include a namespace
+	 * @return ?string what is wrong with the name, or null if it is valid
+	 */
+	public static function checkIdentifier(string $name, bool $qualified) : ?string {
+		$identifier = '[A-Za-z_\x80-\xFF][A-Za-z0-9_\x80-\xFF]*';
+		if ($qualified) {
+			if (!preg_match('/^\\\\?'.$identifier.'(\\\\'.$identifier.')*$/D', $name))
+				return "'{$name}' is not a valid PHP name: use identifiers (letters, digits and underscores, not starting with a digit) separated by backslashes";
+		} elseif (!preg_match('/^'.$identifier.'$/D', $name))
+			return "'{$name}' is not a valid PHP identifier: use only letters, digits and underscores, and don't start with a digit";
 		return null;
 	}
 

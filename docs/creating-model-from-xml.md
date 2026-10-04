@@ -54,7 +54,7 @@ Every model starts with a single `<project>` root:
 |---|---|---|---|
 | `database` | yes | — | Database connection identifier used at runtime with `DBConnectionManager::newMySQLConnection(...)`, `DBConnectionManager::newSQLiteConnection(...)`, or `DBConnectionManager::newSQLSrvLConnection(...)`. |
 | `tablestyle` | yes | — | Name conversion strategy for table/column/id names. Built-in style: `SnakeCase`. |
-| `namespace` | no | none | PHP namespace for generated classes. |
+| `namespace` | no | none | PHP namespace for generated classes, like `MyApp\Model`. |
 | `id_style` | no | `short` | Primary key naming mode for auto-generated class IDs. `short` => `id`, `long` => converted class name + `_id` (example: `forum_message_id`). |
 
 ### `id_style`: short vs long
@@ -106,7 +106,7 @@ Each `<class>` generates one PHP class extending `\PHersist\ActiveRecord`.
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Generated PHP class name (UpperCamelCase recommended). |
+| `name` | yes | — | Generated PHP class name (UpperCamelCase recommended). Must be a [PHP identifier](#allowed-php-names). |
 | `id` | no | auto | Primary key column name. Auto value depends on `id_style`. |
 | `table` | no | auto | Base table name for this class. |
 | `database` | no | project `database` | Optional per-class DB override. |
@@ -188,7 +188,7 @@ Properties define class fields and column mapping.
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Property name used in PHP (`$object->name`). The name `id` is reserved for the object's id; the generator refuses it. |
+| `name` | yes | — | Property name used in PHP (`$object->name`). Must be a [PHP identifier](#allowed-php-names). The name `id` is reserved for the object's id; the generator refuses it. |
 | `type` | no | `Text` | Property type (`Text`, `Int`, `Float`, `Decimal`, `Bool`, `Date`, `DateTime`, `Class`, `DynamicClass`, `TimestampText`). |
 | `required` | no | `false` | If `true`, must not be null. A new object must have a value for every required property (assigned or from `default`), or `commit()` throws an exception. |
 | `fieldname` | no | auto | Custom single-column field name. |
@@ -444,7 +444,7 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Relation property name on object. |
+| `name` | yes | — | Relation property name on object. Must be a [PHP identifier](#allowed-php-names). |
 | `type` | yes | — | Currently `NN`. |
 | `class` | yes | — | Target class name. |
 | `table` | yes | — | Relation table: a join table, or one of the related class's own tables for a [derived relation](#read-only-and-derived-relations). It can't be one of this class's own tables, unless the relation is to the same class (like `replies` of a `ForumMessage`). |
@@ -565,7 +565,7 @@ Maps provide key/value data attached to an object through a table.
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Map property name on object. |
+| `name` | yes | — | Map property name on object. Must be a [PHP identifier](#allowed-php-names). |
 | `table` | yes | — | Backing table. |
 | `id` | no | `<class>_id` | Owner ID column name. Defaults to the class name converted by the table style with `_id` appended (for example `person_id` for class `Person` with `SnakeCase`), regardless of `id_style`. |
 | `type` | no | none | Optional class discriminator column for shared map tables. |
@@ -691,6 +691,15 @@ or generated from a class or property name) that:
 - contains a character outside the Basic Multilingual Plane, like an emoji
 - ends with a space
 - is longer than 64 characters
+
+### Allowed PHP names
+
+Class, property, relation and map names end up in the generated PHP code, so
+they must be PHP identifiers: letters, digits and underscores, not starting
+with a digit. As in PHP, non-ASCII letters like `größe` are allowed. The
+project's `namespace` and a class's `trait` must be identifiers separated by
+backslashes (`MyApp\Model`, `\Babble\Model\ForumMessageTrait`). The
+generator reports any other name as an error, with its line number.
 
 ---
 

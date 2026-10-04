@@ -133,6 +133,7 @@ class ObjectFinder {
 	// ---------------------------------------------------------------------------
 
 	public function count() : int {
+		$this->valueNameCounter = 0;
 		list($where, $queryValues) = $this->rootExpression->evaluate();
 
 		$meta = ActiveRecord::_getMeta($this->className);
@@ -186,6 +187,7 @@ class ObjectFinder {
 		if ($offset > 0 && $limit === null)
 			$this->error("An offset requires a limit");
 
+		$this->valueNameCounter = 0;
 		list($where, $queryValues) = $this->rootExpression->evaluate();
 
 		$meta = ActiveRecord::_getMeta($this->className);
@@ -520,7 +522,9 @@ class ObjectFinder {
 	 * Generates a unique value name for code that generates partial SQL queries.
 	 *
 	 * If the code generates something like where `tablename`.`fieldname` =
-	 * :valueName the valueName needs to be unique, so it's generated here.
+	 * :valueName the valueName needs to be unique, so it's generated here. The
+	 * names are numbered (p0, p1, ...) from the start of each query, like the
+	 * placeholders in ActiveRecord.
 	 *
 	 * @see OFWhereExpression::evaluate() where it is used
 	 * @internal only used by the OFWhereExpression class
@@ -528,8 +532,7 @@ class ObjectFinder {
 	 * @return string a unique name for a value name for an SQL query
 	 */
 	public function generateValueName() : string {
-		static $counter = 1;
-		return 'field'.$counter++;
+		return 'p'.$this->valueNameCounter++;
 	}
 
 	/**
@@ -565,4 +568,10 @@ class ObjectFinder {
 
 	/** @var list<array<string, string>> which properties to order by and in which direction */
 	protected array $orderBys = [];
+
+	/**
+	 * @var int the number of the next value name, reset by count() and fetch()
+	 * @see ObjectFinder::generateValueName() where it is used
+	 */
+	protected int $valueNameCounter = 0;
 }

@@ -92,10 +92,13 @@ class ReferenceCleaner {
 		$meta = ActiveRecord::_getMeta($class);
 		$PDO = $this->_getPDO($meta);
 
-		$where = implode(' and ', array_map(fn($column) => "`$table`.`$column` = :$column", array_keys($match)));
+		// Numbered placeholders, as column names can contain characters that
+		// PDO doesn't allow in a placeholder
+		$columns = array_keys($match);
+		$where = implode(' and ', array_map(fn($index) => "`$table`.`{$columns[$index]}` = :p$index", array_keys($columns)));
 		$bind = function(\PDOStatement $stmt) use ($match) : void {
-			foreach ($match as $column => $value)
-				$stmt->bindValue(":$column", $value, is_int($value) ? \PDO::PARAM_INT : \PDO::PARAM_STR);
+			foreach (array_values($match) as $index => $value)
+				$stmt->bindValue(":p$index", $value, is_int($value) ? \PDO::PARAM_INT : \PDO::PARAM_STR);
 		};
 
 		if ($policy == 'cascade') {
@@ -124,12 +127,12 @@ class ReferenceCleaner {
 			$stmt->closeCursor();
 
 			if ($count > 0)
-				$this->activeRecord->_error("Cannot delete, because $count ".(new \ReflectionClass($class))->getShortName()
+				$this->activeRecord->_error("Cannot delete, because {$count} ".(new \ReflectionClass($class))->getShortName()
 					." object".($count == 1 ? '' : 's')." still refer".($count == 1 ? 's' : '')
-					." to it through the property '$propName'; delete them first, or set on_remote_delete=\"cascade\" on that property");
+					." to it through the property '{$propName}'; delete them first, or set on_remote_delete=\"cascade\" on that property");
 		} else {
 			$set = implode(', ', array_map(fn($column) => "`$column` = NULL", array_keys($match)));
-			$stmt = $PDO->prepare("update `$table` set $set where $where");
+			$stmt = $PDO->prepare("update `{$table}` set {$set} where {$where}");
 			$bind($stmt);
 			$stmt->execute();
 		}

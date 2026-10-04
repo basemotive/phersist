@@ -54,56 +54,67 @@ class XMLLoader {
 	}
 
 	/**
-	 * The elements of the model XML: their allowed child elements, and their
-	 * known and required attributes.
+	 * The elements of the model XML: their allowed child elements, their
+	 * known and required attributes, and the attributes that hold a table or
+	 * column name (see checkName()).
 	 */
 	private const ELEMENTS = [
 		'project' => [
 			'children' => [ 'mysql', 'class' ],
 			'attributes' => [ 'database', 'tablestyle', 'namespace', 'id_style' ],
 			'required' => [ 'database', 'tablestyle' ],
+			'names' => [],
 		],
 		'mysql' => [
 			'children' => [],
 			'attributes' => [ 'charset', 'collate' ],
 			'required' => [],
+			'names' => [],
 		],
 		'class' => [
 			'children' => [ 'dataset', 'relation', 'map' ],
 			'attributes' => [ 'name', 'id', 'table', 'database', 'softdelete', 'trait' ],
 			'required' => [ 'name' ],
+			'names' => [ 'id', 'table' ],
 		],
 		'dataset' => [
 			'children' => [ 'property' ],
 			'attributes' => [ 'name', 'autoload', 'table' ],
 			'required' => [],
+			'names' => [ 'table' ],
 		],
 		'property' => [
 			'children' => [],
 			// Attributes for all types; PROPERTY_TYPE_ATTRIBUTES has the type-specific ones
 			'attributes' => [ 'name', 'type', 'required', 'fieldname', 'fieldnames' ],
 			'required' => [ 'name' ],
+			// fieldnames is a list; getFieldNames() checks those names
+			'names' => [ 'fieldname' ],
 		],
 		'relation' => [
 			'children' => [],
 			'attributes' => [ 'name', 'type', 'class', 'table', 'local_id', 'remote_id', 'table_owner',
 				'load_objects', 'order_field', 'cascade_delete', 'local_type', 'use_namespace' ],
 			'required' => [ 'name', 'type', 'class', 'table', 'local_id', 'remote_id' ],
+			'names' => [ 'table', 'local_id', 'remote_id', 'order_field', 'local_type' ],
 		],
 		'map' => [
 			'children' => [ 'key', 'value' ],
 			'attributes' => [ 'name', 'table', 'id', 'type', 'use_namespace' ],
 			'required' => [ 'name', 'table' ],
+			'names' => [ 'table', 'id', 'type' ],
 		],
 		'key' => [
 			'children' => [],
 			'attributes' => [ 'name' ],
 			'required' => [ 'name' ],
+			'names' => [ 'name' ],
 		],
 		'value' => [
 			'children' => [],
 			'attributes' => [ 'name' ],
 			'required' => [ 'name' ],
+			'names' => [ 'name' ],
 		],
 	];
 
@@ -176,7 +187,7 @@ class XMLLoader {
 			if (isset($type)) {
 				foreach (self::PROPERTY_TYPE_ATTRIBUTES as $typeSpec)
 					if (in_array($attribute->name, $typeSpec['attributes'])) {
-						$problem = "line {$element->getLineNo()}: $description has attribute '{$attribute->name}', which a property of type $type can't have";
+						$problem = "line {$element->getLineNo()}: {$description} has attribute '{$attribute->name}', which a property of type {$type} can't have";
 						break;
 					}
 			}
@@ -188,7 +199,11 @@ class XMLLoader {
 
 		foreach ($required as $name)
 			if (trim($element->getAttribute($name)) === '')
-				$problems[] = "line {$element->getLineNo()}: $description ".($element->hasAttribute($name) ? "has an empty '$name' attribute" : "is missing the required attribute '$name'");
+				$problems[] = "line {$element->getLineNo()}: $description ".($element->hasAttribute($name) ? "has an empty '{$name}' attribute" : "is missing the required attribute '{$name}'");
+
+		foreach ($spec['names'] as $name)
+			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkName($element->getAttribute($name))) !== null)
+				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";
 
 		foreach ($element->childNodes as $child) {
 			if (!$child instanceof DOMElement)
@@ -197,8 +212,29 @@ class XMLLoader {
 				self::checkElement($child, $problems);
 			else
 				$problems[] = "line {$child->getLineNo()}: unexpected element <{$child->tagName}> in $description"
-					.($spec['children'] ? ', expected '.implode(' or ', array_map(fn($name) => "<$name>", $spec['children'])) : '');
+					.($spec['children'] ? ', expected '.implode(' or ', array_map(fn($name) => "<{$name}>", $spec['children'])) : '');
 		}
+	}
+
+	/**
+	 * Checks a table or column name. The generated SQL quotes the names in
+	 * backticks, so any name MySQL allows works, except one with a backtick.
+	 *
+	 * @param string $name the name
+	 * @return ?string what is wrong with the name, or null if it is valid
+	 */
+	public static function checkName(string $name) : ?string {
+		if (strpos($name, '`') !== false)
+			return "'{$name}' contains a backtick";
+		if (preg_match('/[\x00-\x1F\x7F]/', $name))
+			return "'{$name}' contains a control character";
+		if (preg_match('/[\x{10000}-\x{10FFFF}]/u', $name))
+			return "'{$name}' contains a character outside the Basic Multilingual Plane, which MySQL doesn't allow in names";
+		if (substr($name, -1) == ' ')
+			return "'{$name}' ends with a space, which MySQL doesn't allow in names";
+		if (preg_match_all('/./su', $name) > 64)
+			return "'{$name}' is longer than 64 characters, the maximum for MySQL names";
+		return null;
 	}
 
 	/**
@@ -276,12 +312,12 @@ class XMLLoader {
 				$ownTables = $classTables[self::qualifyClass($root, $className)];
 				$relatedTables = $classTables[self::qualifyClass($root, $relation->getAttribute('class'))] ?? [];
 				if (in_array($table, $ownTables) && !in_array($table, $relatedTables))
-					throw new \Exception("Relation '$relationName' of class '$className' cannot use its own class's table '$table'."
+					throw new \Exception("Relation '{$relationName}' of class '{$className}' cannot use its own class's table '{$table}'."
 						.' Its rows would be the object itself, so it holds at most one related object: use a Class property instead');
 
 				if ($relation->getAttribute('table_owner') == 'true' && isset($tableClasses[$table]))
-					throw new \Exception("Relation '$relationName' of class '$className'"
-						." cannot have table_owner=\"true\", because its table '$table' is a table of class '{$tableClasses[$table]}'."
+					throw new \Exception("Relation '{$relationName}' of class '{$className}'"
+						." cannot have table_owner=\"true\", because its table '{$table}' is a table of class '{$tableClasses[$table]}'."
 						.' A relation on a class\'s table is derived and must be read-only: use table_owner="false",'
 						.' and change the property of the related objects instead');
 			}
@@ -358,7 +394,7 @@ class XMLLoader {
 
 			if ($type == 'Bool') {
 				if ($default !== 'true' && $default !== 'false')
-					throw new \InvalidArgumentException("expected 'true' or 'false', got '$default'");
+					throw new \InvalidArgumentException("expected 'true' or 'false', got '{$default}'");
 				return $default === 'true';
 			}
 		} catch (\InvalidArgumentException $e) {
@@ -375,14 +411,14 @@ class XMLLoader {
 	 * @param DOMElement $property the property element in the XML tree
 	 * @param string $type the property type
 	 * @return list<string> the column names; two for a DynamicClass (class name and id), one otherwise
-	 * @throws \Exception if both attributes are set, or a name is empty, or the number of names is wrong for the type
+	 * @throws \Exception if both attributes are set, or a name is empty or invalid, or the number of names is wrong for the type
 	 */
 	public static function getFieldNames(DOMElement $property, string $type) : array {
 		$name = $property->getAttribute('name');
 		$expected = $type == 'DynamicClass' ? 2 : 1;
 
 		if ($property->hasAttribute('fieldname') && $property->hasAttribute('fieldnames'))
-			throw new \Exception("Property '$name' has both a fieldname and a fieldnames attribute, use only one");
+			throw new \Exception("Property '{$name}' has both a fieldname and a fieldnames attribute, use only one");
 
 		if ($property->hasAttribute('fieldname'))
 			$fieldNames = [ $property->getAttribute('fieldname') ];
@@ -399,9 +435,12 @@ class XMLLoader {
 
 		$fieldNames = array_map('trim', $fieldNames);
 		if (in_array('', $fieldNames, true))
-			throw new \Exception("Property '$name' has an empty field name");
+			throw new \Exception("Property '{$name}' has an empty field name");
+		foreach ($fieldNames as $fieldName)
+			if (($problem = self::checkName($fieldName)) !== null)
+				throw new \Exception("Property '{$name}' has an invalid field name: $problem");
 		if (count($fieldNames) != $expected)
-			throw new \Exception("Property '$name' of type $type needs $expected field name".($expected == 1 ? '' : 's').', got '.count($fieldNames));
+			throw new \Exception("Property '{$name}' of type {$type} needs {$expected} field name".($expected == 1 ? '' : 's').', got '.count($fieldNames));
 
 		return $fieldNames;
 	}
@@ -413,6 +452,7 @@ class XMLLoader {
 	 * @param string $term what kind of term to translate: table | id | fieldname | relation_id | relation_combo
 	 * @param string $name the name to translate
 	 * @return string the converted name
+	 * @throws \Exception if the table style is unknown, or the converted name is invalid (see checkName())
 	 */
 	public static function getAuto(DOMElement $root, string $term, string $name) : string {
 		$styleConverter = __NAMESPACE__.'\\TS'.$root->getAttribute('tablestyle');
@@ -430,6 +470,11 @@ class XMLLoader {
 				return 'id';
 		}
 
-		return $styleConverter::translate($term, $name);
+		$result = $styleConverter::translate($term, $name);
+		$what = $term == 'table' ? 'table name' : 'column name';
+		foreach (explode(',', $result) as $converted)
+			if (($problem = self::checkName($converted)) !== null)
+				throw new \Exception("'{$name}' converts to an invalid {$what}: {$problem}. Rename it, or set the {$what} explicitly");
+		return $result;
 	}
 }

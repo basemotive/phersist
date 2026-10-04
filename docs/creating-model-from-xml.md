@@ -681,6 +681,17 @@ You can override any generated name directly:
 - property field(s): `<property fieldname="...">` / `<property fieldnames="...">`
 - dataset table: `<dataset table="...">`
 
+### Allowed table and column names
+
+The generated SQL quotes all table and column names in backticks, so names
+like `item-label` or `größe` work. The generator rejects a name (set in the XML
+or generated from a class or property name) that:
+
+- contains a backtick or a control character
+- contains a character outside the Basic Multilingual Plane, like an emoji
+- ends with a space
+- is longer than 64 characters
+
 ---
 
 ## Full example

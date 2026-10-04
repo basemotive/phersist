@@ -127,23 +127,25 @@ class ARRelationTypeNN extends ARRelationType {
 			$query .= ", `{$rel['local_type']}`";
 		if (isset($rel['order_field']))
 			$query .= ", `{$rel['order_field']}`";
-		$query .= ") values (:{$rel['local_id']}, :{$rel['remote_id']}";
+		// Fixed placeholder names, as column names can contain characters that
+		// PDO doesn't allow in a placeholder
+		$query .= ") values (:localId, :remoteId";
 		if ($myClass !== null)
-			$query .= ", :{$rel['local_type']}";
+			$query .= ", :localType";
 		if (isset($rel['order_field']))
-			$query .= ", :{$rel['order_field']}";
+			$query .= ", :orderField";
 		$query .= ")";
 
 		$stmt = $this->PDO->prepare($query);
 
 		$counter = 0;
 		foreach ($objects as $object) {
-			$stmt->bindValue(":{$rel['local_id']}", $this->activeRecord->id, \PDO::PARAM_INT);
-			$stmt->bindValue(":{$rel['remote_id']}", $object->id, \PDO::PARAM_INT);
+			$stmt->bindValue(':localId', $this->activeRecord->id, \PDO::PARAM_INT);
+			$stmt->bindValue(':remoteId', $object->id, \PDO::PARAM_INT);
 			if ($myClass !== null)
-				$stmt->bindValue(":{$rel['local_type']}", $myClass, \PDO::PARAM_STR);
+				$stmt->bindValue(':localType', $myClass, \PDO::PARAM_STR);
 			if (isset($rel['order_field'])) {
-				$stmt->bindValue(":{$rel['order_field']}", $counter, \PDO::PARAM_STR);
+				$stmt->bindValue(':orderField', $counter, \PDO::PARAM_STR);
 				$counter++;
 			}
 			$stmt->execute();

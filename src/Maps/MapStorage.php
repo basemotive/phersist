@@ -90,13 +90,10 @@ class MapStorage {
 		foreach ($keys as $key)
 			$query .= ",`$key`";
 		$query .= ",`$valueField`";
-		$query .= ") values (:$id";
-		if ($this->map['type'] !== false)
-			$query .= ",:{$this->map['type']}";
-		foreach ($keys as $key)
-			$query .= ",:$key";
-		$query .= ",:$valueField";
-		$query .= ')';
+		// Numbered placeholders, as column names can contain characters that
+		// PDO doesn't allow in a placeholder
+		$columnCount = 2 + ($this->map['type'] !== false ? 1 : 0) + count($keys);
+		$query .= ') values ('.implode(',', array_map(fn($index) => ":p{$index}", range(0, $columnCount - 1))).')';
 
 		$sets = [];
 		$arr = $this->data;
@@ -109,12 +106,12 @@ class MapStorage {
 		foreach ($querySets as $querySet) {
 			$index = 0;
 
-			$stmt->bindValue(":$id", $querySet[$index++], \PDO::PARAM_INT);
+			$stmt->bindValue(':p'.$index, $querySet[$index++], \PDO::PARAM_INT);
 			if ($this->map['type'] !== false)
-				$stmt->bindValue(":{$this->map['type']}", $querySet[$index++], \PDO::PARAM_STR);
+				$stmt->bindValue(':p'.$index, $querySet[$index++], \PDO::PARAM_STR);
 			foreach ($keys as $key)
-				$stmt->bindValue(":$key", $querySet[$index++], \PDO::PARAM_STR);
-			$stmt->bindValue(":$valueField", $querySet[$index++], \PDO::PARAM_STR);
+				$stmt->bindValue(':p'.$index, $querySet[$index++], \PDO::PARAM_STR);
+			$stmt->bindValue(':p'.$index, $querySet[$index++], \PDO::PARAM_STR);
 			$stmt->execute();
 		}
 	}

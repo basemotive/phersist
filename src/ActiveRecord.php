@@ -224,23 +224,28 @@ class ActiveRecord implements \ArrayAccess {
 				if ($table != $baseTable)
 					$updates = [ $idfield => $this->id ] + $updates;
 
+				// The placeholders are numbered rather than named after the
+				// columns, as column names can contain characters that PDO
+				// doesn't allow in a placeholder
 				$fields_part = '';
 				$values_part = '';
+				$index = 0;
 				foreach ($updates as $key => $value) {
 					if ($fields_part != '') $fields_part .= ', ';
 					if ($values_part != '') $values_part .= ', ';
 					$fields_part .= "`$key`";
-					$values_part .= ":$key";
+					$values_part .= ':p'.$index++;
 				}
 
 				$query = "insert into `$table` ($fields_part) values ($values_part)";
 
 				$stmt = $this->_PDO->prepare($query);
-				foreach ($updates as $key => $value) {
+				$index = 0;
+				foreach ($updates as $value) {
 					if ($value === null) {
-						$stmt->bindValue(':'.$key, null, \PDO::PARAM_NULL);
+						$stmt->bindValue(':p'.$index++, null, \PDO::PARAM_NULL);
 					} else {
-						$stmt->bindValue(':'.$key, $value, \PDO::PARAM_STR);
+						$stmt->bindValue(':p'.$index++, $value, \PDO::PARAM_STR);
 					}
 				}
 				$stmt->execute();
@@ -248,20 +253,24 @@ class ActiveRecord implements \ArrayAccess {
 					$this->_data[$idfield] = (int)$this->_PDO->lastInsertId();
 			} elseif (count($updates)>0) { // The check is because we always process our base table
 				// Existing object, so update the modified values
+				// Numbered placeholders, see above; they also can't clash with :id
+				// when a column is called 'id'
 				$setpart = '';
+				$index = 0;
 				foreach ($updates as $key => $value) {
 					if ($setpart != '') $setpart .= ', ';
-					$setpart .= "`$key` = :$key";
+					$setpart .= "`$key` = :p".$index++;
 				}
 
 				$query = "update `$table` set $setpart where `$idfield` = :id";
 
 				$stmt = $this->_PDO->prepare($query);
-				foreach ($updates as $key => $value) {
+				$index = 0;
+				foreach ($updates as $value) {
 					if ($value === null) {
-						$stmt->bindValue(':'.$key, null, \PDO::PARAM_NULL);
+						$stmt->bindValue(':p'.$index++, null, \PDO::PARAM_NULL);
 					} else {
-						$stmt->bindValue(':'.$key, $value, \PDO::PARAM_STR);
+						$stmt->bindValue(':p'.$index++, $value, \PDO::PARAM_STR);
 					}
 				}
 				$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);

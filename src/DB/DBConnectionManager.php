@@ -35,6 +35,11 @@ class DBConnectionManager {
 			[
 				PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
 				PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+				// rowCount() counts the rows an update matches, not just the ones
+				// whose values changed, so commit() can tell that a row is missing.
+				// PHP 8.4 moved the constant to Pdo\Mysql and 8.5 deprecates the old
+				// one, which we still need for older versions.
+				constant(PHP_VERSION_ID >= 80400 ? 'Pdo\Mysql::ATTR_FOUND_ROWS' : 'PDO::MYSQL_ATTR_FOUND_ROWS') => true,
 			]
 		);
 		self::$connectionsPDO[$id] = $PDO;

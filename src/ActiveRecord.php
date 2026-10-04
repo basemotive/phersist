@@ -18,6 +18,9 @@ class ActiveRecord implements \ArrayAccess {
 	/** @var ?array<string, mixed> $_meta */
 	protected static ?array $_meta;
 
+	/** The alias of the deleted column in rows that restore a softdelete object; the # keeps it apart from column names */
+	private const _DELETED_ALIAS = 'sd#deleted';
+
 	/** @var bool $_fetching if fetchObject() is creating an instance right now */
 	private static bool $_fetching = false;
 
@@ -263,6 +266,9 @@ class ActiveRecord implements \ArrayAccess {
 				}
 
 				$query = "update `$table` set $setpart where `$idfield` = :id";
+				// A softdeleted row must not be changed anymore
+				if ($table == $baseTable && static::$_meta['softdelete'])
+					$query .= " and `deleted` = '0'";
 
 				$stmt = $this->_PDO->prepare($query);
 				$index = 0;
@@ -275,6 +281,16 @@ class ActiveRecord implements \ArrayAccess {
 				}
 				$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 				$stmt->execute();
+
+				// The row counts as changed even if its values stay the same, as the
+				// MySQL connections use PDO::MYSQL_ATTR_FOUND_ROWS. The transaction
+				// rolls back what was already written.
+				if ($stmt->rowCount() == 0)
+					$this->_error($this->_missingRowMessage($table));
+			} elseif ($table == $baseTable && !$this->exists()) {
+				// Nothing changes in the base table, but the relations and maps must
+				// not be stored for a row that doesn't exist
+				$this->_error($this->_missingRowMessage($table));
 			}
 		}
 
@@ -295,6 +311,18 @@ class ActiveRecord implements \ArrayAccess {
 				$map->commit();
 			}
 		}
+	}
+
+	/**
+	 * Builds the message for a commit() to a row that doesn't exist.
+	 *
+	 * @param string $table the table that lacks the row
+	 * @return string the message
+	 */
+	private function _missingRowMessage(string $table) : string {
+		if ($table == static::$_meta['table'] && static::$_meta['softdelete'])
+			return "Cannot commit, because the row in {$table} doesn't exist or has been softdeleted";
+		return "Cannot commit, because the row in {$table} doesn't exist";
 	}
 
 	/**
@@ -601,6 +629,7 @@ class ActiveRecord implements \ArrayAccess {
 	 * Returns an object even if it doesn't actually exist in the database. This
 	 * makes this action much faster but somewhat unreliable. If the existence of
 	 * the object is not ensured, the exists() method may be used to make sure.
+	 * Committing changes to an object without a row throws an exception.
 	 *
 	 * The return type is templated on $class, so static analysis knows the
 	 * concrete class (and its @property declarations) of the returned object.
@@ -608,7 +637,8 @@ class ActiveRecord implements \ArrayAccess {
 	 * @template T of ActiveRecord
 	 * @param class-string<T> $class the className
 	 * @param ?int $id the id
-	 * @param ?array<string, mixed> $row some data from the database to set into the properties
+	 * @param ?array<string, mixed> $row some data from the database to set into
+	 *   the properties, and for a softdelete class its deleted column
 	 * @return ?T the ActiveRecord instance, or null if no $id given
 	 */
 	public static function fetchObject(string $class, ?int $id, ?array $row = null) : ?object {
@@ -660,6 +690,10 @@ class ActiveRecord implements \ArrayAccess {
 
 			foreach ($assignments as [$dataset, $values])
 				$object->_assignDatasetValues($dataset, $values);
+
+			// The deleted column of a softdelete class, see _getDeletedColumn()
+			if ($class::$_meta['softdelete'] && array_key_exists(self::_DELETED_ALIAS, $row))
+				$object->_deleted = (bool)(int)$row[self::_DELETED_ALIAS];
 		}
 
 		return $object;
@@ -688,6 +722,21 @@ class ActiveRecord implements \ArrayAccess {
 				];
 		}
 		return $columns;
+	}
+
+	/**
+	 * Returns the column that queries which restore objects of a softdelete
+	 * class select from its base table, so fetchObject() knows whether the
+	 * object has been deleted.
+	 *
+	 * @param string $className the name of the class
+	 * @return ?array{field: string, alias: string} the column, or null if the
+	 *   class doesn't use softdelete
+	 */
+	public static function _getDeletedColumn(string $className) : ?array {
+		if (!$className::$_meta['softdelete'])
+			return null;
+		return ['field' => 'deleted', 'alias' => self::_DELETED_ALIAS];
 	}
 
 	/**
@@ -771,14 +820,23 @@ class ActiveRecord implements \ArrayAccess {
 			$fieldnames = array_merge($fieldnames, $prop['fieldnames']);
 		$fieldnames = array_unique($fieldnames);
 
+		// The base table of a softdelete class also tells us if the object has
+		// been deleted
+		$loadDeleted = $table == static::$_meta['table'] && static::$_meta['softdelete'];
+		$columns = '`'.implode('`,`', $fieldnames).'`';
+		if ($loadDeleted)
+			$columns .= ", `deleted` as `".self::_DELETED_ALIAS."`";
+
 		// Get the data
-		$query = "select `".implode('`,`', $fieldnames)."` from `$table` where `$idfield` = :id";
+		$query = "select $columns from `$table` where `$idfield` = :id";
 
 		$stmt = $this->_PDO->prepare($query);
 		$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
 		$stmt->execute();
 		if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
 			$this->_assignDatasetValues($dataset, $row);
+			if ($loadDeleted)
+				$this->_deleted = (bool)(int)$row[self::_DELETED_ALIAS];
 		} else {
 			$this->_error('No results for dataset');
 		}

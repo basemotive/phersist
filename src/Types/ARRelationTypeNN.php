@@ -53,6 +53,12 @@ class ARRelationTypeNN extends ARRelationType {
 				$datasetTables[$column['table']] = true;
 			}
 
+		// For a softdelete class, the base table tells whether each object has
+		// been deleted
+		$deletedColumn = ActiveRecord::_getDeletedColumn($className);
+		if ($deletedColumn !== null)
+			$extraFields .= ", `$baseTable`.`{$deletedColumn['field']}` as `{$deletedColumn['alias']}`";
+
 		// Build the query
 		$query = "select `{$baseTable}`.`{$idField}` $extraFields from `{$rel['table']}`";
 		if ($baseTable != $rel['table']) // Join the related object so we skip rows that refer to a missing object
@@ -81,11 +87,12 @@ class ARRelationTypeNN extends ARRelationType {
 		while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
 			// We use the fetchObject method instead of the constructor so the
 			// ActiveRecord can handle the caching. If we're restoring the complete
-			// objects, the row holds the autoload dataset for it to assign.
+			// objects, the row holds the autoload dataset for it to assign, and
+			// for a softdelete class whether the object has been deleted.
 			$objects[] = ActiveRecord::fetchObject(
 				$className,
 				(int)$row[$idField],
-				$rel['load_objects'] ? $row : null
+				$rel['load_objects'] || $deletedColumn !== null ? $row : null
 			);
 		}
 		$stmt->closeCursor();

@@ -213,6 +213,14 @@ class ObjectFinder {
 			}
 		}
 
+		// For a softdelete class, the base table tells whether each object has
+		// been deleted, which only includeDeletedRecords() can yield
+		$deletedColumn = ActiveRecord::_getDeletedColumn($this->className);
+		if ($deletedColumn !== null) {
+			$extraFields .= ", `$baseTable`.`{$deletedColumn['field']}` as `{$deletedColumn['alias']}`";
+			$groupBys[] = "`$baseTable`.`{$deletedColumn['field']}`";
+		}
+
 		// Sorting
 		// TODO This is not optimal because it now only works on properties of the
 		// class itself, and not properties/values we imported from other tables
@@ -289,7 +297,7 @@ class ObjectFinder {
 			$objects[] = ActiveRecord::fetchObject(
 				$this->className,
 				(int)$row[$idField],
-				$this->full ? $row : null
+				$this->full || $deletedColumn !== null ? $row : null
 			);
 		}
 

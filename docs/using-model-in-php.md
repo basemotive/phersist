@@ -72,7 +72,7 @@ $user->name = 'Joseph Example';
 $user->commit();
 ```
 
-`User::fetch($id)` is a shortcut for `ActiveRecord::fetchObject(User::class, $id)`. It returns an object without querying the database, so it doesn't tell you whether the row exists (see [Check existence](#check-existence)); the data is loaded when you first read a property. With `ObjectCache` enabled, it returns the instance that is already in use for that id.
+`User::fetch($id)` is a shortcut for `ActiveRecord::fetchObject(User::class, $id)`. It returns an object without querying the database, so it doesn't tell you whether the row exists (see [Check existence](#check-existence)); the data is loaded when you first read a property. Reading a property of an object without a row throws an exception, and so does committing changes to it, before anything is stored (including relations and maps). With `ObjectCache` enabled, it returns the instance that is already in use for that id.
 
 The constructor is for new objects only: `new User(123)` throws an exception.
 
@@ -104,7 +104,7 @@ This removes the object's row. References to it are cleaned up as well: rows in 
 
 After `delete()`, the object's lifecycle has ended: its `id` becomes `null`, and setting a property (including map entries) or calling `commit()` on it throws an exception, instead of inserting it again as a new row. Properties that were already loaded can still be read; properties that weren't read as `null`. To store the same data again, create a new object. Use `$user->isDeleted()` to check whether an object has been deleted.
 
-If the class uses `softdelete="true"`, `delete()` only sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but its relations are left alone and objects that refer to it keep working: their `Class` properties and relations still return it. The object itself keeps its `id` and can still be read, including properties, relations and maps that weren't loaded yet, and `reload()` works on it; only changing and committing it throws an exception, like after a normal delete. `exists()` returns `false` for it, unless you pass `true` (see [Check existence](#check-existence)).
+If the class uses `softdelete="true"`, `delete()` only sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but its relations are left alone and objects that refer to it keep working: their `Class` properties and relations still return it. The object itself keeps its `id` and can still be read, including properties, relations and maps that weren't loaded yet, and `reload()` works on it; only changing and committing it throws an exception, like after a normal delete. This also holds for an instance that is fetched again later, for example in another request: as soon as its base table data is loaded (by reading a property in that table, or through `ObjectFinder` or a relation), `isDeleted()` returns `true`, and committing changes that were set before that throws as well. `exists()` returns `false` for it, unless you pass `true` (see [Check existence](#check-existence)).
 
 ### Transactions
 

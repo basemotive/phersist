@@ -113,7 +113,7 @@ try {
 		$sql = $mysqlGenerator->generate();
 		file_put_contents($mysqlFile, $sql);
 	}
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
 	echo "ERROR: {$e->getMessage()}\n";
 	exit(1);
 }

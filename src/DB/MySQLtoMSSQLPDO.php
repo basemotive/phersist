@@ -37,19 +37,23 @@ class MySQLtoMSSQLPDO extends \PDO {
     }
 
     private function convertMySQLToMSSQL(string $query) : string {
-        // --- mask string literals, so the conversions below don't touch them ---
+        // --- mask string literals and quoted names, so the conversions below
+        // don't touch them. Both are matched in one pass from left to right, so
+        // a quote in a name or a backtick in a string can't confuse the other.
+        // MySQL backtick names (`col`, with `` for a backtick) become MSSQL
+        // bracket names ([col], with ]] for a closing bracket) ---
         $literals = [];
         $query = preg_replace_callback(
-            '/\'(?:[^\'\\\\]|\\\\.|\'\')*\'|"(?:[^"\\\\]|\\\\.|"")*"/s',
+            '/\'(?:[^\'\\\\]|\\\\.|\'\')*\'|"(?:[^"\\\\]|\\\\.|"")*"|`((?:[^`]|``)*)`/s',
             function (array $m) use (&$literals) : string {
-                $literals[] = $m[0];
+                if (isset($m[1]))
+                    $literals[] = '[' . str_replace(['``', ']'], ['`', ']]'], $m[1]) . ']';
+                else
+                    $literals[] = $m[0];
                 return "\0" . (count($literals) - 1) . "\0";
             },
             $query
         );
-
-        // --- replace MySQL backticks (`col`) with MSSQL brackets ([col]) ---
-        $query = preg_replace('/`([^`]*)`/', '[$1]', $query);
 
         // --- convert a trailing LIMIT clause to OFFSET/FETCH ---
         $limitPattern = '/\s+LIMIT\s+(\d+)(?:\s*,\s*(\d+)|\s+OFFSET\s+(\d+))?\s*;?\s*$/i';
@@ -81,7 +85,7 @@ class MySQLtoMSSQLPDO extends \PDO {
             }
         }
 
-        // --- restore the string literals ---
+        // --- restore the string literals and names ---
         $query = preg_replace_callback(
             '/\0(\d+)\0/',
             fn(array $m) : string => $literals[(int)$m[1]],

@@ -471,7 +471,8 @@ class ActiveRecord implements \ArrayAccess {
 	 *   reloading an object with uncommitted changes throws an exception
 	 */
 	public function reload(bool $discard = false) : void {
-		if ($this->_deleted)
+		// A softdeleted object can still be read, so it can be reloaded as well
+		if ($this->_deleted && !static::$_meta['softdelete'])
 			$this->_error('Cannot reload a deleted object');
 
 		// A new object has nothing in the database to reload from
@@ -493,9 +494,13 @@ class ActiveRecord implements \ArrayAccess {
 
 	/**
 	 * Deletes this object from the database.
+	 *
+	 * For a class with softdelete, the object keeps its id and stays in the
+	 * ObjectCache, because objects that refer to it keep working: it can still
+	 * be read, but not changed or committed anymore.
 	 */
 	public function delete() : void {
-		if ($this->id === null)
+		if ($this->id === null || $this->_deleted)
 			return;
 
 		// Cascading deletes may lead back to an object that is being deleted
@@ -510,10 +515,12 @@ class ActiveRecord implements \ArrayAccess {
 			$this->_transaction(function() {
 				$this->_deleteRows();
 
-				// Self-evict this instance from the ObjectCache
-				ObjectCache::evict($this);
-
-				$this->_data[static::$_meta['id']] = null;
+				// A hard deleted object is gone from the database, so it loses its
+				// id and its place in the ObjectCache
+				if (!static::$_meta['softdelete']) {
+					ObjectCache::evict($this);
+					$this->_data[static::$_meta['id']] = null;
+				}
 				$this->_deleted = true;
 			});
 		} finally {

@@ -117,7 +117,7 @@ Soft delete is opt-in and meant for the exceptional case where a record must sta
 
 - `delete()` marks the row as deleted (`deleted = 1`) rather than physically removing it
 - default finder queries hide deleted rows; call `includeDeletedRecords(true)` to include them
-- relation rows and references from other objects are left alone, so the record stays usable wherever it is referenced: a `Class` property pointing at a soft-deleted object still returns it, with all its data, and relations still list it. So when you rewrite a relation from its loaded value (`$msg->tags = [...$msg->tags, $tag]`), soft-deleted objects keep their place in it. Use `exists()` if you need to know whether an object is still active.
+- relation rows and references from other objects are left alone, so the record stays usable wherever it is referenced: a `Class` property pointing at a soft-deleted object still returns it, with all its data, and relations still list it. So when you rewrite a relation from its loaded value (`$msg->tags = [...$msg->tags, $tag]`), soft-deleted objects keep their place in it. The deleted object itself keeps its `id` and can still be read (but not changed or committed), so this also holds for objects that were already loaded and share the same instance, for example through the `ObjectCache`. Use `exists()` or `isDeleted()` if you need to know whether an object is still active; `isDeleted()` only knows about a `delete()` on that instance, so an object that is fetched again in a later request returns `false`.
 
 Use soft delete as a deliberate lifecycle choice; it adds operational complexity and should be applied intentionally.
 

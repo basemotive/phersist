@@ -90,7 +90,7 @@ $user->reload();
 
 An object keeps the values it loaded, even when the database changes. This happens when another process updates the row, or when you delete an object that this one refers to (see [Deleting objects with relations](creating-model-from-xml.md#deleting-objects-with-relations)). `reload()` makes the object forget its loaded properties, relations and maps, so they are loaded from the database again when you next read them. A `Map` or relation array that you got from the object before reloading keeps the old values, so read the property again. Such a `Map` can still be read, but changing it throws an exception, because the object no longer commits it. The same goes for a `Map` that you read during a transaction that is rolled back afterwards (see [Transactions](#transactions)), unless it was already loaded before the object was first committed or deleted in that transaction.
 
-If the object has uncommitted changes, `reload()` throws an exception, so you don't lose them by accident. Use `$user->reload(true)` to discard them. Reloading a new object that hasn't been committed yet, or a deleted object, also throws an exception.
+If the object has uncommitted changes, `reload()` throws an exception, so you don't lose them by accident. Use `$user->reload(true)` to discard them. Reloading a new object that hasn't been committed yet, or a deleted object, also throws an exception; a soft-deleted object can be reloaded, though.
 
 ### Delete
 
@@ -104,7 +104,7 @@ This removes the object's row. References to it are cleaned up as well: rows in 
 
 After `delete()`, the object's lifecycle has ended: its `id` becomes `null`, and setting a property (including map entries) or calling `commit()` on it throws an exception, instead of inserting it again as a new row. Properties that were already loaded can still be read; properties that weren't read as `null`. To store the same data again, create a new object. Use `$user->isDeleted()` to check whether an object has been deleted.
 
-If the class uses `softdelete="true"`, `delete()` only sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but its relations are left alone and objects that refer to it keep working: their `Class` properties and relations still return it.
+If the class uses `softdelete="true"`, `delete()` only sets `deleted = 1` instead of removing the row. The object becomes inactive (finder queries skip it), but its relations are left alone and objects that refer to it keep working: their `Class` properties and relations still return it. The object itself keeps its `id` and can still be read, including properties, relations and maps that weren't loaded yet, and `reload()` works on it; only changing and committing it throws an exception, like after a normal delete. `exists()` returns `false` for it, unless you pass `true` (see [Check existence](#check-existence)).
 
 ### Transactions
 

@@ -393,7 +393,7 @@ class MySQLGenerator {
 				$map->getAttribute('id') : $this->getAuto('relation_id', $className);
 			$objectTypeField = $map->hasAttribute('type') ? $map->getAttribute('type') : false;
 
-			$result[$tableName] = [];
+			$fields = [];
 
 			$keyElements = $map->getElementsByTagName('key');
 
@@ -407,7 +407,7 @@ class MySQLGenerator {
 				$ownerIndex = $keyIndex = ['uniqueName' => 'uniq_' . $idField];
 
 			if ($objectTypeField) {
-				$result[$tableName][] = [
+				$fields[] = [
 					'fieldName' => $objectTypeField,
 					'fieldType' => 'VARCHAR(191)',
 					'required' => true,
@@ -415,7 +415,7 @@ class MySQLGenerator {
 				] + $ownerIndex;
 			}
 
-			$result[$tableName][] = [
+			$fields[] = [
 				'fieldName' => $idField,
 				'fieldType' => 'INT UNSIGNED',
 				'required' => true,
@@ -427,7 +427,7 @@ class MySQLGenerator {
 			// 'a' is not 'a '). Map keys and values are always UTF-8, whatever
 			// the charset of the table.
 			foreach ($keyElements as $keyElement)
-				$result[$tableName][] = [
+				$fields[] = [
 					'fieldName' => $keyElement->getAttribute('name'),
 					'fieldType' => 'VARCHAR(191) CHARACTER SET utf8mb4 COLLATE ' . static::MAP_COLLATION,
 					'required' => true,
@@ -438,12 +438,16 @@ class MySQLGenerator {
 			if ($valueElements->length != 1)
 				throw new \Exception("Map {$map->getAttribute('name')} of class {$classElement->getAttribute('name')} must have exactly one <value>, found {$valueElements->length}");
 			foreach ($valueElements as $valueElement)
-			$result[$tableName][] = [
+			$fields[] = [
 				'fieldName' => $valueElement->getAttribute('name'),
 				'fieldType' => 'TEXT CHARACTER SET utf8mb4 COLLATE ' . static::MAP_COLLATION,
 				'required' => true,
 				'primaryKey' => false,
 			];
+
+			// XMLLoader only lets maps of different classes share a table, with
+			// the same columns
+			$this->addFields($result, $tableName, $fields);
 		}
 
 		return $result;

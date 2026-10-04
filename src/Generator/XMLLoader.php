@@ -49,6 +49,7 @@ class XMLLoader {
 
 		self::checkElements($doc->documentElement);
 		self::checkRelations($doc->documentElement);
+		self::checkMaps($doc->documentElement);
 
 		return $doc->documentElement;
 	}
@@ -369,6 +370,77 @@ class XMLLoader {
 						." cannot have table_owner=\"true\", because its table '{$table}' is a table of class '{$tableClasses[$table]}'."
 						.' A relation on a class\'s table is derived and must be read-only: use table_owner="false",'
 						.' and change the property of the related objects instead');
+			}
+	}
+
+	/**
+	 * Checks the tables of the maps. A map selects its rows by owner (and by
+	 * class name, with a type column), and replaces all of them on commit, so
+	 * it needs a table of its own:
+	 *
+	 * - A map can't use a table of a class or a relation. Its rows would be
+	 *   read as map data and deleted, and the map's columns are required.
+	 * - Maps of the same class can't share a table: they would load and delete
+	 *   each other's rows.
+	 * - Maps of different classes can share a table only with a type column
+	 *   that tells their rows apart, and with the same columns.
+	 *
+	 * @param DOMElement $root the root element of the XML tree
+	 * @throws \Exception if a map uses a table that it can't
+	 */
+	private static function checkMaps(DOMElement $root) : void {
+		$classElements = $root->getElementsByTagName('class');
+
+		$usedTables = [];
+		foreach ($classElements as $classElement) {
+			$className = $classElement->getAttribute('name');
+			foreach (self::getClassTables($classElement) as $table)
+				$usedTables[$table] ??= "a table of class '{$className}'";
+			foreach ($classElement->getElementsByTagName('relation') as $relation)
+				$usedTables[$relation->getAttribute('table')] ??=
+					"the table of relation '{$relation->getAttribute('name')}' of class '{$className}'";
+		}
+
+		$mapTables = [];
+		foreach ($classElements as $classElement)
+			foreach ($classElement->getElementsByTagName('map') as $map) {
+				$className = $classElement->getAttribute('name');
+				$mapName = $map->getAttribute('name');
+				$table = $map->getAttribute('table');
+				$description = "Map '{$mapName}' of class '{$className}'";
+
+				if (isset($usedTables[$table]))
+					throw new \Exception("{$description} cannot use table '{$table}', because it is {$usedTables[$table]}."
+						.' A map replaces all rows of its owner on commit, so it needs a table of its own');
+
+				$columns = [
+					'id' => $map->getAttribute('id') != '' ?
+						$map->getAttribute('id') : self::getAuto($root, 'relation_id', $className),
+					'type' => $map->getAttribute('type'),
+					'keys' => [],
+					'values' => [],
+				];
+				foreach ($map->getElementsByTagName('key') as $key)
+					$columns['keys'][] = $key->getAttribute('name');
+				foreach ($map->getElementsByTagName('value') as $value)
+					$columns['values'][] = $value->getAttribute('name');
+
+				if (!isset($mapTables[$table])) {
+					$mapTables[$table] = [ 'class' => $className, 'map' => $mapName, 'columns' => $columns ];
+					continue;
+				}
+
+				$other = $mapTables[$table];
+				$otherDescription = "map '{$other['map']}' of class '{$other['class']}'";
+				if ($other['class'] == $className)
+					throw new \Exception("{$description} cannot use table '{$table}', because {$otherDescription} already does."
+						.' Maps of the same class would load and delete each other\'s rows, so each needs a table of its own');
+				if ($columns['type'] === '' || $other['columns']['type'] === '')
+					throw new \Exception("{$description} shares table '{$table}' with {$otherDescription},"
+						.' so both need a type attribute: the type column stores the class name that tells their rows apart');
+				if ($columns != $other['columns'])
+					throw new \Exception("{$description} shares table '{$table}' with {$otherDescription},"
+						.' so it must have the same id, type, <key> and <value> column names');
 			}
 	}
 

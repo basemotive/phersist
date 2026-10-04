@@ -599,7 +599,16 @@ ALTER TABLE `user_settings`
     ADD UNIQUE INDEX `uniq_user_id` (`object_type`, `user_id`, `key_name`);
 ```
 
+### Map tables
+
+A map loads all rows of its owner from its table, and on commit replaces them, so a map needs a table of its own. The generator reports an error when a map's `table` is:
+
+- the base or dataset table of a class, or the table of a relation;
+- the table of another map of the same class.
+
 ### Shared map tables and `use_namespace`
+
+Maps of different classes can share a table, as long as each of them has a `type` attribute: the `type` column stores the class name that tells their rows apart. The maps must use the same column names for `id`, `type`, `<key>` and `<value>`. Since the default `id` column is derived from the class name, set `id` explicitly on shared maps. The generator reports an error otherwise.
 
 When multiple classes share the same map table, the `type` column acts as a class discriminator to filter rows belonging to each class.  
 By default (`use_namespace="false"`), the **short class name** is stored — just the final segment without namespace:

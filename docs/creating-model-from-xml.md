@@ -504,7 +504,7 @@ A cascade may lead back to an object that is already being deleted, for example 
 
 The whole delete runs in one transaction, so if one step fails, nothing is deleted. Objects that are already in memory are not updated: a `Page` you loaded before deleting its picture still returns the deleted `Picture` object (which no longer has an `id`), and a relation array that was already loaded still contains it. Call `reload()` on such objects to see the change; see [Reload](using-model-in-php.md#reload).
 
-This matters when you change such a relation afterwards: if you build the new value from the loaded array, for example `$picture->pages = [...$picture->pages, $newPage]`, it still contains the deleted object, and `commit()` throws "Cannot commit a reference to an object that has not been committed itself". Reload the object first, or leave deleted objects out (`$object->isDeleted()`).
+This matters when you change such a relation afterwards: if you build the new value from the loaded array, for example `$picture->pages = [...$picture->pages, $newPage]`, it still contains the deleted object, and `commit()` throws "Cannot commit a reference to an object that has been deleted". Reload the object first, or leave deleted objects out (`$object->isDeleted()`).
 
 If soft delete is involved, two things differ:
 

@@ -89,11 +89,14 @@ class ARRelationTypeNN extends ARRelationType {
 			// ActiveRecord can handle the caching. If we're restoring the complete
 			// objects, the row holds the autoload dataset for it to assign, and
 			// for a softdelete class whether the object has been deleted.
-			$objects[] = ActiveRecord::fetchObject(
+			$object = ActiveRecord::fetchObject(
 				$className,
 				(int)$row[$idField],
 				$rel['load_objects'] || $deletedColumn !== null ? $row : null
 			);
+			// The id comes from the base table, so references to it don't need a check
+			$object?->_markRowSeen();
+			$objects[] = $object;
 		}
 		$stmt->closeCursor();
 

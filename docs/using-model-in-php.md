@@ -76,6 +76,8 @@ $user->commit();
 
 The constructor is for new objects only: `new User(123)` throws an exception.
 
+When you commit a `Class` or `DynamicClass` property or an owned relation, `commit()` checks that the objects it refers to exist in the database, and throws an exception otherwise, before anything is stored. So `$message->user = User::fetch($idFromRequest)` can't store a reference to a user that doesn't exist. Referring to a soft-deleted object is fine, as its row is still there. To keep this cheap, objects whose row has already been seen are not checked again: objects you committed yourself, objects from `ObjectFinder` or a relation, and objects whose properties were read or whose `exists()` returned `true`. The others are checked with one query per class. Only properties and relations that changed are checked. This can't rule out that another request deletes a row in the meantime; use foreign keys in the database if you need that guarantee.
+
 `commit()` only writes the properties that changed since the object was loaded or last committed. If nothing changed, it does nothing at all, so it's safe to call unconditionally. (A new object is always inserted on its first `commit()`, even if nothing was set.)
 
 Assigning a property the value it already has (compared with `===` after conversion, and by moment in time for dates) doesn't count as a change. The exception is a property whose dataset hasn't been loaded yet: its current value isn't known, so the assignment is always treated as a change.

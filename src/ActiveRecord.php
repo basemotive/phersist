@@ -154,6 +154,9 @@ class ActiveRecord implements \ArrayAccess {
 		// If this fails, the transaction restores the state from before, so a
 		// new object loses the id it got from the rolled back insert
 		$this->_transaction(function() {
+			// Referenced objects need a row, which may be softdeleted
+			$this->_checkReferencedRows();
+
 			$isNew = $this->id === null;
 			$this->_store($isNew);
 
@@ -252,8 +255,10 @@ class ActiveRecord implements \ArrayAccess {
 					}
 				}
 				$stmt->execute();
-				if ($table == $baseTable)
+				if ($table == $baseTable) {
 					$this->_data[$idfield] = (int)$this->_PDO->lastInsertId();
+					$this->_rowSeen = true;
+				}
 			} elseif (count($updates)>0) { // The check is because we always process our base table
 				// Existing object, so update the modified values
 				// Numbered placeholders, see above; they also can't clash with :id
@@ -287,6 +292,8 @@ class ActiveRecord implements \ArrayAccess {
 				// rolls back what was already written.
 				if ($stmt->rowCount() == 0)
 					$this->_error($this->_missingRowMessage($table));
+				if ($table == $baseTable)
+					$this->_rowSeen = true;
 			} elseif ($table == $baseTable && !$this->exists()) {
 				// Nothing changes in the base table, but the relations and maps must
 				// not be stored for a row that doesn't exist
@@ -366,6 +373,7 @@ class ActiveRecord implements \ArrayAccess {
 		$data = $this->_data;
 		$changed = $this->_changed;
 		$deleted = $this->_deleted;
+		$rowSeen = $this->_rowSeen;
 		$cached = $this->id !== null && ObjectCache::get(static::class, $this->id) === $this;
 
 		// Maps keep their data in their own object, which stays in $data
@@ -374,7 +382,7 @@ class ActiveRecord implements \ArrayAccess {
 			if (isset($this->_data[$key]))
 				$maps[] = $this->_data[$key]->_snapshot();
 
-		return function() use ($data, $changed, $deleted, $cached, $maps) : void {
+		return function() use ($data, $changed, $deleted, $rowSeen, $cached, $maps) : void {
 			// Evict the entry for the id we may have gotten after the snapshot
 			ObjectCache::evict($this);
 
@@ -386,6 +394,7 @@ class ActiveRecord implements \ArrayAccess {
 			$this->_data = $data;
 			$this->_changed = $changed;
 			$this->_deleted = $deleted;
+			$this->_rowSeen = $rowSeen;
 			foreach ($maps as $restore)
 				$restore();
 
@@ -417,30 +426,98 @@ class ActiveRecord implements \ArrayAccess {
 
 	/**
 	 * Checks that the changed properties and relations don't refer to objects
-	 * that haven't been committed yet.
+	 * that haven't been committed yet, or have been hard deleted.
 	 *
 	 * Such objects have no id, so the reference would end up as NULL in the
 	 * database. Referenced objects are not committed automatically.
 	 */
 	private function _checkReferences() : void {
 		$uncommitted = [];
-		foreach ($this->_changed as $key) {
-			$value = $this->_data[$key] ?? null;
+		$deleted = [];
+		foreach ($this->_referencedObjects() as [$key, $object])
+			if ($object->id === null) {
+				// A hard deleted object has lost its id as well
+				if ($object->_deleted)
+					$deleted[$key] = $key;
+				else
+					$uncommitted[$key] = $key;
+			}
 
-			if ($this->_getDatasetFor($key) != null) {
-				if ($value instanceof ActiveRecord && $value->id === null)
-					$uncommitted[] = $key;
-			} elseif (isset(static::$_meta['relations'][$key]) && static::$_meta['relations'][$key]['table_owner']) {
-				foreach ((array)$value as $object)
-					if ($object instanceof ActiveRecord && $object->id === null) {
-						$uncommitted[] = $key;
-						break;
+		if (count($deleted) > 0)
+			$this->_error('Cannot commit a reference to an object that has been deleted: '.implode(', ', $deleted));
+		if (count($uncommitted) > 0)
+			$this->_error('Cannot commit a reference to an object that has not been committed itself: '.implode(', ', $uncommitted));
+	}
+
+	/**
+	 * Checks that the objects referred to by the changed properties and
+	 * relations have a row in the database. Softdeleted rows count as well.
+	 *
+	 * Objects whose row has been seen already, because they were inserted or
+	 * loaded, are not checked again. The others are checked with one query per
+	 * class. Without foreign keys, this can't rule out that another request
+	 * hard deletes a row in the meantime.
+	 */
+	private function _checkReferencedRows() : void {
+		// Map of form 'classname' => [ id => [ [key, object], ... ] ]
+		$unseen = [];
+		foreach ($this->_referencedObjects() as [$key, $object])
+			if (!$object->_rowSeen)
+				$unseen[get_class($object)][$object->id][] = [$key, $object];
+
+		$missing = [];
+		foreach ($unseen as $class => $references) {
+			$meta = self::_getMeta($class);
+			$table = $meta['table'];
+			$idfield = $meta['id'];
+			$PDO = reset($references)[0][1]->_PDO;
+
+			// Chunked, as databases limit the number of placeholders in a query
+			foreach (array_chunk(array_keys($references), 500) as $ids) {
+				$placeholders = implode(', ', array_map(fn($index) => ':p'.$index, array_keys($ids)));
+				$stmt = $PDO->prepare("select `$idfield` from `$table` where `$idfield` in ($placeholders)");
+				foreach ($ids as $index => $id)
+					$stmt->bindValue(':p'.$index, $id, \PDO::PARAM_INT);
+				$stmt->execute();
+				$found = [];
+				while ($row = $stmt->fetch(\PDO::FETCH_ASSOC))
+					$found[(int)$row[$idfield]] = true;
+				$stmt->closeCursor();
+
+				foreach ($ids as $id)
+					foreach ($references[$id] as [$key, $object]) {
+						if (isset($found[$id]))
+							$object->_rowSeen = true;
+						else
+							$missing[$key] = $key;
 					}
 			}
 		}
 
-		if (count($uncommitted) > 0)
-			$this->_error('Cannot commit a reference to an object that has not been committed itself: '.implode(', ', $uncommitted));
+		if (count($missing) > 0)
+			$this->_error("Cannot commit a reference to an object that doesn't exist: ".implode(', ', $missing));
+	}
+
+	/**
+	 * Lists the objects that the changed properties and owned relations refer to.
+	 *
+	 * @return list<array{string, ActiveRecord}> pairs of the key and the object
+	 */
+	private function _referencedObjects() : array {
+		$objects = [];
+		foreach ($this->_changed as $key) {
+			$value = $this->_data[$key] ?? null;
+
+			if ($this->_getDatasetFor($key) != null) {
+				if ($value instanceof ActiveRecord)
+					$objects[] = [$key, $value];
+			} elseif (isset(static::$_meta['relations'][$key]) && static::$_meta['relations'][$key]['table_owner']) {
+				foreach ((array)$value as $object)
+					if ($object instanceof ActiveRecord)
+						$objects[] = [$key, $object];
+			}
+		}
+		return $objects;
 	}
 
 	/**
@@ -478,6 +555,9 @@ class ActiveRecord implements \ArrayAccess {
 		if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) $exists = true;
 		$stmt->closeCursor();
 
+		if ($exists)
+			$this->_rowSeen = true;
+
 		return $exists;
 	}
 
@@ -489,6 +569,16 @@ class ActiveRecord implements \ArrayAccess {
 	 */
 	public function isDeleted() : bool {
 		return $this->_deleted;
+	}
+
+	/**
+	 * Tells this object that its base table row has been seen in the database,
+	 * so commit() doesn't check that row when another object refers to it.
+	 * For internal use by queries that only return existing objects, like
+	 * those of ObjectFinder and relations.
+	 */
+	public function _markRowSeen() : void {
+		$this->_rowSeen = true;
 	}
 
 	/**
@@ -548,6 +638,7 @@ class ActiveRecord implements \ArrayAccess {
 				if (!static::$_meta['softdelete']) {
 					ObjectCache::evict($this);
 					$this->_data[static::$_meta['id']] = null;
+					$this->_rowSeen = false;
 				}
 				$this->_deleted = true;
 			});
@@ -837,6 +928,8 @@ class ActiveRecord implements \ArrayAccess {
 			$this->_assignDatasetValues($dataset, $row);
 			if ($loadDeleted)
 				$this->_deleted = (bool)(int)$row[self::_DELETED_ALIAS];
+			if ($table == static::$_meta['table'])
+				$this->_rowSeen = true;
 		} else {
 			$this->_error('No results for dataset');
 		}
@@ -1113,6 +1206,13 @@ class ActiveRecord implements \ArrayAccess {
 
 	/** If this object has been deleted, after which it cannot be modified or committed again */
 	private bool $_deleted = false;
+
+	/**
+	 * If this object's base table row has been seen in the database, so a
+	 * reference to it doesn't need to be checked on commit. Not serialized,
+	 * as the row may be gone in a later request.
+	 */
+	private bool $_rowSeen = false;
 
 	/** The PDO database connection */
 	protected ?\PDO $_PDO;

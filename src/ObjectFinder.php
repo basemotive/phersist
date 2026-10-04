@@ -294,11 +294,14 @@ class ObjectFinder {
 		while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
 			// we use the fetchObject method instead of the constructor so the
 			// ActiveRecord can handle the caching
-			$objects[] = ActiveRecord::fetchObject(
+			$object = ActiveRecord::fetchObject(
 				$this->className,
 				(int)$row[$idField],
 				$this->full || $deletedColumn !== null ? $row : null
 			);
+			// The row comes from the base table, so references to it don't need a check
+			$object?->_markRowSeen();
+			$objects[] = $object;
 		}
 
 		return $objects;

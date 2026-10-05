@@ -396,7 +396,7 @@ Extra attribute:
 
 When reading the property, a name with a namespace is used as is. With `use_namespace="false"`, a name without one is taken to be in the namespace of the class with the property, so fully-qualified stored names always load. Searches and the cleanup of references on delete, however, only match the form the property currently writes. When changing `use_namespace` on an existing property, update the stored names.
 
-A [derived relation](#polymorphic-relations-and-use_namespace) whose `local_type` is the class-name column of a `DynamicClass` property should use the same `use_namespace` value, so it matches the stored names.
+A [derived relation](#read-only-and-derived-relations) whose `local_id` is the id column of a `DynamicClass` property must have the property's class-name column as `local_type`, and the same `use_namespace` value, so it matches the stored names.
 
 In the generated MySQL schema, the class-name column is `VARCHAR(191)` and the id column is `INT UNSIGNED`, indexed together.
 
@@ -469,6 +469,13 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 A relation with `table_owner="false"` is **read-only**: it is loaded from its table, but never written. Assigning to it throws an exception; change the data on the side that owns it instead.
 
 A **derived relation** is a read-only relation whose `table` is one of the related class's own tables. It is derived from a property of the related class, like a `Forum.messages` relation that reads the `forum_id` column of the `ForumMessage.forum` property. A derived relation must be read-only, since its rows are the related objects themselves: writing the relation would delete their data. The generator therefore rejects `table_owner="true"` when `table` is the base or dataset table of any class in the XML. To change which objects a derived relation lists, set the property of the related objects instead, like `$message->forum = $forum`.
+
+If the `local_id` of a relation on a class's table is the column of a property of that class, the property must refer to the relation's own class: a `Class` property with that `class`, or the id column of a `DynamicClass` property. Otherwise the relation would list the objects that refer to something else with the same ID, like `Forum.messages` with `local_id="author_id"` listing the messages of the user with the forum's ID. For a `DynamicClass` property, which can refer to any class, set `local_type` to its class-name column, and use the same `use_namespace` value as the property:
+
+```xml
+<relation name="comments" type="NN" class="Comment" table="comments"
+    local_id="target_id" remote_id="comment_id" local_type="target_class"/>
+```
 
 A relation can't use one of its own class's tables, unless it relates to that same class, like a `ForumMessage.replies` relation that reads the `parent_message_id` column of other messages. To another class, such a relation would hold at most one object, read from the object's own row: use a `Class` property for that instead.
 

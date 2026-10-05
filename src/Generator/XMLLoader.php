@@ -359,6 +359,12 @@ class XMLLoader {
 	 * - A relation can't own a table that holds a class. Such a relation is
 	 *   derived: its rows are the objects of that class, so writing the
 	 *   relation would delete their data.
+	 * - If the local_id column of a relation on a class's table belongs to a
+	 *   property, that property must refer to the relation's class: a Class
+	 *   property of that class, or the id column of a DynamicClass property,
+	 *   with the relation's local_type on its class-name column and the same
+	 *   use_namespace. Otherwise the relation would list objects that refer
+	 *   to something else with the same ID.
 	 * - Relations on the same join table (one that holds no class) and with
 	 *   the same local_id column select their rows by the same object ID:
 	 *   - Relations of different classes would read each other's rows, since
@@ -406,8 +412,12 @@ class XMLLoader {
 						.' A relation on a class\'s table is derived and must be read-only: use table_owner="false",'
 						.' and change the property of the related objects instead');
 
-				if (isset($tableClasses[$table]))
+				if (isset($tableClasses[$table])) {
+					foreach ($classElements as $tableClass)
+						if (in_array($table, self::getClassTables($tableClass)))
+							self::checkDerivedRelation($root, $relation, $className, $tableClass);
 					continue;
+				}
 
 				$localID = $relation->getAttribute('local_id');
 				$remoteID = $relation->getAttribute('remote_id');
@@ -436,6 +446,57 @@ class XMLLoader {
 					'local_type' => $localType, 'owner' => $owner,
 				];
 			}
+	}
+
+	/**
+	 * Checks that the local_id column of a relation on a class's table, if it
+	 * belongs to a property of that class, refers to the relation's own class.
+	 *
+	 * @param DOMElement $root the root element of the XML tree
+	 * @param DOMElement $relation the relation element
+	 * @param string $className the name of the class with the relation
+	 * @param DOMElement $tableClass the class element whose table the relation uses
+	 * @throws \Exception if the property refers to something else
+	 */
+	private static function checkDerivedRelation(DOMElement $root, DOMElement $relation, string $className, DOMElement $tableClass) : void {
+		$table = $relation->getAttribute('table');
+		$localID = $relation->getAttribute('local_id');
+		$localType = $relation->getAttribute('local_type');
+		$description = "Relation '{$relation->getAttribute('name')}' of class '{$className}'";
+
+		$baseTable = self::getClassTables($tableClass)[0];
+		foreach ($tableClass->getElementsByTagName('dataset') as $dataset) {
+			if (($dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $baseTable) != $table)
+				continue;
+
+			foreach ($dataset->getElementsByTagName('property') as $property) {
+				$type = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
+				$fieldNames = self::getFieldNames($property, $type);
+				if (!in_array($localID, $fieldNames))
+					continue;
+
+				$propertyDescription = "property '{$property->getAttribute('name')}' of class '{$tableClass->getAttribute('name')}'";
+				$prefix = "{$description} uses column '{$localID}' of table '{$table}' as local_id, which belongs to {$propertyDescription}";
+				if ($type == 'Class') {
+					if (self::qualifyClass($root, $property->getAttribute('class')) != self::qualifyClass($root, $className))
+						throw new \Exception("{$prefix}, a reference to class '{$property->getAttribute('class')}'."
+							." The relation would list the objects that refer to the {$property->getAttribute('class')} with the same ID:"
+							." use a column that refers to class '{$className}'");
+				} elseif ($type == 'DynamicClass') {
+					if ($localID != $fieldNames[1])
+						throw new \Exception("{$prefix}, as its class-name column. Use its id column '{$fieldNames[1]}' as local_id,"
+							." and its class-name column '{$fieldNames[0]}' as local_type");
+					if ($localType != $fieldNames[0])
+						throw new \Exception("{$prefix}, a DynamicClass that can refer to any class."
+							." Set local_type=\"{$fieldNames[0]}\", its class-name column, so the relation only lists the objects that refer to a {$className}");
+					if (self::getBool($relation, 'use_namespace') != self::getBool($property, 'use_namespace'))
+						throw new \Exception("{$description} must have the same use_namespace value as {$propertyDescription},"
+							.' so its local_type matches the stored class names');
+				} else
+					throw new \Exception("{$prefix}, of type {$type}, which doesn't refer to an object:"
+						." use a column that refers to class '{$className}'");
+			}
+		}
 	}
 
 	/**

@@ -358,6 +358,10 @@ class XMLLoader {
 	 * - property, relation and map names in a class, which are all accessed
 	 *   as $object->name. They can't be 'id' either, nor the name of the id
 	 *   column, which the object stores its id under.
+	 * - the tables of the classes (case-insensitive, since MySQL table names
+	 *   are on Windows and macOS): a table holds the objects of one class.
+	 *   Two classes on one table would see each other's rows as their own
+	 *   objects, and with dataset tables their IDs would even overlap.
 	 * - column names per table of a class (case-insensitive, like MySQL
 	 *   column names): the id column, the properties' columns, and the
 	 *   softdelete column 'deleted' in the base table.
@@ -369,6 +373,7 @@ class XMLLoader {
 		$problems = [];
 
 		$classNames = [];
+		$tableClasses = [];
 		foreach ($root->getElementsByTagName('class') as $classElement) {
 			$className = $classElement->getAttribute('name');
 			$description = self::describe($classElement);
@@ -403,6 +408,13 @@ class XMLLoader {
 			// The columns of each table: [ table => [ lowercase column => what uses it ] ]
 			$tables = self::getClassTables($classElement);
 			$baseTable = $tables[0];
+
+			foreach ($tables as $table) {
+				$other = $tableClasses[strtolower($table)] ??= $classElement;
+				if ($other !== $classElement)
+					$problems[] = "line {$classElement->getLineNo()}: {$description} uses table '{$table}', which is already a table of "
+						.self::describe($other)." on line {$other->getLineNo()}: give each class its own tables";
+			}
 			$columns = [];
 			foreach ($tables as $table)
 				$columns[$table] = [ strtolower($idColumn) => "the id column of {$description}" ];
@@ -461,6 +473,16 @@ class XMLLoader {
 	 *     rows of the other one.
 	 *   The two directions of one relation, with local_id and remote_id
 	 *   swapped, use different columns and are fine.
+	 * - The columns of a relation (local_id, remote_id, local_type and
+	 *   order_field) must be different, or its queries name a column twice.
+	 * - All columns of a join table are required, and each relation that owns
+	 *   it inserts rows with only its own columns. So all owners must use the
+	 *   same columns: the same local_type and order_field, and the same
+	 *   local_id and remote_id, possibly swapped. With an order_field they
+	 *   can't be swapped, though: the positions are per local_id, so the two
+	 *   directions would overwrite each other's positions. A relation that
+	 *   doesn't own the table can only use columns that its owners create; a
+	 *   table without owners isn't generated, so its columns aren't checked.
 	 *
 	 * @param DOMElement $root the root element of the XML tree
 	 * @throws \Exception if a relation uses a table that it can't
@@ -468,21 +490,32 @@ class XMLLoader {
 	private static function checkRelations(DOMElement $root) : void {
 		$classElements = $root->getElementsByTagName('class');
 
+		// checkUniqueNames() has made sure that a table belongs to one class at most
 		$tableClasses = [];
 		$classTables = [];
 		foreach ($classElements as $classElement) {
 			$tables = self::getClassTables($classElement);
 			$classTables[self::qualifyClass($root, $classElement->getAttribute('name'))] = $tables;
 			foreach ($tables as $table)
-				$tableClasses[$table] ??= $classElement->getAttribute('name');
+				$tableClasses[$table] = $classElement;
 		}
 
 		$joinTables = [];
+		$joinRelations = [];
 		foreach ($classElements as $classElement)
 			foreach ($classElement->getElementsByTagName('relation') as $relation) {
 				$className = $classElement->getAttribute('name');
 				$relationName = $relation->getAttribute('name');
 				$table = $relation->getAttribute('table');
+
+				$columns = self::getRelationColumns($relation);
+				$seen = [];
+				foreach ($columns as $attribute => $column) {
+					if (isset($seen[strtolower($column)]))
+						throw new \Exception("Relation '{$relationName}' of class '{$className}' uses column '{$column}' as both"
+							." {$seen[strtolower($column)]} and {$attribute}: each needs a column of its own");
+					$seen[strtolower($column)] = $attribute;
+				}
 
 				$ownTables = $classTables[self::qualifyClass($root, $className)];
 				$relatedTables = $classTables[self::qualifyClass($root, $relation->getAttribute('class'))] ?? [];
@@ -492,14 +525,12 @@ class XMLLoader {
 
 				if (self::getBool($relation, 'table_owner') && isset($tableClasses[$table]))
 					throw new \Exception("Relation '{$relationName}' of class '{$className}'"
-						." cannot have table_owner=\"true\", because its table '{$table}' is a table of class '{$tableClasses[$table]}'."
+						." cannot have table_owner=\"true\", because its table '{$table}' is a table of class '{$tableClasses[$table]->getAttribute('name')}'."
 						.' A relation on a class\'s table is derived and must be read-only: use table_owner="false",'
 						.' and change the property of the related objects instead');
 
 				if (isset($tableClasses[$table])) {
-					foreach ($classElements as $tableClass)
-						if (in_array($table, self::getClassTables($tableClass)))
-							self::checkDerivedRelation($root, $relation, $className, $tableClass);
+					self::checkDerivedRelation($root, $relation, $className, $tableClasses[$table]);
 					continue;
 				}
 
@@ -529,12 +560,78 @@ class XMLLoader {
 					'class' => $className, 'relation' => $relationName, 'remote_id' => $remoteID,
 					'local_type' => $localType, 'owner' => $owner,
 				];
+				$joinRelations[$table][] = [ 'description' => $description, 'owner' => $owner, 'columns' => $columns ];
 			}
+
+		foreach ($joinRelations as $table => $relations) {
+			$owners = array_values(array_filter($relations, fn($relation) => $relation['owner']));
+			if (!$owners)
+				continue;
+
+			// Compare the columns case-insensitively, like MySQL, with local_id and remote_id in any order
+			$normalize = function(array $columns) : array {
+				$columns = array_map('strtolower', $columns);
+				$ids = [ $columns['local_id'], $columns['remote_id'] ];
+				sort($ids);
+				return [ $ids, $columns['local_type'] ?? null, $columns['order_field'] ?? null ];
+			};
+			$first = $owners[0];
+			foreach (array_slice($owners, 1) as $other)
+				if ($normalize($other['columns']) != $normalize($first['columns']))
+					throw new \Exception("{$other['description']} owns table '{$table}' with columns ".self::describeColumns($other['columns'])
+						.", but ".lcfirst($first['description'])." owns it with columns ".self::describeColumns($first['columns']).'.'
+						.' All columns of a join table are required, and each owner inserts rows with only its own columns:'
+						.' give them the same local_type and order_field, and the same local_id and remote_id (swapped is fine)');
+
+			// The positions in the order field are per local_id, so an owner in the
+			// other direction would renumber the rows by its own order on commit
+			if (isset($first['columns']['order_field']))
+				foreach (array_slice($owners, 1) as $other)
+					if (strtolower($other['columns']['local_id']) != strtolower($first['columns']['local_id']))
+						throw new \Exception("{$other['description']} owns table '{$table}' in the other direction than ".lcfirst($first['description'])
+							.", but the table has order_field '{$first['columns']['order_field']}'. Its positions are per local_id,"
+							.' so each owner would overwrite the other\'s positions on commit: let one of them own the table,'
+							.' and give the other table_owner="false"');
+
+			$tableColumns = array_map('strtolower', $first['columns']);
+			foreach ($relations as $relation)
+				foreach ($relation['columns'] as $attribute => $column)
+					if (!in_array(strtolower($column), $tableColumns))
+						throw new \Exception("{$relation['description']} uses column '{$column}' as {$attribute}, which table '{$table}' doesn't have:"
+							." ".lcfirst($first['description'])." owns the table with columns ".self::describeColumns($first['columns']));
+		}
 	}
 
 	/**
-	 * Checks the columns of a relation on a class's table that belong to that
-	 * class: the id column, or the column of a property.
+	 * Returns the columns that a relation uses in its table.
+	 *
+	 * @param DOMElement $relation the relation element
+	 * @return array<string, string> the column names, by attribute: local_id, remote_id, and local_type and order_field if set
+	 */
+	private static function getRelationColumns(DOMElement $relation) : array {
+		$columns = [];
+		foreach ([ 'local_id', 'remote_id', 'local_type', 'order_field' ] as $attribute)
+			if ($relation->getAttribute($attribute) !== '')
+				$columns[$attribute] = $relation->getAttribute($attribute);
+		return $columns;
+	}
+
+	/**
+	 * Describes the columns of a relation for an error message, like "local_id 'user_id', remote_id 'tag_id'".
+	 *
+	 * @param array<string, string> $columns the columns, see getRelationColumns()
+	 * @return string the description
+	 */
+	private static function describeColumns(array $columns) : string {
+		return implode(', ', array_map(fn($attribute, $column) => "{$attribute} '{$column}'", array_keys($columns), $columns));
+	}
+
+	/**
+	 * Checks the columns of a relation on a class's table. The generator
+	 * doesn't create columns for such a relation, so all of them (local_id,
+	 * remote_id, and local_type and order_field if set) must exist in the
+	 * table: be the id column, the column of a property in that table, or the
+	 * softdelete column 'deleted' in the base table. Then:
 	 *
 	 * - local_id must refer to the class with the relation: be a Class
 	 *   property of that class, or the id column of a DynamicClass property,
@@ -547,18 +644,27 @@ class XMLLoader {
 	 *   class by.
 	 *
 	 * Otherwise the relation would list objects that refer to something else
-	 * with the same ID. A column that belongs to nothing isn't checked.
+	 * with the same ID. Column names are compared case-insensitively, like
+	 * MySQL does.
 	 *
 	 * @param DOMElement $root the root element of the XML tree
 	 * @param DOMElement $relation the relation element
 	 * @param string $className the name of the class with the relation
 	 * @param DOMElement $tableClass the class element whose table the relation uses
-	 * @throws \Exception if a column refers to something else
+	 * @throws \Exception if a column doesn't exist or refers to something else
 	 */
 	private static function checkDerivedRelation(DOMElement $root, DOMElement $relation, string $className, DOMElement $tableClass) : void {
 		$table = $relation->getAttribute('table');
 		$description = "Relation '{$relation->getAttribute('name')}' of class '{$className}'";
 		$tableClassName = $tableClass->getAttribute('name');
+		$idColumn = $tableClass->hasAttribute('id') ? $tableClass->getAttribute('id') : self::getAuto($root, 'id', $tableClassName);
+		$softdeleteColumn = self::getBool($tableClass, 'softdelete') && $table == self::getClassTables($tableClass)[0];
+
+		foreach (self::getRelationColumns($relation) as $attribute => $column)
+			if (strcasecmp($column, $idColumn) != 0 && self::findColumnProperty($tableClass, $table, $column) === null
+					&& !($softdeleteColumn && strcasecmp($column, 'deleted') == 0))
+				throw new \Exception("{$description} uses column '{$column}' as {$attribute}, but table '{$table}' of class '{$tableClassName}'"
+					." doesn't have it: use its id column '{$idColumn}' or the column of a property in that table");
 
 		$sides = [
 			'local_id' => $className,
@@ -569,8 +675,7 @@ class XMLLoader {
 			$prefix = "{$description} uses column '{$column}' of table '{$table}' as {$attribute}, which";
 			$fix = "use a column that refers to class '{$refersTo}'";
 
-			$idColumn = $tableClass->hasAttribute('id') ? $tableClass->getAttribute('id') : self::getAuto($root, 'id', $tableClassName);
-			if ($column == $idColumn) {
+			if (strcasecmp($column, $idColumn) == 0) {
 				$sameClass = self::qualifyClass($root, $tableClassName) == self::qualifyClass($root, $refersTo);
 				if ($attribute == 'local_id' && $sameClass)
 					throw new \Exception("{$prefix} is the id column of class '{$tableClassName}'."
@@ -582,7 +687,7 @@ class XMLLoader {
 
 			$found = self::findColumnProperty($tableClass, $table, $column);
 			if ($found === null)
-				continue;
+				throw new \Exception("{$prefix} is the softdelete column of class '{$tableClassName}': {$fix}");
 			[ $property, $type, $fieldNames ] = $found;
 
 			$prefix .= " belongs to property '{$property->getAttribute('name')}' of class '{$tableClassName}'";
@@ -595,10 +700,10 @@ class XMLLoader {
 			elseif ($attribute == 'remote_id')
 				throw new \Exception("{$prefix}, a DynamicClass that can refer to any class."
 					." A relation can't select its related objects by class name: {$fix}");
-			elseif ($column != $fieldNames[1])
+			elseif (strcasecmp($column, $fieldNames[1]) != 0)
 				throw new \Exception("{$prefix}, as its class-name column. Use its id column '{$fieldNames[1]}' as local_id,"
 					." and its class-name column '{$fieldNames[0]}' as local_type");
-			elseif ($relation->getAttribute('local_type') != $fieldNames[0])
+			elseif (strcasecmp($relation->getAttribute('local_type'), $fieldNames[0]) != 0)
 				throw new \Exception("{$prefix}, a DynamicClass that can refer to any class."
 					." Set local_type=\"{$fieldNames[0]}\", its class-name column, so the relation only lists the objects that refer to a {$className}");
 			elseif (self::getBool($relation, 'use_namespace') != self::getBool($property, 'use_namespace'))
@@ -612,7 +717,7 @@ class XMLLoader {
 	 *
 	 * @param DOMElement $classElement the class element
 	 * @param string $table the table, one of the class's tables
-	 * @param string $column the column name
+	 * @param string $column the column name, compared case-insensitively
 	 * @return ?array{DOMElement, string, list<string>} the property element, its type and its column names, or null if no property has the column
 	 */
 	private static function findColumnProperty(DOMElement $classElement, string $table, string $column) : ?array {
@@ -624,7 +729,7 @@ class XMLLoader {
 			foreach ($dataset->getElementsByTagName('property') as $property) {
 				$type = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
 				$fieldNames = self::getFieldNames($property, $type);
-				if (in_array($column, $fieldNames))
+				if (in_array(strtolower($column), array_map('strtolower', $fieldNames)))
 					return [ $property, $type, $fieldNames ];
 			}
 		}

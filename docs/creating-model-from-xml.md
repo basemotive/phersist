@@ -470,7 +470,7 @@ A relation with `table_owner="false"` is **read-only**: it is loaded from its ta
 
 A **derived relation** is a read-only relation whose `table` is one of the related class's own tables. It is derived from a property of the related class, like a `Forum.messages` relation that reads the `forum_id` column of the `ForumMessage.forum` property. A derived relation must be read-only, since its rows are the related objects themselves: writing the relation would delete their data. The generator therefore rejects `table_owner="true"` when `table` is the base or dataset table of any class in the XML. To change which objects a derived relation lists, set the property of the related objects instead, like `$message->forum = $forum`.
 
-The generator also checks the columns of a relation on a class's table, if they are that class's id column or belong to one of its properties. `local_id` must refer to the class with the relation: be a `Class` property of that class, or the id column of a `DynamicClass` property. It can't be the id column of the table's class, since the rows would be the object itself, so the relation would hold at most one object: use a `Class` property instead. `remote_id` must refer to the related class: be its id column or a `Class` property of that class, but not a `DynamicClass` property, because a relation has no column to select its related objects by class name. Otherwise the relation would use objects that happen to have the same ID, like `Forum.messages` with `local_id="author_id"` listing the messages of the user with the forum's ID. For a `DynamicClass` property as `local_id`, which can refer to any class, set `local_type` to its class-name column, and use the same `use_namespace` value as the property:
+The generator doesn't create columns for a derived relation, so its `local_id`, `remote_id`, `local_type` and `order_field` must exist in its table: as the class's id column, the column of a property in that table, or `deleted` in the base table of a `softdelete` class. As in MySQL, case doesn't matter. The generator also checks what the columns refer to. `local_id` must refer to the class with the relation: be a `Class` property of that class, or the id column of a `DynamicClass` property. It can't be the id column of the table's class, since the rows would be the object itself, so the relation would hold at most one object: use a `Class` property instead. `remote_id` must refer to the related class: be its id column or a `Class` property of that class, but not a `DynamicClass` property, because a relation has no column to select its related objects by class name. Otherwise the relation would use objects that happen to have the same ID, like `Forum.messages` with `local_id="author_id"` listing the messages of the user with the forum's ID. For a `DynamicClass` property as `local_id`, which can refer to any class, set `local_type` to its class-name column, and use the same `use_namespace` value as the property:
 
 ```xml
 <relation name="comments" type="NN" class="Comment" table="comments"
@@ -485,6 +485,13 @@ Relations on the same join table (one that isn't the table of a class) with the 
 - Relations of the **same class** can't also have the same `remote_id`: nothing in the table tells their rows apart, so they would be one relation defined twice. Two of them can't both have `table_owner="true"` either, since on commit an owned relation replaces all rows with the object's ID in `local_id`, so it would delete the rows of the other one. Give each relation its own table.
 
 The two directions of one relation (`local_id` and `remote_id` swapped) use different columns, so they can share a table. Derived relations on a class's table aren't checked this way, so several classes can each have one.
+
+The generator also checks the columns of the relations:
+
+- A relation's `local_id`, `remote_id`, `local_type` and `order_field` must be different columns.
+- All columns of a join table are `NOT NULL`, and an owned relation inserts rows with only its own columns. So all relations that own one join table must use the same columns: the same `local_type` and `order_field`, and the same `local_id` and `remote_id`, possibly swapped. With an `order_field`, the two directions can't both own the table, though: its positions are numbered per `local_id`, so each direction would overwrite the other's positions on commit. Let one direction own the table and make the other read-only. A relation that doesn't own the table can only use columns that its owners create. A join table without owners isn't generated, so its columns aren't checked.
+
+As in MySQL, these checks ignore case in column names.
 
 A read-only relation can also use a join table, for example to show an N-N relation from the side that doesn't own it: `Tag.messages` reading the `forum_message_tags` table that `ForumMessage.tags` writes.
 
@@ -735,6 +742,12 @@ another:
   its datasets, since they are all used as `$object->name`. They can't be `id`,
   which always returns the object's id, nor the name of the class's id column
   (with `id_style="long"`, `user_id` in class `User`).
+- **Tables** belong to one class. Two classes on one table would each take
+  the other's rows for their own objects. With dataset tables, their ids
+  would even overlap, since each class gets its ids from its own base table.
+  To store some properties of a class separately, use a
+  [dataset](#datasets-dataset) instead. Case doesn't matter here, since
+  MySQL table names aren't case-sensitive on Windows and macOS.
 - **Column names** must be unique per table of a class. As in MySQL, case
   doesn't matter. This includes the id column, which every table of the class
   has, and the `deleted` column in the base table of a `softdelete` class. For

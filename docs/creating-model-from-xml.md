@@ -728,8 +728,16 @@ Class, property, relation and map names end up in the generated PHP code, so
 they must be PHP identifiers: letters, digits and underscores, not starting
 with a digit. As in PHP, non-ASCII letters like `größe` are allowed. The
 project's `namespace` and a class's `trait` must be identifiers separated by
-backslashes (`MyApp\Model`, `\Babble\Model\ForumMessageTrait`). The
-generator reports any other name as an error, with its line number.
+backslashes (`MyApp\Model`, `\Babble\Model\ForumMessageTrait`).
+
+A class name can't be a PHP reserved word, like `List`, `Match`, `Function` or
+`String` (as in PHP, case doesn't matter), nor `ActiveRecord`, which clashes
+with the base class of the generated classes. The same goes for the last part
+of a trait name. The namespace may contain reserved words (`MyApp\List`), but
+can't start with `namespace`. Property, relation and map names may be reserved
+words.
+
+The generator reports any other name as an error, with its line number.
 
 ### Unique names
 

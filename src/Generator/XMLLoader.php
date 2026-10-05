@@ -255,13 +255,20 @@ class XMLLoader {
 			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkName($element->getAttribute($name))) !== null)
 				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";
 
-		foreach ($spec['identifiers'] as $name)
-			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkIdentifier($element->getAttribute($name), false)) !== null)
+		foreach (array_merge($spec['identifiers'], $spec['qualified']) as $name) {
+			$value = $element->getAttribute($name);
+			if (trim($value) === '')
+				continue;
+			$problem = self::checkIdentifier($value, in_array($name, $spec['qualified']));
+			// Class, trait and namespace names must also be allowed by PHP where
+			// the generator writes them; property, relation and map names only
+			// end up in arrays and docblocks
+			$kind = self::PHP_NAME_KINDS["{$element->tagName}.{$name}"] ?? null;
+			if ($problem === null && $kind !== null)
+				$problem = self::checkReservedName($value, $kind);
+			if ($problem !== null)
 				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";
-
-		foreach ($spec['qualified'] as $name)
-			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkIdentifier($element->getAttribute($name), true)) !== null)
-				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";
+		}
 
 		foreach ($element->childNodes as $child) {
 			if (!$child instanceof DOMElement)
@@ -313,6 +320,64 @@ class XMLLoader {
 				return "'{$name}' is not a valid PHP name: use identifiers (letters, digits and underscores, not starting with a digit) separated by backslashes";
 		} elseif (!preg_match('/^'.$identifier.'$/D', $name))
 			return "'{$name}' is not a valid PHP identifier: use only letters, digits and underscores, and don't start with a digit";
+		return null;
+	}
+
+	/**
+	 * The attributes that hold a class, trait or namespace name, for
+	 * checkReservedName(), keyed by element and attribute name.
+	 */
+	private const PHP_NAME_KINDS = [
+		'class.name' => 'class',
+		'class.trait' => 'trait',
+		'project.namespace' => 'namespace',
+	];
+
+	/**
+	 * PHP's keywords, compile-time constants and reserved words, in lower
+	 * case. None of them can be a class or trait name. Some are only
+	 * reserved in later PHP versions, or for future use.
+	 */
+	private const RESERVED_WORDS = [
+		'__halt_compiler', 'abstract', 'and', 'array', 'as', 'break', 'callable', 'case', 'catch',
+		'class', 'clone', 'const', 'continue', 'declare', 'default', 'die', 'do', 'echo', 'else',
+		'elseif', 'empty', 'enddeclare', 'endfor', 'endforeach', 'endif', 'endswitch', 'endwhile',
+		'eval', 'exit', 'extends', 'final', 'finally', 'fn', 'for', 'foreach', 'function', 'global',
+		'goto', 'if', 'implements', 'include', 'include_once', 'instanceof', 'insteadof',
+		'interface', 'isset', 'list', 'match', 'namespace', 'new', 'or', 'print', 'private',
+		'protected', 'public', 'readonly', 'require', 'require_once', 'return', 'static', 'switch',
+		'throw', 'trait', 'try', 'unset', 'use', 'var', 'while', 'xor', 'yield',
+		'__class__', '__dir__', '__file__', '__function__', '__line__', '__method__',
+		'__namespace__', '__property__', '__trait__',
+		'bool', 'false', 'float', 'int', 'iterable', 'mixed', 'never', 'null', 'numeric', 'object',
+		'parent', 'resource', 'self', 'string', 'true', 'void',
+	];
+
+	/**
+	 * Checks that a valid PHP name (see checkIdentifier()) can be used where
+	 * the generator writes it. A class name can't be a reserved word, nor
+	 * ActiveRecord, which the generated class imports. The same goes for
+	 * the last part of a trait name, the trait itself; ActiveRecord only
+	 * without namespace. A namespace may contain reserved words, but can't
+	 * start with 'namespace'.
+	 *
+	 * @param string $name the name
+	 * @param 'class'|'trait'|'namespace' $kind what the name is for
+	 * @return ?string what is wrong with the name, or null if it is valid
+	 */
+	public static function checkReservedName(string $name, string $kind) : ?string {
+		$segments = explode('\\', ltrim($name, '\\'));
+		if ($kind == 'namespace') {
+			if (strtolower($segments[0]) == 'namespace')
+				return "'{$name}' can't start with 'namespace', which PHP reserves for relative names";
+			return null;
+		}
+
+		$last = $segments[count($segments) - 1];
+		if (in_array(strtolower($last), self::RESERVED_WORDS))
+			return ($last == $name ? "'{$name}' is" : "'{$name}' ends in '{$last}', which is")." a reserved word in PHP, so it can't be a {$kind} name";
+		if (strtolower($name) == 'activerecord')
+			return "'{$name}' clashes with PHersist\\ActiveRecord, which the generated classes extend";
 		return null;
 	}
 

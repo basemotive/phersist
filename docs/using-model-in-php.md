@@ -82,6 +82,18 @@ When you commit a `Class` or `DynamicClass` property or an owned relation, `comm
 
 Assigning a property the value it already has (compared with `===` after conversion, and by moment in time for dates) doesn't count as a change. The exception is a property whose dataset hasn't been loaded yet: its current value isn't known, so the assignment is always treated as a change.
 
+### Copy
+
+```php
+<?php
+
+$copy = clone $message;
+$copy->title = 'Copy of '.$message->title;
+$copy->commit();   // inserted as a new row
+```
+
+A clone is a new object without an `id`, so `commit()` inserts it as a new row. It gets all properties, owned relations and maps of the original, including the original's uncommitted changes; what wasn't loaded yet is loaded from the database first. Read-only relations aren't copied, since their rows belong to the original: a clone starts without them. Its maps are its own copies, so changing them doesn't affect the original. Properties with `update_on="create"` get a new value when the clone is committed. If you added a `UNIQUE` index to a table yourself, change the clone's value for that column before committing, or the insert fails. A soft-deleted object can be cloned, and the clone isn't deleted; cloning an object that has been deleted otherwise throws an exception.
+
 ### Reload
 
 ```php

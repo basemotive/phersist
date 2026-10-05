@@ -105,6 +105,61 @@ class ActiveRecord implements \ArrayAccess {
 			ObjectCache::put($this);
 	}
 
+	/**
+	 * Makes a clone a new object: it has no id, and all its properties,
+	 * relations and maps are marked as changed, so commit() stores it as a
+	 * copy of the original.
+	 *
+	 * The data is loaded first, so the clone has everything the original has
+	 * in the database, including uncommitted changes of the original.
+	 * Read-only relations aren't copied, as the related objects refer to the
+	 * original.
+	 */
+	public function __clone() {
+		// A hard deleted object has lost its id, so its unloaded data is gone
+		if ($this->_deleted && $this->id === null)
+			$this->_error('Cannot clone a deleted object');
+
+		// The type objects belong to the original
+		$this->propertyTypes = [];
+		$this->relationTypes = [];
+
+		// Load what isn't loaded yet, while we still have the original's id,
+		// without overwriting the values the original already has
+		if ($this->id !== null) {
+			foreach (static::$_meta['datasets'] as $dataset)
+				if (count(array_diff_key($dataset['props'], $this->_data)) > 0) {
+					$data = $this->_data;
+					$this->_restoreDataset($dataset);
+					$this->_data = $data + $this->_data;
+				}
+			foreach (static::$_meta['relations'] as $key => $relation)
+				if (!$this->_isReadOnlyRelation($key))
+					$this->__get($key);
+		}
+
+		// The maps still belong to the original, so copy their contents
+		$maps = [];
+		foreach (array_keys(static::$_meta['maps']) as $key)
+			if ($this->id !== null || isset($this->_data[$key])) {
+				$maps[$key] = $this->__get($key)->toArray();
+				unset($this->_data[$key]);
+			}
+
+		foreach (array_keys(static::$_meta['relations']) as $key)
+			if ($this->_isReadOnlyRelation($key))
+				unset($this->_data[$key]);
+
+		$this->_data[static::$_meta['id']] = null;
+		$this->_deleted = false;
+		$this->_rowSeen = false;
+
+		// Everything the clone has must be stored on commit
+		$this->_changed = array_values(array_diff(array_keys($this->_data), [static::$_meta['id']]));
+		foreach ($maps as $key => $values)
+			$this->__get($key)->set($values);
+	}
+
 	public function __get(string $key) : mixed {
 		if ($key == 'id') return $this->_data[static::$_meta['id']] ?? null;
 

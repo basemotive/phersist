@@ -158,7 +158,7 @@ class MySQLGenerator {
 			$classElement->getAttribute('database') : $this->root->getAttribute('database');
 		$table = $classElement->hasAttribute('table') ?
 			$classElement->getAttribute('table') : $this->getAuto('table', $className);
-		$softdelete = $classElement->hasAttribute('softdelete') && $classElement->getAttribute('softdelete')=='true';
+		$softdelete = XMLLoader::getBool($classElement, 'softdelete');
 
 		$result = [];
 
@@ -178,7 +178,7 @@ class MySQLGenerator {
 		$datasets = $classElement->getElementsByTagName('dataset');
 		foreach ($datasets as $dataset) {
 			$datasetTable = $dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $table;
-			$autoload = $dataset->hasAttribute('autoload') && $dataset->getAttribute('autoload') == 'true';
+			$autoload = XMLLoader::getBool($dataset, 'autoload');
 
 			if (!isset($result[$datasetTable])) {
 				$result[$datasetTable] = [];
@@ -200,7 +200,7 @@ class MySQLGenerator {
 				$propNameTS = $this->getAuto('fieldname', $propName);
 				$propType = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
 				$this->checkType('Property', $propType, $className, $propName);
-				$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
+				$required = XMLLoader::getBool($property, 'required');
 
 				$fieldNames = XMLLoader::getFieldNames($property, $propType);
 
@@ -332,7 +332,7 @@ class MySQLGenerator {
 			$tableName = $relation->getAttribute('table');
 			$localID = $relation->getAttribute('local_id');
 			$remoteID = $relation->getAttribute('remote_id');
-			$tableOwner = $relation->getAttribute('table_owner') == 'true';
+			$tableOwner = XMLLoader::getBool($relation, 'table_owner');
 
 			// only create the table if we're the table owner, because if it's a
 			// derived relation, it references another table that we don't write to

@@ -135,7 +135,7 @@ class ARGenerator {
 						$phpType = '\\PHersist\\ActiveRecord';
 					}
 
-					$required = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
+					$required = XMLLoader::getBool($property, 'required');
 					if (!$required)
 						$phpType = "?{$phpType}";
 
@@ -175,7 +175,7 @@ class ARGenerator {
 				if ($relation->hasAttribute('order_field'))
 					$result .= ", ordered by ".$relation->getAttribute('order_field');
 
-				$rw = $relation->hasAttribute("table_owner") && $relation->getAttribute('table_owner') == 'true';
+				$rw = XMLLoader::getBool($relation, 'table_owner');
 				$result .= ', '.($rw ? 'read-write' : 'read-only');
 
 				$result .= "\n";
@@ -211,7 +211,7 @@ class ARGenerator {
 			$classElement->getAttribute('database') : $this->root->getAttribute('database');
 		$table = $classElement->hasAttribute('table') ?
 			$classElement->getAttribute('table') : $this->getAuto('table', $className);
-		$softdelete = $classElement->hasAttribute('softdelete') && $classElement->getAttribute('softdelete')=='true';
+		$softdelete = XMLLoader::getBool($classElement, 'softdelete');
 
 		// The base data for the class
 		$meta = [
@@ -227,7 +227,7 @@ class ARGenerator {
 		// The datasets
 		$datasets = $classElement->getElementsByTagName('dataset');
 		foreach ($datasets as $dataset) {
-			$ds_autoload = $dataset->hasAttribute('autoload') && $dataset->getAttribute('autoload')=='true';
+			$ds_autoload = XMLLoader::getBool($dataset, 'autoload');
 			$ds_table = $dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $table;
 			$ds_name = $dataset->hasAttribute('name') ? $this->getDatasetName($dataset, $className, $meta['datasets']) : null;
 
@@ -271,7 +271,7 @@ class ARGenerator {
 				}
 
 				// If this property is required
-				$metaprop['required'] = $property->hasAttribute('required') && $property->getAttribute('required') == 'true';
+				$metaprop['required'] = XMLLoader::getBool($property, 'required');
 
 				// What happens to the reference when the referred object is deleted
 				if ($prop_type == 'Class' || $prop_type == 'DynamicClass')
@@ -282,7 +282,7 @@ class ARGenerator {
 				// Whether a DynamicClass property stores the class name with its namespace,
 				// or (the default) without it if the class is in this class's namespace
 				if ($prop_type == 'DynamicClass') {
-					$metaprop['use_namespace'] = $property->getAttribute('use_namespace') === 'true';
+					$metaprop['use_namespace'] = XMLLoader::getBool($property, 'use_namespace');
 					if (!$metaprop['use_namespace'])
 						$metaprop['namespace'] = rtrim($this->getNamespace(), '\\');
 				} elseif ($property->hasAttribute('use_namespace'))
@@ -311,9 +311,9 @@ class ARGenerator {
 				'table' => $relation->getAttribute('table'),
 				'local_id' => $relation->getAttribute('local_id'),
 				'remote_id' => $relation->getAttribute('remote_id'),
-				'table_owner' => $relation->getAttribute('table_owner') == 'true',
-				'load_objects' => $relation->getAttribute('load_objects') == 'true',
-				'cascade_delete' => $relation->getAttribute('cascade_delete') == 'true',
+				'table_owner' => XMLLoader::getBool($relation, 'table_owner'),
+				'load_objects' => XMLLoader::getBool($relation, 'load_objects'),
+				'cascade_delete' => XMLLoader::getBool($relation, 'cascade_delete'),
 			];
 
 			if ($relation->hasAttribute('order_field'))
@@ -323,7 +323,7 @@ class ARGenerator {
 				// relation table field that holds the class name of the local object
 				$metarel['local_type'] = $relation->getAttribute('local_type');
 				// use namespace of class for the local_type field (default false)
-				$metarel['use_namespace'] = $relation->getAttribute('use_namespace') === 'true';
+				$metarel['use_namespace'] = XMLLoader::getBool($relation, 'use_namespace');
 			}
 
 			$meta['relations'][$relation->getAttribute('name')] = $metarel;
@@ -341,7 +341,7 @@ class ARGenerator {
 				'keys' => [],
 				'value' => '',
 				// use namespace of class for the type field (default false)
-				'use_namespace' => $map->getAttribute('use_namespace') === 'true',
+				'use_namespace' => XMLLoader::getBool($map, 'use_namespace'),
 			];
 
 			$keys = $map->getElementsByTagName('key');

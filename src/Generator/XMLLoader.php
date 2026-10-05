@@ -156,9 +156,26 @@ class XMLLoader {
 	];
 
 	/**
+	 * The attributes that only allow a fixed set of values, for every element
+	 * that has them. The generators read the boolean ones with getBool().
+	 */
+	private const ATTRIBUTE_VALUES = [
+		'id_style' => [ 'short', 'long' ],
+		'softdelete' => [ 'true', 'false' ],
+		'autoload' => [ 'true', 'false' ],
+		'required' => [ 'true', 'false' ],
+		'signed' => [ 'true', 'false' ],
+		'table_owner' => [ 'true', 'false' ],
+		'load_objects' => [ 'true', 'false' ],
+		'cascade_delete' => [ 'true', 'false' ],
+		'use_namespace' => [ 'true', 'false' ],
+	];
+
+	/**
 	 * Checks the structure of the XML: that every element is known and in the
 	 * right place, has only known attributes, and has its required attributes
-	 * (with a non-empty value). Without this check, a typo like requried="true"
+	 * (with a non-empty value), and that attributes with a fixed set of values
+	 * (see ATTRIBUTE_VALUES) have one of them. Without this check, a typo like requried="true"
 	 * or a missing local_id would be ignored, or only fail at runtime.
 	 *
 	 * @param DOMElement $root the root element of the XML tree
@@ -221,6 +238,11 @@ class XMLLoader {
 		foreach ($required as $name)
 			if (trim($element->getAttribute($name)) === '')
 				$problems[] = "line {$element->getLineNo()}: $description ".($element->hasAttribute($name) ? "has an empty '{$name}' attribute" : "is missing the required attribute '{$name}'");
+
+		foreach (self::ATTRIBUTE_VALUES as $name => $values)
+			if ($element->hasAttribute($name) && in_array($name, $known) && !in_array($element->getAttribute($name), $values, true))
+				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: expected "
+					.implode(' or ', array_map(fn($value) => "'{$value}'", $values)).", got '{$element->getAttribute($name)}'";
 
 		foreach ($spec['names'] as $name)
 			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkName($element->getAttribute($name))) !== null)
@@ -365,7 +387,7 @@ class XMLLoader {
 					throw new \Exception("Relation '{$relationName}' of class '{$className}' cannot use its own class's table '{$table}'."
 						.' Its rows would be the object itself, so it holds at most one related object: use a Class property instead');
 
-				if ($relation->getAttribute('table_owner') == 'true' && isset($tableClasses[$table]))
+				if (self::getBool($relation, 'table_owner') && isset($tableClasses[$table]))
 					throw new \Exception("Relation '{$relationName}' of class '{$className}'"
 						." cannot have table_owner=\"true\", because its table '{$table}' is a table of class '{$tableClasses[$table]}'."
 						.' A relation on a class\'s table is derived and must be read-only: use table_owner="false",'
@@ -479,13 +501,26 @@ class XMLLoader {
 	}
 
 	/**
+	 * Reads a boolean attribute. load() has checked that its value is 'true'
+	 * or 'false' (see ATTRIBUTE_VALUES).
+	 *
+	 * @param DOMElement $element the element in the XML tree
+	 * @param string $name the attribute name
+	 * @param bool $default the value if the attribute is not set
+	 * @return bool the value of the attribute
+	 */
+	public static function getBool(DOMElement $element, string $name, bool $default = false) : bool {
+		return $element->hasAttribute($name) ? $element->getAttribute($name) === 'true' : $default;
+	}
+
+	/**
 	 * Returns whether an Int property is signed: it is, unless signed="false".
 	 *
 	 * @param DOMElement $property the property element in the XML tree
 	 * @return bool true for an INT column, false for INT UNSIGNED
 	 */
 	public static function isSigned(DOMElement $property) : bool {
-		return !$property->hasAttribute('signed') || $property->getAttribute('signed') == 'true';
+		return self::getBool($property, 'signed', true);
 	}
 
 	/**
@@ -583,11 +618,10 @@ class XMLLoader {
 
 		if ($term == 'id') {
 			// the root element property 'id_style' if it exists can be 'long' or
-			// 'short', with the default being 'short', which means the main primary
-			// key field for tables will be named 'id', whereas the long version uses
-			// the converted class name + '_id'
-			$idStyle = $root->hasAttribute('id_style') ? $root->getAttribute('id_style') : 'short';
-			if ($idStyle == 'short')
+			// 'short' (checked by load()), with the default being 'short', which
+			// means the main primary key field for tables will be named 'id',
+			// whereas the long version uses the converted class name + '_id'
+			if ($root->getAttribute('id_style') != 'long')
 				return 'id';
 		}
 

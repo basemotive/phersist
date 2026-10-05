@@ -472,6 +472,13 @@ A **derived relation** is a read-only relation whose `table` is one of the relat
 
 A relation can't use one of its own class's tables, unless it relates to that same class, like a `ForumMessage.replies` relation that reads the `parent_message_id` column of other messages. To another class, such a relation would hold at most one object, read from the object's own row: use a `Class` property for that instead.
 
+Relations on the same join table (one that isn't the table of a class) with the same `local_id` select their rows by the same object ID, so the generator checks them:
+
+- Relations of **different classes** need a `local_type`, and all of them the same column, whether they own the table or not. Their IDs overlap, so without it `User` 5 and `Post` 5 would share their rows.
+- Relations of the **same class** can't also have the same `remote_id`: nothing in the table tells their rows apart, so they would be one relation defined twice. Two of them can't both have `table_owner="true"` either, since on commit an owned relation replaces all rows with the object's ID in `local_id`, so it would delete the rows of the other one. Give each relation its own table.
+
+The two directions of one relation (`local_id` and `remote_id` swapped) use different columns, so they can share a table. Derived relations on a class's table aren't checked this way, so several classes can each have one.
+
 A read-only relation can also use a join table, for example to show an N-N relation from the side that doesn't own it: `Tag.messages` reading the `forum_message_tags` table that `ForumMessage.tags` writes.
 
 ### Deleting objects with relations

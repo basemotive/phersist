@@ -359,6 +359,18 @@ class XMLLoader {
 	 * - A relation can't own a table that holds a class. Such a relation is
 	 *   derived: its rows are the objects of that class, so writing the
 	 *   relation would delete their data.
+	 * - Relations on the same join table (one that holds no class) and with
+	 *   the same local_id column select their rows by the same object ID:
+	 *   - Relations of different classes would read each other's rows, since
+	 *     their IDs overlap, so they need the same local_type column that
+	 *     tells their rows apart, whether they own the table or not.
+	 *   - Relations of the same class can't have the same remote_id column
+	 *     too: nothing in the table tells their rows apart, so they are one
+	 *     relation defined twice. And they can't both own the table, because
+	 *     each replaces all rows of its object on commit, so it deletes the
+	 *     rows of the other one.
+	 *   The two directions of one relation, with local_id and remote_id
+	 *   swapped, use different columns and are fine.
 	 *
 	 * @param DOMElement $root the root element of the XML tree
 	 * @throws \Exception if a relation uses a table that it can't
@@ -375,6 +387,7 @@ class XMLLoader {
 				$tableClasses[$table] ??= $classElement->getAttribute('name');
 		}
 
+		$joinTables = [];
 		foreach ($classElements as $classElement)
 			foreach ($classElement->getElementsByTagName('relation') as $relation) {
 				$className = $classElement->getAttribute('name');
@@ -392,6 +405,36 @@ class XMLLoader {
 						." cannot have table_owner=\"true\", because its table '{$table}' is a table of class '{$tableClasses[$table]}'."
 						.' A relation on a class\'s table is derived and must be read-only: use table_owner="false",'
 						.' and change the property of the related objects instead');
+
+				if (isset($tableClasses[$table]))
+					continue;
+
+				$localID = $relation->getAttribute('local_id');
+				$remoteID = $relation->getAttribute('remote_id');
+				$localType = $relation->getAttribute('local_type');
+				$owner = self::getBool($relation, 'table_owner');
+				$description = "Relation '{$relationName}' of class '{$className}'";
+				foreach ($joinTables[$table][$localID] ?? [] as $other) {
+					$otherDescription = "relation '{$other['relation']}' of class '{$other['class']}'";
+					if ($other['class'] == $className) {
+						if ($remoteID == $other['remote_id'])
+							throw new \Exception("{$description} is the same as {$otherDescription}: both use table '{$table}'"
+								." with local_id '{$localID}' and remote_id '{$remoteID}'. Nothing in the table tells their rows apart,"
+								.' so they would hold the same objects: give each relation its own table');
+						if ($owner && $other['owner'])
+							throw new \Exception("{$description} cannot own table '{$table}' with local_id '{$localID}', because {$otherDescription} already does."
+								.' Each would delete the other\'s rows on commit: give each relation its own table');
+					} elseif ($localType === '' || $other['local_type'] === '')
+						throw new \Exception("{$description} uses table '{$table}' with local_id '{$localID}', like {$otherDescription},"
+							.' so both need a local_type attribute: the local_type column stores the class name that tells their rows apart');
+					elseif ($localType != $other['local_type'])
+						throw new \Exception("{$description} uses table '{$table}' with local_id '{$localID}', like {$otherDescription},"
+							.' so it must have the same local_type column');
+				}
+				$joinTables[$table][$localID][] = [
+					'class' => $className, 'relation' => $relationName, 'remote_id' => $remoteID,
+					'local_type' => $localType, 'owner' => $owner,
+				];
 			}
 	}
 

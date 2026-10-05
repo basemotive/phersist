@@ -48,6 +48,7 @@ class XMLLoader {
 		}
 
 		self::checkElements($doc->documentElement);
+		self::checkUniqueNames($doc->documentElement);
 		self::checkRelations($doc->documentElement);
 		self::checkMaps($doc->documentElement);
 
@@ -347,6 +348,92 @@ class XMLLoader {
 			}
 		}
 		return $best;
+	}
+
+	/**
+	 * Checks that names are unique, since the generators would otherwise let
+	 * one definition silently replace or share another:
+	 *
+	 * - class names in the project (case-insensitive, like PHP class names)
+	 * - property, relation and map names in a class, which are all accessed
+	 *   as $object->name. They can't be 'id' either, nor the name of the id
+	 *   column, which the object stores its id under.
+	 * - column names per table of a class (case-insensitive, like MySQL
+	 *   column names): the id column, the properties' columns, and the
+	 *   softdelete column 'deleted' in the base table.
+	 *
+	 * @param DOMElement $root the root element of the XML tree
+	 * @throws \Exception listing all the duplicates, with their line numbers
+	 */
+	private static function checkUniqueNames(DOMElement $root) : void {
+		$problems = [];
+
+		$classNames = [];
+		foreach ($root->getElementsByTagName('class') as $classElement) {
+			$className = $classElement->getAttribute('name');
+			$description = self::describe($classElement);
+			$other = $classNames[strtolower($className)] ?? null;
+			if ($other !== null)
+				$problems[] = "line {$classElement->getLineNo()}: {$description} has the same name as ".self::describe($other)." on line {$other->getLineNo()}";
+			else
+				$classNames[strtolower($className)] = $classElement;
+
+			$idColumn = $classElement->hasAttribute('id') ? $classElement->getAttribute('id') : self::getAuto($root, 'id', $className);
+
+			$memberNames = [];
+			$members = [];
+			foreach ([ 'property', 'relation', 'map' ] as $tagName)
+				foreach ($classElement->getElementsByTagName($tagName) as $member)
+					$members[] = $member;
+			foreach ($members as $member) {
+				$name = $member->getAttribute('name');
+				$memberDescription = self::describe($member);
+				if ($name == 'id')
+					$problems[] = "line {$member->getLineNo()}: {$memberDescription} can't be named 'id', it is reserved for the object's id";
+				elseif ($name == $idColumn)
+					$problems[] = "line {$member->getLineNo()}: {$memberDescription} can't have the name of the class's id column '{$idColumn}',"
+						.' the object stores its id under that name';
+				elseif (isset($memberNames[$name]))
+					$problems[] = "line {$member->getLineNo()}: {$memberDescription} has the same name as "
+						.self::describe($memberNames[$name])." on line {$memberNames[$name]->getLineNo()}";
+				else
+					$memberNames[$name] = $member;
+			}
+
+			// The columns of each table: [ table => [ lowercase column => what uses it ] ]
+			$tables = self::getClassTables($classElement);
+			$baseTable = $tables[0];
+			$columns = [];
+			foreach ($tables as $table)
+				$columns[$table] = [ strtolower($idColumn) => "the id column of {$description}" ];
+
+			if (self::getBool($classElement, 'softdelete')) {
+				if (isset($columns[$baseTable]['deleted']))
+					$problems[] = "line {$classElement->getLineNo()}: {$description} has softdelete=\"true\", which needs a column 'deleted'"
+						." in table '{$baseTable}', but that is already {$columns[$baseTable]['deleted']}";
+				else
+					$columns[$baseTable]['deleted'] = "the softdelete column of {$description}";
+			}
+
+			foreach ($classElement->getElementsByTagName('dataset') as $dataset) {
+				$table = $dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $baseTable;
+				foreach ($dataset->getElementsByTagName('property') as $property) {
+					$type = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
+					$propertyDescription = self::describe($property);
+					foreach (self::getFieldNames($property, $type) as $column) {
+						$key = strtolower($column);
+						if (isset($columns[$table][$key])) {
+							$problems[] = "line {$property->getLineNo()}: {$propertyDescription} uses column '{$column}' in table '{$table}',"
+								." which is already {$columns[$table][$key]}: set another column name with fieldname or fieldnames";
+						} else
+							$columns[$table][$key] = "used by {$propertyDescription} on line {$property->getLineNo()}";
+					}
+				}
+			}
+		}
+
+		if ($problems)
+			throw new \Exception("Invalid model XML:\n- ".implode("\n- ", $problems));
 	}
 
 	/**

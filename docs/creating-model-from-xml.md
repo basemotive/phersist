@@ -106,11 +106,11 @@ Each `<class>` generates one PHP class extending `\PHersist\ActiveRecord`.
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Generated PHP class name (UpperCamelCase recommended). Must be a [PHP identifier](#allowed-php-names). |
+| `name` | yes | — | Generated PHP class name (UpperCamelCase recommended). Must be a [PHP identifier](#allowed-php-names), and [unique](#unique-names) in the project. |
 | `id` | no | auto | Primary key column name. Auto value depends on `id_style`. |
 | `table` | no | auto | Base table name for this class. |
 | `database` | no | project `database` | Optional per-class DB override. |
-| `softdelete` | no | `false` | If `true`, `delete()` sets `deleted = 1` instead of removing the row. Use sparingly; see [Soft delete runtime behavior](advanced-features.md#5-soft-delete-runtime-behavior). |
+| `softdelete` | no | `false` | If `true`, `delete()` sets `deleted = 1` instead of removing the row. The generator adds the `deleted` column to the base table, so no property can use that column there. Use sparingly; see [Soft delete runtime behavior](advanced-features.md#5-soft-delete-runtime-behavior). |
 | `trait` | no | auto-detected | Optional trait name to include in generated class. |
 
 ### Extending generated classes with Traits
@@ -188,7 +188,7 @@ Properties define class fields and column mapping.
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Property name used in PHP (`$object->name`). Must be a [PHP identifier](#allowed-php-names). The name `id` is reserved for the object's id; the generator refuses it. |
+| `name` | yes | — | Property name used in PHP (`$object->name`). Must be a [PHP identifier](#allowed-php-names), and [unique](#unique-names) in the class. |
 | `type` | no | `Text` | Property type (`Text`, `Int`, `Float`, `Decimal`, `Bool`, `Date`, `DateTime`, `Class`, `DynamicClass`, `TimestampText`). |
 | `required` | no | `false` | If `true`, must not be null. A new object must have a value for every required property (assigned or from `default`), or `commit()` throws an exception. |
 | `fieldname` | no | auto | Custom single-column field name. |
@@ -444,7 +444,7 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Relation property name on object. Must be a [PHP identifier](#allowed-php-names). |
+| `name` | yes | — | Relation property name on object. Must be a [PHP identifier](#allowed-php-names), and [unique](#unique-names) in the class. |
 | `type` | yes | — | Currently `NN`. |
 | `class` | yes | — | Target class name. |
 | `table` | yes | — | Relation table: a join table, or one of the related class's own tables for a [derived relation](#read-only-and-derived-relations). It can't be one of this class's own tables, unless the relation is to the same class (like `replies` of a `ForumMessage`). |
@@ -579,7 +579,7 @@ Maps provide key/value data attached to an object through a table.
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | — | Map property name on object. Must be a [PHP identifier](#allowed-php-names). |
+| `name` | yes | — | Map property name on object. Must be a [PHP identifier](#allowed-php-names), and [unique](#unique-names) in the class. |
 | `table` | yes | — | Backing table. |
 | `id` | no | `<class>_id` | Owner ID column name. Defaults to the class name converted by the table style with `_id` appended (for example `person_id` for class `Person` with `SnakeCase`), regardless of `id_style`. |
 | `type` | no | none | Optional class discriminator column for shared map tables. |
@@ -723,6 +723,25 @@ with a digit. As in PHP, non-ASCII letters like `größe` are allowed. The
 project's `namespace` and a class's `trait` must be identifiers separated by
 backslashes (`MyApp\Model`, `\Babble\Model\ForumMessageTrait`). The
 generator reports any other name as an error, with its line number.
+
+### Unique names
+
+The generator reports names that would make one definition replace or share
+another:
+
+- **Class names** must be unique in the project. As in PHP, case doesn't
+  matter: `Doc` and `doc` are the same class.
+- **Property, relation and map names** must be unique in the class, across all
+  its datasets, since they are all used as `$object->name`. They can't be `id`,
+  which always returns the object's id, nor the name of the class's id column
+  (with `id_style="long"`, `user_id` in class `User`).
+- **Column names** must be unique per table of a class. As in MySQL, case
+  doesn't matter. This includes the id column, which every table of the class
+  has, and the `deleted` column in the base table of a `softdelete` class. For
+  example, a property `title` next to one with `fieldname="title"` is an error,
+  and so is a `Class` property `comment` in class `Comment` with
+  `id_style="long"`, since both use `comment_id`. Set another column name with
+  `fieldname` or `fieldnames`.
 
 ---
 

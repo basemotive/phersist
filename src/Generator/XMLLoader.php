@@ -245,6 +245,12 @@ class XMLLoader {
 				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: expected "
 					.implode(' or ', array_map(fn($value) => "'{$value}'", $values)).", got '{$element->getAttribute($name)}'";
 
+		// An optional name attribute that is set must have a value: the
+		// generators would use an empty value as the name
+		foreach (array_merge($spec['names'], $spec['identifiers'], $spec['qualified']) as $name)
+			if ($element->hasAttribute($name) && !in_array($name, $required) && trim($element->getAttribute($name)) === '')
+				$problems[] = "line {$element->getLineNo()}: {$description} has an empty '{$name}' attribute, leave it out instead";
+
 		foreach ($spec['names'] as $name)
 			if (trim($element->getAttribute($name)) !== '' && ($problem = self::checkName($element->getAttribute($name))) !== null)
 				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";

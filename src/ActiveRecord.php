@@ -744,11 +744,18 @@ class ActiveRecord implements \ArrayAccess {
 		// The cache is keyed on get_class(), which has no leading backslash
 		/** @var class-string<T> $class */
 		$class = ltrim($class, '\\');
+		if (!is_subclass_of($class, ActiveRecord::class))
+			throw new \Exception("Cannot fetch '$class': not an ActiveRecord class");
 		$object = ObjectCache::get($class, $id);
 		if ($object === null) {
-			// Tells the constructor that it may accept an id this time
+			// Tells the constructor that it may accept an id this time. The flag
+			// is reset afterwards too, in case the constructor never reached it.
 			self::$_fetching = true;
-			$object = new $class($id);
+			try {
+				$object = new $class($id);
+			} finally {
+				self::$_fetching = false;
+			}
 		}
 
 		// If we got values for datasets, then handle them. The row holds their

@@ -7,6 +7,52 @@ If you want a quick onboarding flow first, read [Getting started with PHersist](
 For runtime usage in PHP, see [Using the model in PHP](using-model-in-php.md).  
 For caching and performance features, see [Advanced features](advanced-features.md).
 
+## Contents
+
+- [Quick start](#quick-start)
+- [Root element](#root-element-project)
+  - [`id_style`: short vs long](#id_style-short-vs-long)
+- [Database-specific settings](#database-specific-settings)
+  - [MySQL](#mysql-mysql)
+- [Defining classes](#defining-classes-class)
+  - [Extending generated classes with Traits](#extending-generated-classes-with-traits)
+- [Datasets](#datasets-dataset)
+  - [Why split datasets?](#why-split-datasets)
+- [Properties](#properties-property)
+  - [Default values](#default-values)
+- [Property types](#property-types):
+  [`Text`](#text),
+  [`Int`](#int),
+  [`Float`](#float),
+  [`Decimal`](#decimal),
+  [`Bool`](#bool),
+  [`Date`](#date),
+  [`DateTime`](#datetime),
+  [`Class`](#class),
+  [`DynamicClass`](#dynamicclass),
+  [`TimestampText`](#timestamptext)
+- [Relations](#relations-relation)
+  - [Common patterns](#common-patterns)
+  - [Read-only and derived relations](#read-only-and-derived-relations)
+  - [Deleting objects with relations](#deleting-objects-with-relations)
+  - [Polymorphic relations and `use_namespace`](#polymorphic-relations-and-use_namespace)
+- [Maps](#maps-map)
+  - [Key and value](#key-and-value)
+  - [Generated table](#generated-table)
+  - [Map tables](#map-tables)
+  - [Shared map tables and `use_namespace`](#shared-map-tables-and-use_namespace)
+- [Name conversion](#name-conversion-tablestylesnakecase)
+  - [Conversion behavior](#conversion-behavior)
+  - [Table pluralization rules](#table-pluralization-rules)
+  - [Case transition handling](#case-transition-handling)
+  - [Overriding generated names](#overriding-generated-names)
+  - [Allowed table and column names](#allowed-table-and-column-names)
+  - [Allowed PHP names](#allowed-php-names)
+  - [Unique names](#unique-names)
+- [Full example](#full-example)
+- [Generation commands](#generation-commands)
+- [Related guides](#related-guides)
+
 ---
 
 ## Quick start

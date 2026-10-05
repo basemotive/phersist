@@ -594,7 +594,7 @@ Maps provide key/value data attached to an object through a table.
 
 ### `<key>` and `<value>`
 
-- One or more `<key>` elements define key hierarchy.
+- One or more `<key>` elements define key hierarchy. The generator reports an error for a map without `<key>`.
 - Exactly one `<value>` element defines the column that stores the value. The generator reports an error for a map with no or multiple `<value>` elements; use an extra `<key>` instead to store several values per key.
 
 ### Generated table

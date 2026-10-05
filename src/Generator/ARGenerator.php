@@ -342,6 +342,8 @@ class ARGenerator {
 			];
 
 			$keys = $map->getElementsByTagName('key');
+			if ($keys->length == 0)
+				throw new \Exception("Map {$map->getAttribute('name')} of class {$classElement->getAttribute('name')} must have at least one <key>");
 			foreach ($keys as $key)
 				$metamap['keys'][] = $key->getAttribute('name');
 

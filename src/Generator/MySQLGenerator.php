@@ -393,6 +393,8 @@ class MySQLGenerator {
 			$fields = [];
 
 			$keyElements = $map->getElementsByTagName('key');
+			if ($keyElements->length == 0)
+				throw new \Exception("Map {$map->getAttribute('name')} of class {$classElement->getAttribute('name')} must have at least one <key>");
 
 			// The owner and the keys together identify a value, so they form a
 			// unique index, which also serves to look up a map by its owner. An

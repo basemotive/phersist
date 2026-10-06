@@ -102,8 +102,13 @@ try {
 	if (!$skipClasses) {
 		$metasets = $arGenerator->generate();
 		foreach ($metasets as $className => $meta) {
-			echo "Writing class {$className} to {$classesDir}/{$className}.php\n";
-			file_put_contents("{$classesDir}/{$className}.php", $meta);
+			$classFile = "{$classesDir}/{$className}.php";
+			echo "Writing class {$className} to {$classFile}\n";
+			if (@file_put_contents($classFile, $meta) === false) {
+				$reason = error_get_last()['message'] ?? 'unknown error';
+				echo "ERROR: Could not write '{$classFile}': {$reason}\n";
+				exit(1);
+			}
 		}
 	}
 
@@ -111,7 +116,11 @@ try {
 		echo "Writing MySQL schema to {$mysqlFile}\n";
 		$mysqlGenerator = new MySQLGenerator($xml);
 		$sql = $mysqlGenerator->generate();
-		file_put_contents($mysqlFile, $sql);
+		if (@file_put_contents($mysqlFile, $sql) === false) {
+			$reason = error_get_last()['message'] ?? 'unknown error';
+			echo "ERROR: Could not write '{$mysqlFile}': {$reason}\n";
+			exit(1);
+		}
 	}
 } catch (\Throwable $e) {
 	echo "ERROR: {$e->getMessage()}\n";

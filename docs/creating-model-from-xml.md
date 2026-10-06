@@ -764,6 +764,7 @@ like `item-label` or `größe` work. The generator rejects a name (set in the XM
 or generated from a class or property name) that:
 
 - contains a backtick or a control character
+- contains `?` or `:` (before PHP 8.4, PDO mistakes these for query parameters, even in quoted names)
 - contains a character outside the Basic Multilingual Plane, like an emoji
 - ends with a space
 - is longer than 64 characters

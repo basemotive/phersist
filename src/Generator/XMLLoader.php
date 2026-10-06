@@ -283,7 +283,8 @@ class XMLLoader {
 
 	/**
 	 * Checks a table or column name. The generated SQL quotes the names in
-	 * backticks, so any name MySQL allows works, except one with a backtick.
+	 * backticks, so any name MySQL allows works, except one with a backtick,
+	 * '?' or ':'.
 	 *
 	 * @param string $name the name
 	 * @return ?string what is wrong with the name, or null if it is valid
@@ -291,6 +292,11 @@ class XMLLoader {
 	public static function checkName(string $name) : ?string {
 		if (strpos($name, '`') !== false)
 			return "'{$name}' contains a backtick";
+		// Before PHP 8.4, PDO's SQL parser doesn't know backtick quoted names,
+		// so a ? or :word inside one is taken for a placeholder and breaks the
+		// query
+		if (preg_match('/[?:]/', $name))
+			return "'{$name}' contains a '?' or ':', which PDO before PHP 8.4 mistakes for a query parameter";
 		if (preg_match('/[\x00-\x1F\x7F]/', $name))
 			return "'{$name}' contains a control character";
 		if (preg_match('/[\x{10000}-\x{10FFFF}]/u', $name))

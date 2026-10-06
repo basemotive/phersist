@@ -190,6 +190,10 @@ class ARGenerator {
 			$result .= " * @property \PHersist\Maps\Map \${$map_name} map\n";
 		}
 
+		// Values like defaults, date formats and order fields come straight
+		// from the XML; make sure a "*/" in them doesn't end the comment early
+		$result = str_replace('*/', '*\\/', $result);
+
 		$result .= " */\n";
 		return $result;
 	}

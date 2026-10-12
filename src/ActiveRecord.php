@@ -115,7 +115,7 @@ class ActiveRecord implements \ArrayAccess {
 	 * Read-only relations aren't copied, as the related objects refer to the
 	 * original.
 	 */
-	public function __clone() {
+	public function __clone() : void {
 		// A hard deleted object has lost its id, so its unloaded data is gone
 		if ($this->_deleted && $this->id === null)
 			$this->_error('Cannot clone a deleted object');

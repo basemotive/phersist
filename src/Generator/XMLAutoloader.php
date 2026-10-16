@@ -2,6 +2,9 @@
 
 namespace PHersist\Generator;
 
+use PHersist\Generator\Model\Project;
+use PHersist\ReferenceRegistry;
+
 /**
  * This is an autoloader that loads class definitions directly from a PHersist
  * compatible XML-file.
@@ -20,32 +23,31 @@ namespace PHersist\Generator;
  */
 class XMLAutoloader {
 	public function __construct(string $xmlFile) {
-		$xml = file_get_contents($xmlFile);
-		$this->generator = new ARGenerator($xml);
+		$this->project = XMLLoader::load($xmlFile);
+		$this->generator = new ARGenerator($this->project);
 
 		spl_autoload_register([ $this, 'loader' ]);
 	}
 
 	private function loader(string $className) : void {
-		// The autoloader receives the fully qualified name, while the generator
-		// looks for the short name. Only classes in the project namespace can
-		// come from the XML.
-		$namespace = ltrim($this->generator->getNamespace(), '\\');
-		if ($namespace != '') {
-			if (strncasecmp($className, $namespace, strlen($namespace)) != 0)
-				return;
-			$className = substr($className, strlen($namespace));
-		}
+		// Only classes in the project namespace can come from the XML
+		$namespace = $this->project->namespace == '' ? '' : $this->project->namespace.'\\';
+		if (strncasecmp($className, $namespace, strlen($namespace)) != 0)
+			return;
+		$className = substr($className, strlen($namespace));
 
 		// Anything still qualified is in another (sub)namespace
 		if (strpos($className, '\\') !== false)
 			return;
 
-		$phpcode = $this->generator->generateForClass($className);
-
-		// If the class was not found in the XML, the generator returns nothing
-		if ($phpcode == '')
-			return;
+		if ($className === ReferenceRegistry::INDEX_CLASS)
+			$phpcode = $this->generator->generateReferences();
+		else {
+			$record = $this->project->findRecord($className);
+			if ($record === null)
+				return;
+			$phpcode = $this->generator->generateClass($record);
+		}
 
 		// The generator creates complete PHP code, but eval can't handle the '<?php'
 		if (substr($phpcode, 0, 5)=='<?php') $phpcode = substr($phpcode, 5);
@@ -55,5 +57,6 @@ class XMLAutoloader {
 		eval($phpcode);
 	}
 
+	private Project $project;
 	private ARGenerator $generator;
 }

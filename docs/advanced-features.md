@@ -193,7 +193,29 @@ Recommended use:
 
 ---
 
-## 9) Operational checklist
+## 9) Projects with several model XMLs (plugins)
+
+A project can be split into several model XMLs, like a core and plugins, each with its own namespace; see [Model XMLs that depend on others](creating-model-from-xml.md#model-xmls-that-depend-on-others-depends). Each one is generated on its own, and next to its classes the generator writes a `PHersistReferences` class, with the references from those classes to objects.
+
+When an object is deleted, PHersist cleans up the references to it (see [Deleting objects with relations](creating-model-from-xml.md#deleting-objects-with-relations)). It always finds those in the deleted object's own model XML. To find those in other model XMLs, register their namespaces:
+
+```php
+use PHersist\ReferenceRegistry;
+
+ReferenceRegistry::register('Blog\Model');
+```
+
+`register()` only stores the namespace; nothing is loaded until an object is deleted. Then the `PHersistReferences` classes are autoloaded, once per request. A project with a single model XML doesn't need to register anything.
+
+Rules:
+
+- **Register every installed plugin, on every request**, whether the request uses it or not. Otherwise, deleting an object in a request that didn't register a plugin skips that plugin's references: its `restrict` doesn't stop the deletion, and its rows keep referring to the deleted object.
+- **Register disabled plugins too**, if their tables are kept: their rows need to be cleaned up as well.
+- **Keep the classes of every installed plugin autoloadable**, disabled ones included. The `PHersistReferences` class has to be found; registering a namespace without one is an error. Setting references to `NULL`, checking `restrict` and deleting join table rows don't load the plugin's model classes, but `on_remote_delete="cascade"` does when there are objects to delete, since they're deleted like any other object.
+
+---
+
+## 10) Operational checklist
 
 - Keep finder chains explicit and readable.
 - Use `count()` for counts instead of fetching rows just to count in PHP.

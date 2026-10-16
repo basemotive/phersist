@@ -731,9 +731,7 @@ class ActiveRecord implements \ArrayAccess {
 
 			// Clean up the references from other classes that aren't covered by
 			// one of our relations
-			$referenceCleaner = new ReferenceCleaner($this);
-			foreach (static::$_meta['references'] ?? [] as $reference)
-				$referenceCleaner->cleanUp($reference);
+			(new ReferenceCleaner($this))->cleanUpReferences();
 
 			foreach (static::$_meta['maps'] as $mapname => $metamap) {
 				// Use __get(), because the map only exists once it has been accessed

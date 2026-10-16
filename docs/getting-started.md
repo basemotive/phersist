@@ -78,6 +78,8 @@ Generate classes plus MySQL schema:
 vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql
 ```
 
+For MariaDB use `--mariadb`, for SQLite `--sqlite`; see [Database-specific settings](creating-model-from-xml.md#database-specific-settings).
+
 Generate schema only:
 
 ```sh

@@ -4,11 +4,20 @@ namespace PHersist\Generator;
 
 use DOMDocument;
 use DOMElement;
+use PHersist\Generator\Model\Dataset;
+use PHersist\Generator\Model\Map;
+use PHersist\Generator\Model\Project;
+use PHersist\Generator\Model\Property;
+use PHersist\Generator\Model\Record;
+use PHersist\Generator\Model\Relation;
+use PHersist\ReferenceRegistry;
+use PHersist\Types\ARPropertyTypeDecimal;
 use PHersist\Types\ARPropertyTypeFloat;
 use PHersist\Types\ARPropertyTypeInt;
 
 /**
- * Parses the model XML for the generators.
+ * Loads the model XML for the generators: checks it, and builds the model
+ * (see Model\Project) from it.
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -16,11 +25,75 @@ use PHersist\Types\ARPropertyTypeInt;
  */
 class XMLLoader {
 	/**
-	 * Parses the XML and returns its root element.
+	 * Loads a model XML: parses and checks it, and builds the model from it,
+	 * with the model XMLs it depends on.
 	 *
+	 * @param string $xmlFile the path of the model XML
+	 * @return Project the model
+	 * @throws \Exception if a file can't be read, or isn't a valid model XML
+	 */
+	public static function load(string $xmlFile) : Project {
+		$path = realpath($xmlFile);
+		if ($path === false)
+			throw new \Exception("Cannot find model XML '{$xmlFile}'");
+		$loaded = [];
+		return self::loadFile($path, [], $loaded);
+	}
+
+	/**
+	 * Loads a model XML, see load().
+	 *
+	 * @param string $path the real path of the model XML
+	 * @param list<string> $dependents the model XMLs that (indirectly) depend on this one, to find cycles
+	 * @param array<string, Project> $loaded the model XMLs loaded so far, by path, so each is loaded once
+	 */
+	private static function loadFile(string $path, array $dependents, array &$loaded) : Project {
+		if (isset($loaded[$path]))
+			return $loaded[$path];
+
+		$xml = is_file($path) ? file_get_contents($path) : false;
+		if ($xml === false)
+			throw new \Exception("Cannot read model XML '{$path}'");
+		$root = self::parse($xml);
+		self::checkElements($root);
+
+		$dependencies = [];
+		foreach ($root->childNodes as $child) {
+			if (!$child instanceof DOMElement || $child->tagName != 'depends')
+				continue;
+
+			// Relative to the directory of the XML
+			$file = $child->getAttribute('xml');
+			if (!preg_match('#^(/|[A-Za-z]:[\\\\/])#', $file))
+				$file = dirname($path).'/'.$file;
+			$dependency = realpath($file);
+			$where = "line {$child->getLineNo()} of '{$path}'";
+			if ($dependency === false)
+				throw new \Exception("Cannot find model XML '{$file}', from <depends> on {$where}");
+			if ($dependency == $path || in_array($dependency, $dependents))
+				throw new \Exception('Model XMLs can\'t depend on themselves, directly or through others: '.implode(' depends on ', array_merge($dependents, [ $path, $dependency ])));
+
+			try {
+				$dependencies[] = self::loadFile($dependency, array_merge($dependents, [ $path ]), $loaded);
+			} catch (\Exception $e) {
+				throw new \Exception("In model XML '{$dependency}', from <depends> on {$where}: {$e->getMessage()}", 0, $e);
+			}
+		}
+
+		$project = self::buildProject($root, $path, $dependencies);
+		ModelChecker::check($project);
+
+		return $loaded[$path] = $project;
+	}
+
+	/**
+	 * Parses an XML document.
+	 *
+	 * @param string $xml the XML
+	 * @return DOMElement the root element
 	 * @throws \Exception if the XML is empty or not well-formed
 	 */
-	public static function load(string $xml) : DOMElement {
+	private static function parse(string $xml) : DOMElement {
 		if (trim($xml) === '')
 			throw new \Exception('Invalid XML: the document is empty');
 
@@ -47,11 +120,6 @@ class XMLLoader {
 			throw new \Exception('Invalid XML: '.($messages ? implode('; ', $messages) : 'the document could not be parsed'));
 		}
 
-		self::checkElements($doc->documentElement);
-		self::checkUniqueNames($doc->documentElement);
-		self::checkRelations($doc->documentElement);
-		self::checkMaps($doc->documentElement);
-
 		return $doc->documentElement;
 	}
 
@@ -64,17 +132,26 @@ class XMLLoader {
 	 */
 	private const ELEMENTS = [
 		'project' => [
-			'children' => [ 'mysql', 'class' ],
+			'children' => [ 'depends', 'schema', 'class' ],
 			'attributes' => [ 'database', 'tablestyle', 'namespace', 'id_style' ],
 			'required' => [ 'database', 'tablestyle' ],
 			'names' => [],
 			'identifiers' => [],
 			'qualified' => [ 'namespace' ],
 		],
-		'mysql' => [
+		'depends' => [
 			'children' => [],
-			'attributes' => [ 'charset', 'collate' ],
-			'required' => [],
+			'attributes' => [ 'xml' ],
+			'required' => [ 'xml' ],
+			'names' => [],
+			'identifiers' => [],
+			'qualified' => [],
+		],
+		'schema' => [
+			'children' => [],
+			// Attributes for all dialects; DIALECT_ATTRIBUTES has the dialect-specific ones
+			'attributes' => [ 'dialect' ],
+			'required' => [ 'dialect' ],
 			'names' => [],
 			'identifiers' => [],
 			'qualified' => [],
@@ -157,6 +234,17 @@ class XMLLoader {
 	];
 
 	/**
+	 * The dialect-specific attributes of a <schema> element. Their values end up
+	 * in the SQL as they are, so they may only contain letters, digits and
+	 * underscores.
+	 */
+	private const DIALECT_ATTRIBUTES = [
+		'mysql' => [ 'charset', 'collate' ],
+		'mariadb' => [ 'charset', 'collate' ],
+		'sqlite' => [],
+	];
+
+	/**
 	 * The attributes that only allow a fixed set of values, for every element
 	 * that has them. The generators read the boolean ones with getBool().
 	 */
@@ -217,6 +305,29 @@ class XMLLoader {
 		}
 
 		$description = self::describe($element);
+
+		if ($element->tagName == 'schema') {
+			$dialect = $element->getAttribute('dialect');
+			if (isset(self::DIALECT_ATTRIBUTES[$dialect]))
+				$dialectAttributes = self::DIALECT_ATTRIBUTES[$dialect];
+			else {
+				// Accept the attributes of any dialect, and only report the dialect
+				$dialectAttributes = array_merge(...array_values(self::DIALECT_ATTRIBUTES));
+				if ($dialect !== '') {
+					$problem = "line {$element->getLineNo()}: {$description} has an unknown dialect '{$dialect}'";
+					$suggestion = self::suggest($dialect, array_keys(self::DIALECT_ATTRIBUTES));
+					$problems[] = $problem.($suggestion !== null ? ", did you mean '{$suggestion}'?" : ', use '
+						.implode(' or ', array_map(fn($name) => "'{$name}'", array_keys(self::DIALECT_ATTRIBUTES))));
+				}
+			}
+			$known = array_merge($known, $dialectAttributes);
+
+			foreach ($dialectAttributes as $name)
+				if ($element->hasAttribute($name) && !preg_match('/^[A-Za-z0-9_]+$/D', $element->getAttribute($name)))
+					$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: '{$element->getAttribute($name)}'"
+						.' may only contain letters, digits and underscores';
+		}
+
 		foreach ($element->attributes as $attribute) {
 			// Attributes in a namespace, like xsi:schemaLocation, aren't ours
 			if ($attribute->namespaceURI !== null || in_array($attribute->name, $known))
@@ -270,9 +381,16 @@ class XMLLoader {
 				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: {$problem}";
 		}
 
+		$schemas = [];
 		foreach ($element->childNodes as $child) {
 			if (!$child instanceof DOMElement)
 				continue;
+			if ($child->tagName == 'schema' && in_array('schema', $spec['children'])) {
+				$other = $schemas[$child->getAttribute('dialect')] ?? null;
+				if ($other !== null)
+					$problems[] = "line {$child->getLineNo()}: there's already a ".self::describe($other)." on line {$other->getLineNo()}, use one per dialect";
+				$schemas[$child->getAttribute('dialect')] = $child;
+			}
 			if (in_array($child->tagName, $spec['children']))
 				self::checkElement($child, $problems);
 			else
@@ -364,8 +482,10 @@ class XMLLoader {
 	 * the generator writes it. A class name can't be a reserved word, nor
 	 * ActiveRecord, which the generated class imports. The same goes for
 	 * the last part of a trait name, the trait itself; ActiveRecord only
-	 * without namespace. A namespace may contain reserved words, but can't
-	 * start with 'namespace'.
+	 * without namespace. A class name can't be PHersistReferences either
+	 * (ReferenceRegistry::INDEX_CLASS), which the generator writes next to
+	 * the classes. A namespace may contain reserved words, but can't start
+	 * with 'namespace'.
 	 *
 	 * @param string $name the name
 	 * @param 'class'|'trait'|'namespace' $kind what the name is for
@@ -384,6 +504,8 @@ class XMLLoader {
 			return ($last == $name ? "'{$name}' is" : "'{$name}' ends in '{$last}', which is")." a reserved word in PHP, so it can't be a {$kind} name";
 		if (strtolower($name) == 'activerecord')
 			return "'{$name}' clashes with PHersist\\ActiveRecord, which the generated classes extend";
+		if ($kind == 'class' && strtolower($name) == strtolower(ReferenceRegistry::INDEX_CLASS))
+			return "'{$name}' clashes with the class that the generator writes next to the classes, with the references between them";
 		return null;
 	}
 
@@ -394,6 +516,9 @@ class XMLLoader {
 	 * @return string the description
 	 */
 	private static function describe(DOMElement $element) : string {
+		if ($element->tagName == 'schema')
+			return $element->getAttribute('dialect') !== '' ? "<schema dialect=\"{$element->getAttribute('dialect')}\">" : '<schema>';
+
 		$description = "<{$element->tagName}>";
 		if ($element->getAttribute('name') !== '')
 			$description .= " '{$element->getAttribute('name')}'";
@@ -428,530 +553,252 @@ class XMLLoader {
 	}
 
 	/**
-	 * Checks that names are unique, since the generators would otherwise let
-	 * one definition silently replace or share another:
+	 * Builds the model from the checked XML.
 	 *
-	 * - class names in the project (case-insensitive, like PHP class names)
-	 * - property, relation and map names in a class, which are all accessed
-	 *   as $object->name. They can't be 'id' either, nor the name of the id
-	 *   column, which the object stores its id under.
-	 * - the tables of the classes (case-insensitive, since MySQL table names
-	 *   are on Windows and macOS): a table holds the objects of one class.
-	 *   Two classes on one table would see each other's rows as their own
-	 *   objects, and with dataset tables their IDs would even overlap.
-	 * - column names per table of a class (case-insensitive, like MySQL
-	 *   column names): the id column, the properties' columns, and the
-	 *   softdelete column 'deleted' in the base table.
-	 *
-	 * @param DOMElement $root the root element of the XML tree
-	 * @throws \Exception listing all the duplicates, with their line numbers
+	 * @param DOMElement $root the <project> element
+	 * @param string $file the path of the model XML
+	 * @param list<Project> $dependencies the model XMLs it depends on
+	 * @return Project the model
+	 * @throws \Exception if a value is invalid
 	 */
-	private static function checkUniqueNames(DOMElement $root) : void {
-		$problems = [];
-
-		$classNames = [];
-		$tableClasses = [];
-		foreach ($root->getElementsByTagName('class') as $classElement) {
-			$className = $classElement->getAttribute('name');
-			$description = self::describe($classElement);
-			$other = $classNames[strtolower($className)] ?? null;
-			if ($other !== null)
-				$problems[] = "line {$classElement->getLineNo()}: {$description} has the same name as ".self::describe($other)." on line {$other->getLineNo()}";
-			else
-				$classNames[strtolower($className)] = $classElement;
-
-			$idColumn = $classElement->hasAttribute('id') ? $classElement->getAttribute('id') : self::getAuto($root, 'id', $className);
-
-			$memberNames = [];
-			$members = [];
-			foreach ([ 'property', 'relation', 'map' ] as $tagName)
-				foreach ($classElement->getElementsByTagName($tagName) as $member)
-					$members[] = $member;
-			foreach ($members as $member) {
-				$name = $member->getAttribute('name');
-				$memberDescription = self::describe($member);
-				if ($name == 'id')
-					$problems[] = "line {$member->getLineNo()}: {$memberDescription} can't be named 'id', it is reserved for the object's id";
-				elseif ($name == $idColumn)
-					$problems[] = "line {$member->getLineNo()}: {$memberDescription} can't have the name of the class's id column '{$idColumn}',"
-						.' the object stores its id under that name';
-				elseif (isset($memberNames[$name]))
-					$problems[] = "line {$member->getLineNo()}: {$memberDescription} has the same name as "
-						.self::describe($memberNames[$name])." on line {$memberNames[$name]->getLineNo()}";
-				else
-					$memberNames[$name] = $member;
-			}
-
-			// The columns of each table: [ table => [ lowercase column => what uses it ] ]
-			$tables = self::getClassTables($classElement);
-			$baseTable = $tables[0];
-
-			foreach ($tables as $table) {
-				$other = $tableClasses[strtolower($table)] ??= $classElement;
-				if ($other !== $classElement)
-					$problems[] = "line {$classElement->getLineNo()}: {$description} uses table '{$table}', which is already a table of "
-						.self::describe($other)." on line {$other->getLineNo()}: give each class its own tables";
-			}
-			$columns = [];
-			foreach ($tables as $table)
-				$columns[$table] = [ strtolower($idColumn) => "the id column of {$description}" ];
-
-			if (self::getBool($classElement, 'softdelete')) {
-				if (isset($columns[$baseTable]['deleted']))
-					$problems[] = "line {$classElement->getLineNo()}: {$description} has softdelete=\"true\", which needs a column 'deleted'"
-						." in table '{$baseTable}', but that is already {$columns[$baseTable]['deleted']}";
-				else
-					$columns[$baseTable]['deleted'] = "the softdelete column of {$description}";
-			}
-
-			foreach ($classElement->getElementsByTagName('dataset') as $dataset) {
-				$table = $dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $baseTable;
-				foreach ($dataset->getElementsByTagName('property') as $property) {
-					$type = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
-					$propertyDescription = self::describe($property);
-					foreach (self::getFieldNames($property, $type) as $column) {
-						$key = strtolower($column);
-						if (isset($columns[$table][$key])) {
-							$problems[] = "line {$property->getLineNo()}: {$propertyDescription} uses column '{$column}' in table '{$table}',"
-								." which is already {$columns[$table][$key]}: set another column name with fieldname or fieldnames";
-						} else
-							$columns[$table][$key] = "used by {$propertyDescription} on line {$property->getLineNo()}";
-					}
-				}
-			}
-		}
-
-		if ($problems)
-			throw new \Exception("Invalid model XML:\n- ".implode("\n- ", $problems));
-	}
-
-	/**
-	 * Checks the tables of the relations:
-	 *
-	 * - A relation can't use one of its own class's tables, unless that table
-	 *   also holds the related class (like a parent/children relation). Its rows
-	 *   would be the object itself, so it holds at most one related object,
-	 *   which a Class property already does.
-	 * - A relation can't own a table that holds a class. Such a relation is
-	 *   derived: its rows are the objects of that class, so writing the
-	 *   relation would delete their data.
-	 * - The local_id and remote_id columns of a relation on a class's table
-	 *   must refer to the class with the relation and the related class,
-	 *   when they belong to that class (see checkDerivedRelation()).
-	 * - Relations on the same join table (one that holds no class) and with
-	 *   the same local_id column select their rows by the same object ID:
-	 *   - Relations of different classes would read each other's rows, since
-	 *     their IDs overlap, so they need the same local_type column that
-	 *     tells their rows apart, whether they own the table or not.
-	 *   - Relations of the same class can't have the same remote_id column
-	 *     too: nothing in the table tells their rows apart, so they are one
-	 *     relation defined twice. And they can't both own the table, because
-	 *     each replaces all rows of its object on commit, so it deletes the
-	 *     rows of the other one.
-	 *   The two directions of one relation, with local_id and remote_id
-	 *   swapped, use different columns and are fine.
-	 * - The columns of a relation (local_id, remote_id, local_type and
-	 *   order_field) must be different, or its queries name a column twice.
-	 * - All columns of a join table are required, and each relation that owns
-	 *   it inserts rows with only its own columns. So all owners must use the
-	 *   same columns: the same local_type and order_field, and the same
-	 *   local_id and remote_id, possibly swapped. With an order_field they
-	 *   can't be swapped, though: the positions are per local_id, so the two
-	 *   directions would overwrite each other's positions. A relation that
-	 *   doesn't own the table can only use columns that its owners create; a
-	 *   table without owners isn't generated, so its columns aren't checked.
-	 *
-	 * @param DOMElement $root the root element of the XML tree
-	 * @throws \Exception if a relation uses a table that it can't
-	 */
-	private static function checkRelations(DOMElement $root) : void {
-		$classElements = $root->getElementsByTagName('class');
-
-		// checkUniqueNames() has made sure that a table belongs to one class at most
-		$tableClasses = [];
-		$classTables = [];
-		foreach ($classElements as $classElement) {
-			$tables = self::getClassTables($classElement);
-			$classTables[self::qualifyClass($root, $classElement->getAttribute('name'))] = $tables;
-			foreach ($tables as $table)
-				$tableClasses[$table] = $classElement;
-		}
-
-		$joinTables = [];
-		$joinRelations = [];
-		foreach ($classElements as $classElement)
-			foreach ($classElement->getElementsByTagName('relation') as $relation) {
-				$className = $classElement->getAttribute('name');
-				$relationName = $relation->getAttribute('name');
-				$table = $relation->getAttribute('table');
-
-				$columns = self::getRelationColumns($relation);
-				$seen = [];
-				foreach ($columns as $attribute => $column) {
-					if (isset($seen[strtolower($column)]))
-						throw new \Exception("Relation '{$relationName}' of class '{$className}' uses column '{$column}' as both"
-							." {$seen[strtolower($column)]} and {$attribute}: each needs a column of its own");
-					$seen[strtolower($column)] = $attribute;
-				}
-
-				$ownTables = $classTables[self::qualifyClass($root, $className)];
-				$relatedTables = $classTables[self::qualifyClass($root, $relation->getAttribute('class'))] ?? [];
-				if (in_array($table, $ownTables) && !in_array($table, $relatedTables))
-					throw new \Exception("Relation '{$relationName}' of class '{$className}' cannot use its own class's table '{$table}'."
-						.' Its rows would be the object itself, so it holds at most one related object: use a Class property instead');
-
-				if (self::getBool($relation, 'table_owner') && isset($tableClasses[$table]))
-					throw new \Exception("Relation '{$relationName}' of class '{$className}'"
-						." cannot have table_owner=\"true\", because its table '{$table}' is a table of class '{$tableClasses[$table]->getAttribute('name')}'."
-						.' A relation on a class\'s table is derived and must be read-only: use table_owner="false",'
-						.' and change the property of the related objects instead');
-
-				if (isset($tableClasses[$table])) {
-					self::checkDerivedRelation($root, $relation, $className, $tableClasses[$table]);
-					continue;
-				}
-
-				$localID = $relation->getAttribute('local_id');
-				$remoteID = $relation->getAttribute('remote_id');
-				$localType = $relation->getAttribute('local_type');
-				$owner = self::getBool($relation, 'table_owner');
-				$description = "Relation '{$relationName}' of class '{$className}'";
-				foreach ($joinTables[$table][$localID] ?? [] as $other) {
-					$otherDescription = "relation '{$other['relation']}' of class '{$other['class']}'";
-					if ($other['class'] == $className) {
-						if ($remoteID == $other['remote_id'])
-							throw new \Exception("{$description} is the same as {$otherDescription}: both use table '{$table}'"
-								." with local_id '{$localID}' and remote_id '{$remoteID}'. Nothing in the table tells their rows apart,"
-								.' so they would hold the same objects: give each relation its own table');
-						if ($owner && $other['owner'])
-							throw new \Exception("{$description} cannot own table '{$table}' with local_id '{$localID}', because {$otherDescription} already does."
-								.' Each would delete the other\'s rows on commit: give each relation its own table');
-					} elseif ($localType === '' || $other['local_type'] === '')
-						throw new \Exception("{$description} uses table '{$table}' with local_id '{$localID}', like {$otherDescription},"
-							.' so both need a local_type attribute: the local_type column stores the class name that tells their rows apart');
-					elseif ($localType != $other['local_type'])
-						throw new \Exception("{$description} uses table '{$table}' with local_id '{$localID}', like {$otherDescription},"
-							.' so it must have the same local_type column');
-				}
-				$joinTables[$table][$localID][] = [
-					'class' => $className, 'relation' => $relationName, 'remote_id' => $remoteID,
-					'local_type' => $localType, 'owner' => $owner,
-				];
-				$joinRelations[$table][] = [ 'description' => $description, 'owner' => $owner, 'columns' => $columns ];
-			}
-
-		foreach ($joinRelations as $table => $relations) {
-			$owners = array_values(array_filter($relations, fn($relation) => $relation['owner']));
-			if (!$owners)
+	private static function buildProject(DOMElement $root, string $file, array $dependencies) : Project {
+		$schemaSettings = [];
+		foreach ($root->childNodes as $child) {
+			if (!$child instanceof DOMElement || $child->tagName != 'schema')
 				continue;
-
-			// Compare the columns case-insensitively, like MySQL, with local_id and remote_id in any order
-			$normalize = function(array $columns) : array {
-				$columns = array_map('strtolower', $columns);
-				$ids = [ $columns['local_id'], $columns['remote_id'] ];
-				sort($ids);
-				return [ $ids, $columns['local_type'] ?? null, $columns['order_field'] ?? null ];
-			};
-			$first = $owners[0];
-			foreach (array_slice($owners, 1) as $other)
-				if ($normalize($other['columns']) != $normalize($first['columns']))
-					throw new \Exception("{$other['description']} owns table '{$table}' with columns ".self::describeColumns($other['columns'])
-						.", but ".lcfirst($first['description'])." owns it with columns ".self::describeColumns($first['columns']).'.'
-						.' All columns of a join table are required, and each owner inserts rows with only its own columns:'
-						.' give them the same local_type and order_field, and the same local_id and remote_id (swapped is fine)');
-
-			// The positions in the order field are per local_id, so an owner in the
-			// other direction would renumber the rows by its own order on commit
-			if (isset($first['columns']['order_field']))
-				foreach (array_slice($owners, 1) as $other)
-					if (strtolower($other['columns']['local_id']) != strtolower($first['columns']['local_id']))
-						throw new \Exception("{$other['description']} owns table '{$table}' in the other direction than ".lcfirst($first['description'])
-							.", but the table has order_field '{$first['columns']['order_field']}'. Its positions are per local_id,"
-							.' so each owner would overwrite the other\'s positions on commit: let one of them own the table,'
-							.' and give the other table_owner="false"');
-
-			$tableColumns = array_map('strtolower', $first['columns']);
-			foreach ($relations as $relation)
-				foreach ($relation['columns'] as $attribute => $column)
-					if (!in_array(strtolower($column), $tableColumns))
-						throw new \Exception("{$relation['description']} uses column '{$column}' as {$attribute}, which table '{$table}' doesn't have:"
-							." ".lcfirst($first['description'])." owns the table with columns ".self::describeColumns($first['columns']));
+			$settings = [];
+			foreach ($child->attributes as $attribute)
+				if ($attribute->namespaceURI === null && $attribute->name != 'dialect')
+					$settings[$attribute->name] = $attribute->value;
+			$schemaSettings[$child->getAttribute('dialect')] = $settings;
 		}
+
+		$project = new Project(
+			namespace: trim($root->getAttribute('namespace'), '\\'),
+			database: $root->getAttribute('database'),
+			tableStyle: $root->getAttribute('tablestyle'),
+			longIds: $root->getAttribute('id_style') == 'long',
+			schemaSettings: $schemaSettings,
+			file: $file,
+			dependencies: $dependencies,
+		);
+
+		foreach ($root->getElementsByTagName('class') as $classElement)
+			$project->addRecord(self::buildRecord($project, $classElement));
+
+		return $project;
 	}
 
 	/**
-	 * Returns the columns that a relation uses in its table.
+	 * Builds a class of the model.
 	 *
-	 * @param DOMElement $relation the relation element
-	 * @return array<string, string> the column names, by attribute: local_id, remote_id, and local_type and order_field if set
+	 * @param Project $project the project the class is in
+	 * @param DOMElement $element the <class> element
 	 */
-	private static function getRelationColumns(DOMElement $relation) : array {
-		$columns = [];
-		foreach ([ 'local_id', 'remote_id', 'local_type', 'order_field' ] as $attribute)
-			if ($relation->getAttribute($attribute) !== '')
-				$columns[$attribute] = $relation->getAttribute($attribute);
-		return $columns;
-	}
+	private static function buildRecord(Project $project, DOMElement $element) : Record {
+		$name = $element->getAttribute('name');
+		$table = $element->hasAttribute('table') ? $element->getAttribute('table') : $project->translate('table', $name);
 
-	/**
-	 * Describes the columns of a relation for an error message, like "local_id 'user_id', remote_id 'tag_id'".
-	 *
-	 * @param array<string, string> $columns the columns, see getRelationColumns()
-	 * @return string the description
-	 */
-	private static function describeColumns(array $columns) : string {
-		return implode(', ', array_map(fn($attribute, $column) => "{$attribute} '{$column}'", array_keys($columns), $columns));
-	}
-
-	/**
-	 * Checks the columns of a relation on a class's table. The generator
-	 * doesn't create columns for such a relation, so all of them (local_id,
-	 * remote_id, and local_type and order_field if set) must exist in the
-	 * table: be the id column, the column of a property in that table, or the
-	 * softdelete column 'deleted' in the base table. Then:
-	 *
-	 * - local_id must refer to the class with the relation: be a Class
-	 *   property of that class, or the id column of a DynamicClass property,
-	 *   with the relation's local_type on its class-name column and the same
-	 *   use_namespace. It can't be the id column of the table's class: the
-	 *   rows would be the object itself, which a Class property does better.
-	 * - remote_id must refer to the related class: be the id column of that
-	 *   class, or a Class property of that class. A DynamicClass property
-	 *   can't be used, since a relation has no column to select the remote
-	 *   class by.
-	 *
-	 * Otherwise the relation would list objects that refer to something else
-	 * with the same ID. Column names are compared case-insensitively, like
-	 * MySQL does.
-	 *
-	 * @param DOMElement $root the root element of the XML tree
-	 * @param DOMElement $relation the relation element
-	 * @param string $className the name of the class with the relation
-	 * @param DOMElement $tableClass the class element whose table the relation uses
-	 * @throws \Exception if a column doesn't exist or refers to something else
-	 */
-	private static function checkDerivedRelation(DOMElement $root, DOMElement $relation, string $className, DOMElement $tableClass) : void {
-		$table = $relation->getAttribute('table');
-		$description = "Relation '{$relation->getAttribute('name')}' of class '{$className}'";
-		$tableClassName = $tableClass->getAttribute('name');
-		$idColumn = $tableClass->hasAttribute('id') ? $tableClass->getAttribute('id') : self::getAuto($root, 'id', $tableClassName);
-		$softdeleteColumn = self::getBool($tableClass, 'softdelete') && $table == self::getClassTables($tableClass)[0];
-
-		foreach (self::getRelationColumns($relation) as $attribute => $column)
-			if (strcasecmp($column, $idColumn) != 0 && self::findColumnProperty($tableClass, $table, $column) === null
-					&& !($softdeleteColumn && strcasecmp($column, 'deleted') == 0))
-				throw new \Exception("{$description} uses column '{$column}' as {$attribute}, but table '{$table}' of class '{$tableClassName}'"
-					." doesn't have it: use its id column '{$idColumn}' or the column of a property in that table");
-
-		$sides = [
-			'local_id' => $className,
-			'remote_id' => $relation->getAttribute('class'),
-		];
-		foreach ($sides as $attribute => $refersTo) {
-			$column = $relation->getAttribute($attribute);
-			$prefix = "{$description} uses column '{$column}' of table '{$table}' as {$attribute}, which";
-			$fix = "use a column that refers to class '{$refersTo}'";
-
-			if (strcasecmp($column, $idColumn) == 0) {
-				$sameClass = self::qualifyClass($root, $tableClassName) == self::qualifyClass($root, $refersTo);
-				if ($attribute == 'local_id' && $sameClass)
-					throw new \Exception("{$prefix} is the id column of class '{$tableClassName}'."
-						.' Its rows would be the object itself, so it holds at most one related object: use a Class property instead');
-				if (!$sameClass)
-					throw new \Exception("{$prefix} is the id column of class '{$tableClassName}': {$fix}");
-				continue;
+		$datasets = [];
+		foreach ($element->getElementsByTagName('dataset') as $datasetElement) {
+			$datasetName = null;
+			if ($datasetElement->hasAttribute('name')) {
+				// The name is used in column aliases, like ds_<name>#<column>
+				$datasetName = $datasetElement->getAttribute('name');
+				if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $datasetName))
+					throw new \Exception("Dataset name '{$datasetName}' of class {$name} is invalid, it must start with a letter and contain only letters, digits and underscores");
+				foreach ($datasets as $other)
+					if ($other->name === $datasetName)
+						throw new \Exception("Class {$name} has more than one dataset named '{$datasetName}'");
 			}
 
-			$found = self::findColumnProperty($tableClass, $table, $column);
-			if ($found === null)
-				throw new \Exception("{$prefix} is the softdelete column of class '{$tableClassName}': {$fix}");
-			[ $property, $type, $fieldNames ] = $found;
+			$properties = [];
+			foreach ($datasetElement->getElementsByTagName('property') as $propertyElement)
+				$properties[] = self::buildProperty($project, $propertyElement, $name);
 
-			$prefix .= " belongs to property '{$property->getAttribute('name')}' of class '{$tableClassName}'";
-			if ($type == 'Class') {
-				if (self::qualifyClass($root, $property->getAttribute('class')) != self::qualifyClass($root, $refersTo))
-					throw new \Exception("{$prefix}, a reference to class '{$property->getAttribute('class')}'."
-						." The relation would use the {$property->getAttribute('class')} with the same ID: {$fix}");
-			} elseif ($type != 'DynamicClass')
-				throw new \Exception("{$prefix}, of type {$type}, which doesn't refer to an object: {$fix}");
-			elseif ($attribute == 'remote_id')
-				throw new \Exception("{$prefix}, a DynamicClass that can refer to any class."
-					." A relation can't select its related objects by class name: {$fix}");
-			elseif (strcasecmp($column, $fieldNames[1]) != 0)
-				throw new \Exception("{$prefix}, as its class-name column. Use its id column '{$fieldNames[1]}' as local_id,"
-					." and its class-name column '{$fieldNames[0]}' as local_type");
-			elseif (strcasecmp($relation->getAttribute('local_type'), $fieldNames[0]) != 0)
-				throw new \Exception("{$prefix}, a DynamicClass that can refer to any class."
-					." Set local_type=\"{$fieldNames[0]}\", its class-name column, so the relation only lists the objects that refer to a {$className}");
-			elseif (self::getBool($relation, 'use_namespace') != self::getBool($property, 'use_namespace'))
-				throw new \Exception("{$description} must have the same use_namespace value as property '{$property->getAttribute('name')}'"
-					." of class '{$tableClassName}', so its local_type matches the stored class names");
-		}
-	}
-
-	/**
-	 * Finds the property of a class that stores a column of one of its tables.
-	 *
-	 * @param DOMElement $classElement the class element
-	 * @param string $table the table, one of the class's tables
-	 * @param string $column the column name, compared case-insensitively
-	 * @return ?array{DOMElement, string, list<string>} the property element, its type and its column names, or null if no property has the column
-	 */
-	private static function findColumnProperty(DOMElement $classElement, string $table, string $column) : ?array {
-		$baseTable = self::getClassTables($classElement)[0];
-		foreach ($classElement->getElementsByTagName('dataset') as $dataset) {
-			if (($dataset->hasAttribute('table') ? $dataset->getAttribute('table') : $baseTable) != $table)
-				continue;
-
-			foreach ($dataset->getElementsByTagName('property') as $property) {
-				$type = $property->hasAttribute('type') ? $property->getAttribute('type') : 'Text';
-				$fieldNames = self::getFieldNames($property, $type);
-				if (in_array(strtolower($column), array_map('strtolower', $fieldNames)))
-					return [ $property, $type, $fieldNames ];
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Checks the tables of the maps. A map selects its rows by owner (and by
-	 * class name, with a type column), and replaces all of them on commit, so
-	 * it needs a table of its own:
-	 *
-	 * - A map can't use a table of a class or a relation. Its rows would be
-	 *   read as map data and deleted, and the map's columns are required.
-	 * - Maps of the same class can't share a table: they would load and delete
-	 *   each other's rows.
-	 * - Maps of different classes can share a table only with a type column
-	 *   that tells their rows apart, and with the same columns.
-	 *
-	 * @param DOMElement $root the root element of the XML tree
-	 * @throws \Exception if a map uses a table that it can't
-	 */
-	private static function checkMaps(DOMElement $root) : void {
-		$classElements = $root->getElementsByTagName('class');
-
-		$usedTables = [];
-		foreach ($classElements as $classElement) {
-			$className = $classElement->getAttribute('name');
-			foreach (self::getClassTables($classElement) as $table)
-				$usedTables[$table] ??= "a table of class '{$className}'";
-			foreach ($classElement->getElementsByTagName('relation') as $relation)
-				$usedTables[$relation->getAttribute('table')] ??=
-					"the table of relation '{$relation->getAttribute('name')}' of class '{$className}'";
+			$datasets[] = new Dataset(
+				name: $datasetName,
+				table: $datasetElement->hasAttribute('table') ? $datasetElement->getAttribute('table') : $table,
+				autoload: self::getBool($datasetElement, 'autoload'),
+				properties: $properties,
+				line: $datasetElement->getLineNo(),
+			);
 		}
 
-		$mapTables = [];
-		foreach ($classElements as $classElement)
-			foreach ($classElement->getElementsByTagName('map') as $map) {
-				$className = $classElement->getAttribute('name');
-				$mapName = $map->getAttribute('name');
-				$table = $map->getAttribute('table');
-				$description = "Map '{$mapName}' of class '{$className}'";
+		$relations = [];
+		foreach ($element->getElementsByTagName('relation') as $relationElement) {
+			self::checkType('Relation', $relationElement->getAttribute('type'), $name, $relationElement->getAttribute('name'));
+			$relations[] = new Relation(
+				name: $relationElement->getAttribute('name'),
+				type: $relationElement->getAttribute('type'),
+				class: $project->qualifyClass($relationElement->getAttribute('class')),
+				table: $relationElement->getAttribute('table'),
+				localId: $relationElement->getAttribute('local_id'),
+				remoteId: $relationElement->getAttribute('remote_id'),
+				localType: $relationElement->hasAttribute('local_type') ? $relationElement->getAttribute('local_type') : null,
+				orderField: $relationElement->hasAttribute('order_field') ? $relationElement->getAttribute('order_field') : null,
+				tableOwner: self::getBool($relationElement, 'table_owner'),
+				loadObjects: self::getBool($relationElement, 'load_objects'),
+				cascadeDelete: self::getBool($relationElement, 'cascade_delete'),
+				useNamespace: self::getBool($relationElement, 'use_namespace'),
+				line: $relationElement->getLineNo(),
+			);
+		}
 
-				if (isset($usedTables[$table]))
-					throw new \Exception("{$description} cannot use table '{$table}', because it is {$usedTables[$table]}."
-						.' A map replaces all rows of its owner on commit, so it needs a table of its own');
+		$maps = [];
+		foreach ($element->getElementsByTagName('map') as $mapElement) {
+			$mapName = $mapElement->getAttribute('name');
+			$keys = [];
+			foreach ($mapElement->getElementsByTagName('key') as $key)
+				$keys[] = $key->getAttribute('name');
+			if (!$keys)
+				throw new \Exception("Map {$mapName} of class {$name} must have at least one <key>");
+			$values = $mapElement->getElementsByTagName('value');
+			if ($values->length != 1)
+				throw new \Exception("Map {$mapName} of class {$name} must have exactly one <value>, found {$values->length}");
 
-				$columns = [
-					'id' => $map->getAttribute('id') != '' ?
-						$map->getAttribute('id') : self::getAuto($root, 'relation_id', $className),
-					'type' => $map->getAttribute('type'),
-					'keys' => [],
-					'values' => [],
-				];
-				foreach ($map->getElementsByTagName('key') as $key)
-					$columns['keys'][] = $key->getAttribute('name');
-				foreach ($map->getElementsByTagName('value') as $value)
-					$columns['values'][] = $value->getAttribute('name');
+			$maps[] = new Map(
+				name: $mapName,
+				table: $mapElement->getAttribute('table'),
+				// The owner id column defaults to the long id style of the class
+				// name, like a relation column
+				idColumn: $mapElement->hasAttribute('id') ? $mapElement->getAttribute('id') : $project->translate('relation_id', $name),
+				typeColumn: $mapElement->hasAttribute('type') ? $mapElement->getAttribute('type') : null,
+				keys: $keys,
+				value: $values->item(0)->getAttribute('name'),
+				useNamespace: self::getBool($mapElement, 'use_namespace'),
+				line: $mapElement->getLineNo(),
+			);
+		}
 
-				if (!isset($mapTables[$table])) {
-					$mapTables[$table] = [ 'class' => $className, 'map' => $mapName, 'columns' => $columns ];
-					continue;
-				}
-
-				$other = $mapTables[$table];
-				$otherDescription = "map '{$other['map']}' of class '{$other['class']}'";
-				if ($other['class'] == $className)
-					throw new \Exception("{$description} cannot use table '{$table}', because {$otherDescription} already does."
-						.' Maps of the same class would load and delete each other\'s rows, so each needs a table of its own');
-				if ($columns['type'] === '' || $other['columns']['type'] === '')
-					throw new \Exception("{$description} shares table '{$table}' with {$otherDescription},"
-						.' so both need a type attribute: the type column stores the class name that tells their rows apart');
-				if ($columns != $other['columns'])
-					throw new \Exception("{$description} shares table '{$table}' with {$otherDescription},"
-						.' so it must have the same id, type, <key> and <value> column names');
-			}
+		return new Record(
+			project: $project,
+			name: $name,
+			idColumn: $element->hasAttribute('id') ? $element->getAttribute('id') : $project->translate('id', $name),
+			table: $table,
+			database: $element->hasAttribute('database') ? $element->getAttribute('database') : $project->database,
+			softdelete: self::getBool($element, 'softdelete'),
+			trait: $element->hasAttribute('trait') ? $element->getAttribute('trait') : null,
+			datasets: $datasets,
+			relations: $relations,
+			maps: $maps,
+			line: $element->getLineNo(),
+		);
 	}
 
 	/**
-	 * Returns the fully qualified name of a class referred to in the XML.
+	 * Builds a property of the model.
 	 *
-	 * @param DOMElement $root the root element of the XML tree
-	 * @param string $class the class name; without a namespace, the project's is used
-	 * @return string the class name with namespace, without leading backslash
+	 * @param Project $project the project the property is in
+	 * @param DOMElement $element the <property> element
+	 * @param string $className the name of the class the property is in
 	 */
-	public static function qualifyClass(DOMElement $root, string $class) : string {
-		if (strpos($class, '\\') !== false)
-			return ltrim($class, '\\');
-		$namespace = trim($root->getAttribute('namespace'), '\\');
-		return $namespace == '' ? $class : $namespace.'\\'.$class;
+	private static function buildProperty(Project $project, DOMElement $element, string $className) : Property {
+		$name = $element->getAttribute('name');
+		$type = $element->hasAttribute('type') ? $element->getAttribute('type') : 'Text';
+		self::checkType('Property', $type, $className, $name);
+
+		$precision = $scale = null;
+		if ($type == 'Decimal')
+			[$precision, $scale] = self::getDecimalSize($element);
+
+		$updateOn = null;
+		if ($element->hasAttribute('update_on')) {
+			$updateOn = $element->getAttribute('update_on');
+			if ($updateOn != 'create' && $updateOn != 'modify')
+				throw new \Exception("Invalid update_on '{$updateOn}' for property '{$name}', use 'create' or 'modify'");
+		}
+
+		$required = self::getBool($element, 'required');
+
+		// What happens to the reference when the referred object is deleted; by
+		// default it's refused for a required property, and set to null otherwise
+		$onRemoteDelete = null;
+		if ($type == 'Class' || $type == 'DynamicClass') {
+			$onRemoteDelete = $element->hasAttribute('on_remote_delete') ? $element->getAttribute('on_remote_delete') : ($required ? 'restrict' : 'null');
+			if (!in_array($onRemoteDelete, ['null', 'restrict', 'cascade']))
+				throw new \Exception("Invalid on_remote_delete '{$onRemoteDelete}' for property '{$name}', use 'null', 'restrict' or 'cascade'");
+			if ($onRemoteDelete == 'null' && $required)
+				throw new \Exception("Property '{$name}' can't have on_remote_delete=\"null\", because it is required");
+		}
+
+		return new Property(
+			name: $name,
+			type: $type,
+			required: $required,
+			columns: self::getFieldNames($project, $element, $type),
+			default: self::getDefault($element, $type, $precision, $scale),
+			signed: self::getBool($element, 'signed', true),
+			precision: $precision,
+			scale: $scale,
+			updateOn: $updateOn,
+			dateFormat: $element->hasAttribute('date_format') ? $element->getAttribute('date_format') : null,
+			class: $type == 'Class' ? $project->qualifyClass($element->getAttribute('class')) : null,
+			onRemoteDelete: $onRemoteDelete,
+			useNamespace: self::getBool($element, 'use_namespace'),
+			line: $element->getLineNo(),
+		);
 	}
 
 	/**
-	 * Returns the tables of a class: its base table, then those of its datasets.
+	 * Checks that a property or relation type exists, so a typo fails here
+	 * instead of when the generated class is used.
 	 *
-	 * @param DOMElement $classElement the class element in the XML tree
-	 * @return non-empty-list<string> the table names
+	 * @param string $kind 'Property' or 'Relation'
+	 * @param string $type the type from the XML, like 'Int' or 'NN'
+	 * @param string $className the class the property or relation is on
+	 * @param string $name the name of the property or relation
 	 */
-	public static function getClassTables(DOMElement $classElement) : array {
-		$table = $classElement->hasAttribute('table') ?
-			$classElement->getAttribute('table')
-			:
-			self::getAuto($classElement->ownerDocument->documentElement, 'table', $classElement->getAttribute('name'));
-
-		$tables = [$table];
-		foreach ($classElement->getElementsByTagName('dataset') as $dataset)
-			if ($dataset->hasAttribute('table'))
-				$tables[] = $dataset->getAttribute('table');
-
-		return array_values(array_unique($tables));
+	private static function checkType(string $kind, string $type, string $className, string $name) : void {
+		$base = "PHersist\\Types\\AR{$kind}Type";
+		$typeClass = $base.$type;
+		// class names are case-insensitive in PHP, but the type names aren't
+		if (!preg_match('/^[A-Za-z][A-Za-z0-9]*$/', $type) || !is_subclass_of($typeClass, $base)
+				|| (new \ReflectionClass($typeClass))->getName() !== $typeClass)
+			throw new \Exception(ucfirst(strtolower($kind))." '$name' of class $className has an unknown type '$type'");
 	}
 
 	/**
-	 * Reads a boolean attribute. load() has checked that its value is 'true'
-	 * or 'false' (see ATTRIBUTE_VALUES).
+	 * Reads a boolean attribute. checkElements() has checked that its value is
+	 * 'true' or 'false' (see ATTRIBUTE_VALUES).
 	 *
 	 * @param DOMElement $element the element in the XML tree
 	 * @param string $name the attribute name
 	 * @param bool $default the value if the attribute is not set
 	 * @return bool the value of the attribute
 	 */
-	public static function getBool(DOMElement $element, string $name, bool $default = false) : bool {
+	private static function getBool(DOMElement $element, string $name, bool $default = false) : bool {
 		return $element->hasAttribute($name) ? $element->getAttribute($name) === 'true' : $default;
 	}
 
 	/**
-	 * Returns whether an Int property is signed: it is, unless signed="false".
+	 * Reads the precision and scale for a Decimal property.
 	 *
 	 * @param DOMElement $property the property element in the XML tree
-	 * @return bool true for an INT column, false for INT UNSIGNED
+	 * @return array{int, int} the precision and scale
 	 */
-	public static function isSigned(DOMElement $property) : bool {
-		return self::getBool($property, 'signed', true);
+	private static function getDecimalSize(DOMElement $property) : array {
+		$precision = $property->hasAttribute('precision') ? $property->getAttribute('precision') : (string)ARPropertyTypeDecimal::DEFAULT_PRECISION;
+		$scale = $property->hasAttribute('scale') ? $property->getAttribute('scale') : (string)ARPropertyTypeDecimal::DEFAULT_SCALE;
+		try {
+			return ARPropertyTypeDecimal::parseSize($precision, $scale);
+		} catch (\InvalidArgumentException $e) {
+			throw new \Exception("Invalid Decimal property '{$property->getAttribute('name')}': {$e->getMessage()}", 0, $e);
+		}
 	}
 
 	/**
-	 * Reads and validates the default attribute of a Text, Int, Float or Bool
-	 * property. Decimal defaults depend on the column size, so the generators
-	 * validate those themselves.
+	 * Reads and validates the default attribute of a property. Only Text, Int,
+	 * Float, Decimal and Bool properties can have one.
 	 *
 	 * @param DOMElement $property the property element in the XML tree
 	 * @param string $type the property type
+	 * @param ?int $precision for Decimal: the precision
+	 * @param ?int $scale for Decimal: the scale
 	 * @return string|int|float|bool|null the default value, or null if there is none
 	 * @throws \Exception if the default is not a valid value for the type
 	 */
-	public static function getDefault(DOMElement $property, string $type) : string|int|float|bool|null {
+	private static function getDefault(DOMElement $property, string $type, ?int $precision, ?int $scale) : string|int|float|bool|null {
 		if (!$property->hasAttribute('default'))
 			return null;
 		$default = $property->getAttribute('default');
@@ -961,10 +808,13 @@ class XMLLoader {
 				return $default;
 
 			if ($type == 'Int')
-				return (new ARPropertyTypeInt())->normalize([ 'signed' => self::isSigned($property) ], $default);
+				return (new ARPropertyTypeInt())->normalize([ 'signed' => self::getBool($property, 'signed', true) ], $default);
 
 			if ($type == 'Float')
 				return (new ARPropertyTypeFloat())->normalize([], $default);
+
+			if ($type == 'Decimal' && $precision !== null && $scale !== null)
+				return ARPropertyTypeDecimal::normalizeValue($default, $precision, $scale);
 
 			if ($type == 'Bool') {
 				if ($default !== 'true' && $default !== 'false')
@@ -982,12 +832,13 @@ class XMLLoader {
 	 * Returns the column names for a property: from the fieldname or fieldnames
 	 * attribute, or generated from the property name with the table style.
 	 *
+	 * @param Project $project the project the property is in
 	 * @param DOMElement $property the property element in the XML tree
 	 * @param string $type the property type
 	 * @return list<string> the column names; two for a DynamicClass (class name and id), one otherwise
 	 * @throws \Exception if both attributes are set, or a name is empty or invalid, or the number of names is wrong for the type
 	 */
-	public static function getFieldNames(DOMElement $property, string $type) : array {
+	private static function getFieldNames(Project $project, DOMElement $property, string $type) : array {
 		$name = $property->getAttribute('name');
 		$expected = $type == 'DynamicClass' ? 2 : 1;
 
@@ -999,12 +850,11 @@ class XMLLoader {
 		elseif ($property->hasAttribute('fieldnames'))
 			$fieldNames = explode(',', $property->getAttribute('fieldnames'));
 		else {
-			$root = $property->ownerDocument->documentElement;
 			if ($type == 'Class')
-				return [ self::getAuto($root, 'relation_id', $name) ];
+				return [ $project->translate('relation_id', $name) ];
 			if ($type == 'DynamicClass')
-				return explode(',', self::getAuto($root, 'relation_combo', $name));
-			return [ self::getAuto($root, 'fieldname', $name) ];
+				return explode(',', $project->translate('relation_combo', $name));
+			return [ $project->translate('fieldname', $name) ];
 		}
 
 		$fieldNames = array_map('trim', $fieldNames);
@@ -1017,37 +867,5 @@ class XMLLoader {
 			throw new \Exception("Property '{$name}' of type {$type} needs {$expected} field name".($expected == 1 ? '' : 's').', got '.count($fieldNames));
 
 		return $fieldNames;
-	}
-
-	/**
-	 * Uses a table style converter to convert class and property names into table and column names.
-	 *
-	 * @param DOMElement $root the root element of the XML tree
-	 * @param string $term what kind of term to translate: table | id | fieldname | relation_id | relation_combo
-	 * @param string $name the name to translate
-	 * @return string the converted name
-	 * @throws \Exception if the table style is unknown, or the converted name is invalid (see checkName())
-	 */
-	public static function getAuto(DOMElement $root, string $term, string $name) : string {
-		$styleConverter = __NAMESPACE__.'\\TS'.$root->getAttribute('tablestyle');
-
-		if (!class_exists($styleConverter))
-			throw new \Exception("Cannot find table style converter class {$styleConverter}");
-
-		if ($term == 'id') {
-			// the root element property 'id_style' if it exists can be 'long' or
-			// 'short' (checked by load()), with the default being 'short', which
-			// means the main primary key field for tables will be named 'id',
-			// whereas the long version uses the converted class name + '_id'
-			if ($root->getAttribute('id_style') != 'long')
-				return 'id';
-		}
-
-		$result = $styleConverter::translate($term, $name);
-		$what = $term == 'table' ? 'table name' : 'column name';
-		foreach (explode(',', $result) as $converted)
-			if (($problem = self::checkName($converted)) !== null)
-				throw new \Exception("'{$name}' converts to an invalid {$what}: {$problem}. Rename it, or set the {$what} explicitly");
-		return $result;
 	}
 }

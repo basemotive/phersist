@@ -1,6 +1,6 @@
 # Creating a model from an XML file
 
-PHersist generates PHP model classes (and optionally MySQL schema) from a model XML file.  
+PHersist generates PHP model classes (and optionally a database schema for MySQL, MariaDB or SQLite) from a model XML file.  
 This guide is the full reference for defining that XML.
 
 If you want a quick onboarding flow first, read [Getting started with PHersist](getting-started.md).  
@@ -13,7 +13,10 @@ For caching and performance features, see [Advanced features](advanced-features.
 - [Root element](#root-element-project)
   - [`id_style`: short vs long](#id_style-short-vs-long)
 - [Database-specific settings](#database-specific-settings)
-  - [MySQL](#mysql-mysql)
+  - [MySQL](#mysql)
+  - [MariaDB](#mariadb)
+  - [SQLite](#sqlite)
+- [Model XMLs that depend on others](#model-xmls-that-depend-on-others-depends)
 - [Defining classes](#defining-classes-class)
   - [Extending generated classes with Traits](#extending-generated-classes-with-traits)
 - [Datasets](#datasets-dataset)
@@ -116,25 +119,79 @@ You can always override per class with `<class id="...">`.
 
 ## Database-specific settings
 
-Settings that only apply to one database type live in their own element directly under `<project>`, named after the database type. Settings that apply to all database types (such as `tablestyle`) stay on `<project>` itself.
-
-### MySQL: `<mysql>`
+Settings that only apply to one database type go in a `<schema>` element directly under `<project>`, with the database type in its `dialect` attribute. Settings that apply to all database types (such as `tablestyle`) stay on `<project>` itself.
 
 ```xml
 <project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model">
-    <mysql charset="utf8mb4" collate="utf8mb4_0900_ai_ci"/>
+    <schema dialect="mysql" charset="utf8mb4" collate="utf8mb4_0900_ai_ci"/>
     <!-- classes -->
 </project>
 ```
 
-These settings only affect the schema generated with `--mysql`; the generated PHP classes are unaffected.
+There can be one `<schema>` element for each dialect; each schema generator only reads its own. The settings only affect the generated schema; the generated PHP classes are unaffected. The other attributes depend on the dialect, and their values may only contain letters, digits and underscores.
+
+| Dialect | Schema option | Attributes |
+|---|---|---|
+| `mysql` | `--mysql` | [`charset`, `collate`](#mysql) |
+| `mariadb` | `--mariadb` | [`charset`, `collate`](#mariadb) |
+| `sqlite` | `--sqlite` | none |
+
+### MySQL
+
+`<schema dialect="mysql">`, for the schema generated with `--mysql`:
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
 | `charset` | no | `utf8mb4` | Table character set (`DEFAULT CHARSET=...`). |
 | `collate` | no | `utf8mb4_unicode_ci` if `charset` is not set, otherwise none | Table collation (`COLLATE=...`). When `charset` is set without `collate`, no `COLLATE` clause is emitted and MySQL uses the charset's default collation. |
 
-The `<mysql>` element itself is optional; without it the defaults above are used. Values may only contain letters, digits and underscores.
+The element itself is optional; without it the defaults above are used. The schema needs MySQL 8.0 or newer.
+
+### MariaDB
+
+`<schema dialect="mariadb">`, for the schema generated with `--mariadb`, has the same attributes and defaults as [MySQL](#mysql); MariaDB doesn't read the `mysql` settings, since some collations only exist in one of them. The schema is the same as for MySQL, except for the collation of [map](#generated-table) keys and values, and needs MariaDB 10.2 or newer.
+
+### SQLite
+
+The schema generated with `--sqlite` has no settings. SQLite has fewer column types than MySQL:
+
+- integers, booleans, ids and references are `INTEGER`, and floats `REAL`;
+- `Decimal` columns are `DECIMAL(precision,scale)`, which SQLite stores as a number: exact up to about 15 significant digits;
+- `Date`, `DateTime` and `TimestampText` columns are `TEXT`, in the formats PHersist writes (`Y-m-d`, `Y-m-d H:i:s`);
+- class names and map keys and values are `TEXT`, which SQLite compares exactly.
+
+Indexes are separate `CREATE INDEX` statements, named after the table and the index (`forum_messages_idx_forum`), since SQLite index names are per database.
+
+---
+
+## Model XMLs that depend on others: `<depends>`
+
+A project can be split into several model XMLs, like a core and plugins, each with its own namespace and generated on its own. A model XML whose classes refer to the classes of another one names that one in a `<depends>` element, directly under `<project>`:
+
+```xml
+<project database="myapp" tablestyle="SnakeCase" namespace="Blog\Model">
+    <depends xml="../../core/model/model.xml"/>
+
+    <class name="Post">
+        <dataset>
+            <property name="author" type="Class" class="Core\Model\User" required="true"/>
+        </dataset>
+        <relation name="likers" type="NN" class="Core\Model\User" table="post_likes"
+            local_id="post_id" remote_id="user_id" table_owner="true"/>
+    </class>
+</project>
+```
+
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `xml` | yes | — | The path of the other model XML, relative to this one (or absolute). |
+
+- Generating a model XML only generates its own classes and schema. The model XMLs it depends on, and the ones those depend on, are read so that its classes can refer to theirs (with the namespace in the `class` attribute), and so the checks see all of them: class and table names must be unique across them, and relations on the tables of another model XML follow the same rules as within one.
+- Every model XML needs its own namespace (only one of them can have none), because the references from its classes are generated into a class in that namespace; see [Deleting objects with relations](#deleting-objects-with-relations).
+- A `Class` property or relation that refers to a class of another model XML must use the same `database`, since a delete cleans up the references in one transaction.
+- Dependencies can't be circular: a model XML can't depend on itself, directly or through others. For example, if the blog depends on the core, the core can't depend on the blog.
+
+At runtime, the namespaces of the model XMLs have to be registered, so that deleting an object also cleans up the references from the other model XMLs; see [Projects with several model XMLs](advanced-features.md#9-projects-with-several-model-xmls-plugins).
 
 ---
 
@@ -565,7 +622,9 @@ References from other classes are cleaned up even when the deleted object's clas
   For example, with `<property name="picture" type="Class" class="Picture" on_remote_delete="cascade"/>` in `Page`, deleting a picture deletes its pages, whether `Picture` has a `pages` relation or not. If it has one with `cascade_delete="true"`, the pages are deleted regardless of `on_remote_delete`.
 - **A relation through a join table**, like `ForumMessage.tags`: deleting a `Tag` deletes its rows in `forum_message_tags`, so the messages no longer list it.
 
-Only classes in the same XML file are found. If a class in another model refers to this one, its references are left in place.
+The generator writes the references from the classes of a model XML into a `PHersistReferences` class, next to the model classes, so deploy its `PHersistReferences.php` with them. The references from the deleted object's own model XML are always cleaned up. Those from other model XMLs, like plugins, only when their namespace is registered; see [Projects with several model XMLs](advanced-features.md#9-projects-with-several-model-xmls-plugins).
+
+References with `restrict` are checked after the others, so an object that is deleted along through `cascade` doesn't stop the deletion, even if it refers to the deleted object with `restrict` too.
 
 A cascade may lead back to an object that is already being deleted, for example when two objects refer to each other with `cascade`; that object is then simply deleted once.
 
@@ -645,12 +704,15 @@ Maps provide key/value data attached to an object through a table.
 
 ### Generated table
 
-The `type` and key columns are `VARCHAR(191)`, the value column is `TEXT`. Map keys and values are always UTF-8, so the key and value columns use `utf8mb4` whatever the table's `charset`, with the binary `NO PAD` collation `utf8mb4_0900_bin`. Keys are therefore as distinct as PHP array keys: case-sensitive, and trailing spaces count (`'a'` and `'a '` are different keys). This collation requires MySQL 8.0 or newer; MariaDB doesn't have it (its equivalent is `utf8mb4_nopad_bin`), so replace it in the generated schema when you use MariaDB.
+Map keys are as distinct as PHP array keys: case-sensitive, and trailing spaces count (`'a'` and `'a '` are different keys).
+
+- **MySQL and MariaDB:** the `type` and key columns are `VARCHAR(191)`, the value column is `TEXT`. Map keys and values are always UTF-8, so the key and value columns use `utf8mb4` whatever the table's `charset`, with a binary `NO PAD` collation: `utf8mb4_0900_bin` for MySQL, `utf8mb4_nopad_bin` for MariaDB.
+- **SQLite:** all of them are `TEXT`, which SQLite compares exactly.
 
 The table gets exactly one index:
 
-- **Up to 4 text columns** (the key columns, plus the `type` column if set; so 3 keys with `type`, 4 without): a unique index on the owner (`type` if set, then `id`) plus all key columns. Each key path can hold only one value, and the database rejects duplicates.
-- **More than that:** a plain index on the owner only, because a unique index over all columns would exceed InnoDB's index size limit. Such maps work the same, but the database doesn't prevent duplicate rows for a key path. PHersist never writes duplicates itself; if something else does, the map keeps the last row it reads.
+- **If the database allows it**, a unique index on the owner (`type` if set, then `id`) plus all key columns. Each key path can hold only one value, and the database rejects duplicates. For MySQL and MariaDB, that's up to 4 text columns (the key columns, plus the `type` column if set; so 3 keys with `type`, 4 without); SQLite has no limit.
+- **Otherwise,** a plain index on the owner only, because a unique index over all columns would exceed the database's index size limit (InnoDB's, for MySQL and MariaDB). Such maps work the same, but the database doesn't prevent duplicate rows for a key path. PHersist never writes duplicates itself; if something else does, the map keeps the last row it reads.
 
 PHersist always loads a map as a whole by its owner, so the key columns have no indexes of their own. If you query a map table by key in your own SQL, add the index you need yourself.
 
@@ -780,7 +842,9 @@ backslashes (`MyApp\Model`, `\Babble\Model\ForumMessageTrait`).
 A class name can't be a PHP reserved word, like `List`, `Match`, `Function` or
 `String` (as in PHP, case doesn't matter), nor `ActiveRecord`, which clashes
 with the base class of the generated classes. The same goes for the last part
-of a trait name. The namespace may contain reserved words (`MyApp\List`), but
+of a trait name. A class name also can't be `PHersistReferences`, the class
+that the generator writes next to the classes, with the references between
+them (see [Deleting objects with relations](#deleting-objects-with-relations)). The namespace may contain reserved words (`MyApp\List`), but
 can't start with `namespace`. Property, relation and map names may be reserved
 words.
 
@@ -828,12 +892,16 @@ vendor/bin/phersist --xml=model/model.xml
 # Generate classes + MySQL schema
 vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql
 
-# Generate only MySQL schema
+# Generate only MySQL schema (or --mariadb, --sqlite; several at once also works)
 vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql --skip-classes
 
-# Include custom class snippets
-vendor/bin/phersist --xml=model/model.xml --includesdir=model/includes
+# Generate several model XMLs at once; each one's classes go to the directory
+# of its namespace (from composer's autoloading), and the schema has the
+# tables of all of them
+vendor/bin/phersist --xml=core/model.xml --xml=plugins/blog/model.xml --mysql=schema.sql
 ```
+
+Besides a file per class, the generator writes `PHersistReferences.php`, with the references between the classes.
 
 The generator checks the XML before generating anything. It reports, with line numbers, every element that is unknown or in the wrong place (like a `<property>` directly under `<class>`), every unknown attribute (like `requried="true"`, or `default` on a `Date` property), and every required attribute that is missing or empty (like a relation's `local_id`). An optional attribute that holds a name, like a class's `table` or a relation's `local_type`, can't be empty either: leave it out to get the default. Boolean attributes (`softdelete`, `autoload`, `required`, `signed`, `table_owner`, `load_objects`, `cascade_delete` and `use_namespace`) must be exactly `true` or `false`, and `id_style` must be `short` or `long`; other values, like `1`, `yes` or `True`, are reported too. Attributes in an XML namespace, like `xsi:noNamespaceSchemaLocation`, are ignored. For an element that spans several lines, the line number is the one where its start tag ends.
 

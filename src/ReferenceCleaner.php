@@ -29,48 +29,61 @@ class ReferenceCleaner {
 	}
 
 	/**
-	 * Returns the on_remote_delete policy for a Class or DynamicClass property.
+	 * Cleans up the references to the deleted object, from the
+	 * PHersistReferences of its namespace and the registered ones (see
+	 * ReferenceRegistry). References in a table that one of the object's own
+	 * relations already cleans up are skipped.
 	 *
-	 * Classes generated before on_remote_delete existed don't have it in their
-	 * metadata, so it is derived from 'required' the way the generator does.
-	 *
-	 * @param array<string, mixed> $prop the property definition from the metadata
-	 * @return string 'null', 'restrict' or 'cascade'
+	 * Those with on_remote_delete="restrict" are checked last, so a reference
+	 * from an object that another reference cascades to doesn't stop the
+	 * deletion.
 	 */
-	public static function policyFor(array $prop) : string {
-		return $prop['on_remote_delete'] ?? ($prop['required'] ? 'restrict' : 'null');
+	public function cleanUpReferences() : void {
+		$class = get_class($this->activeRecord);
+		$covered = [];
+		foreach (ActiveRecord::_getMeta($class)['relations'] as $relation)
+			$covered[] = "{$relation['table']}.{$relation['local_id']}";
+
+		$references = [];
+		$restricting = [];
+		foreach (ReferenceRegistry::referencesTo($class) as $reference) {
+			$column = isset($reference['relation']) ? $reference['remote_id'] : end($reference['fieldnames']);
+			if (in_array("{$reference['table']}.{$column}", $covered))
+				continue;
+			if (($reference['policy'] ?? null) == 'restrict')
+				$restricting[] = $reference;
+			else
+				$references[] = $reference;
+		}
+
+		foreach (array_merge($references, $restricting) as $reference)
+			$this->cleanUp($reference);
 	}
 
 	/**
-	 * Cleans up one of the references from the 'references' in the metadata of
-	 * the deleted object's class.
+	 * Cleans up one reference to the deleted object.
 	 *
-	 * @param array<string, mixed> $ref the reference: the referring 'class', and
-	 *   the 'property' or join table 'relation' in it that holds the reference
+	 * @param array<string, mixed> $reference the reference, from the REFERENCES of
+	 *   a PHersistReferences class: the referring 'class', its 'database', the
+	 *   'table' that holds the reference, and either the join table
+	 *   'relation' with its 'remote_id' and 'local_type' column and value, or the
+	 *   'property' with its 'type', 'fieldnames' and 'policy', and the 'id',
+	 *   'base_table' and 'softdelete' of the referring class
 	 */
-	public function cleanUp(array $ref) : void {
-		/** @var class-string<ActiveRecord> $class */
-		$class = $ref['class'];
-		$meta = ActiveRecord::_getMeta($class);
-
-		if (isset($ref['relation'])) {
-			$this->_deleteJoinRows($class, $meta['relations'][$ref['relation']]);
+	private function cleanUp(array $reference) : void {
+		if (isset($reference['relation'])) {
+			$this->_deleteJoinRows($reference);
 			return;
 		}
 
-		foreach ($meta['datasets'] as $dataset) if (isset($dataset['props'][$ref['property']])) {
-			$prop = $dataset['props'][$ref['property']];
+		// A DynamicClass property also stores the class name, in the form its
+		// type writes it
+		if ($reference['type'] == 'DynamicClass')
+			$match = (new Types\ARPropertyTypeDynamicClass())->toDB($reference, $this->activeRecord);
+		else
+			$match = [ $reference['fieldnames'][0] => $this->activeRecord->id ];
 
-			// A DynamicClass property also stores the class name, in the form its
-			// type writes it
-			if ($prop['type'] == 'DynamicClass')
-				$match = (new Types\ARPropertyTypeDynamicClass())->toDB($prop, $this->activeRecord);
-			else
-				$match = [ $prop['fieldnames'][0] => $this->activeRecord->id ];
-
-			$this->clear($class, $dataset['table'], $match, self::policyFor($prop), $ref['property']);
-			return;
-		}
+		$this->clear($reference, $reference['table'], $match, $reference['policy'], $reference['property']);
 	}
 
 	/**
@@ -82,15 +95,19 @@ class ReferenceCleaner {
 	 * 'cascade', softdeleted objects aren't deleted again; objects of a class
 	 * with softdelete are softdeleted, and keep their reference.
 	 *
-	 * @param class-string<ActiveRecord> $class the class that refers to the deleted object
+	 * Only 'cascade' loads the class, if there are objects to delete.
+	 *
+	 * @param array{class: class-string<ActiveRecord>, database: string, id: string, base_table: string, softdelete: bool, ...} $referrer
+	 *   the class that refers to the deleted object: its name, database, id
+	 *   column, base table and whether it has softdelete
 	 * @param string $table the table of that class that holds the references
 	 * @param array<string, mixed> $match the column values that make up the reference
 	 * @param string $policy 'null', 'restrict' or 'cascade'
 	 * @param ?string $propName the property that holds the reference, for the error message
 	 */
-	public function clear(string $class, string $table, array $match, string $policy, ?string $propName) : void {
-		$meta = ActiveRecord::_getMeta($class);
-		$PDO = $this->_getPDO($meta);
+	public function clear(array $referrer, string $table, array $match, string $policy, ?string $propName) : void {
+		$class = $referrer['class'];
+		$PDO = $this->_getPDO($referrer['database']);
 
 		// Numbered placeholders, as column names can contain characters that
 		// PDO doesn't allow in a placeholder
@@ -102,11 +119,11 @@ class ReferenceCleaner {
 		};
 
 		if ($policy == 'cascade') {
-			$baseTable = $meta['table'];
-			$idField = $meta['id'];
+			$baseTable = $referrer['base_table'];
+			$idField = $referrer['id'];
 
 			$query = "select `$table`.`$idField` from `$table`";
-			if ($meta['softdelete']) {
+			if ($referrer['softdelete']) {
 				if ($table != $baseTable)
 					$query .= " inner join `$baseTable` on `$baseTable`.`$idField` = `$table`.`$idField`";
 				$where .= " and `$baseTable`.`deleted` = '0'";
@@ -117,6 +134,9 @@ class ReferenceCleaner {
 			$ids = $stmt->fetchAll(\PDO::FETCH_COLUMN);
 			$stmt->closeCursor();
 
+			if ($ids && !class_exists($class))
+				$this->activeRecord->_error("Cannot cascade the deletion to {$class} objects through the property '{$propName}': class {$class} doesn't exist."
+					.' Make sure the classes of every installed model XML can be autoloaded');
 			foreach ($ids as $id)
 				ActiveRecord::fetchObject($class, (int)$id)?->delete();
 		} elseif ($policy == 'restrict') {
@@ -126,10 +146,13 @@ class ReferenceCleaner {
 			$count = (int)$stmt->fetchColumn();
 			$stmt->closeCursor();
 
-			if ($count > 0)
-				$this->activeRecord->_error("Cannot delete, because {$count} ".(new \ReflectionClass($class))->getShortName()
+			if ($count > 0) {
+				$pos = strrpos($class, '\\');
+				$shortName = $pos === false ? $class : substr($class, $pos + 1);
+				$this->activeRecord->_error("Cannot delete, because {$count} {$shortName}"
 					." object".($count == 1 ? '' : 's')." still refer".($count == 1 ? 's' : '')
 					." to it through the property '{$propName}'; delete them first, or set on_remote_delete=\"cascade\" on that property");
+			}
 		} else {
 			$set = implode(', ', array_map(fn($column) => "`$column` = NULL", array_keys($match)));
 			$stmt = $PDO->prepare("update `{$table}` set {$set} where {$where}");
@@ -142,33 +165,29 @@ class ReferenceCleaner {
 	 * Deletes the rows in a join table that refer to the deleted object as the
 	 * related object of a relation.
 	 *
-	 * @param class-string<ActiveRecord> $class the class that has the relation
-	 * @param array<string, mixed> $rel the relation definition from the metadata
+	 * @param array<string, mixed> $reference the reference, see cleanUp()
 	 */
-	private function _deleteJoinRows(string $class, array $rel) : void {
-		$query = "delete from `{$rel['table']}` where `{$rel['remote_id']}` = :id";
+	private function _deleteJoinRows(array $reference) : void {
+		$query = "delete from `{$reference['table']}` where `{$reference['remote_id']}` = :id";
 		// The local_type column holds the class of the relation's owner
-		$localType = null;
-		if (isset($rel['local_type']) && $rel['local_type'] != '') {
-			$localType = $rel['use_namespace'] ? $class : (new \ReflectionClass($class))->getShortName();
-			$query .= " and `{$rel['local_type']}` = :localType";
-		}
+		if ($reference['local_type'] !== null)
+			$query .= " and `{$reference['local_type']}` = :localType";
 
-		$stmt = $this->_getPDO(ActiveRecord::_getMeta($class))->prepare($query);
+		$stmt = $this->_getPDO($reference['database'])->prepare($query);
 		$stmt->bindValue(':id', $this->activeRecord->id, \PDO::PARAM_INT);
-		if ($localType !== null)
-			$stmt->bindValue(':localType', $localType, \PDO::PARAM_STR);
+		if ($reference['local_type'] !== null)
+			$stmt->bindValue(':localType', $reference['local_type_value'], \PDO::PARAM_STR);
 		$stmt->execute();
 	}
 
 	/**
-	 * Returns the database connection for a class.
+	 * Returns a database connection.
 	 *
-	 * @param array<string, mixed> $meta the metadata of the class
+	 * @param string $database the database (connection id)
 	 */
-	private function _getPDO(array $meta) : \PDO {
-		return DB\DBConnectionManager::getPDO($meta['database'])
-			?? throw new \Exception("No database '{$meta['database']}'");
+	private function _getPDO(string $database) : \PDO {
+		return DB\DBConnectionManager::getPDO($database)
+			?? throw new \Exception("No database '{$database}'");
 	}
 
 	private ActiveRecord $activeRecord;

@@ -231,7 +231,7 @@ class ARRelationTypeNN extends ARRelationType {
 				if (in_array($rel['local_id'], $prop['fieldnames'])) {
 					$propName = $key;
 					if ($prop['type'] == 'Class' || $prop['type'] == 'DynamicClass')
-						$policy = ReferenceCleaner::policyFor($prop);
+						$policy = $prop['on_remote_delete'];
 					elseif ($prop['required'])
 						$policy = 'restrict';
 				}
@@ -239,7 +239,9 @@ class ARRelationTypeNN extends ARRelationType {
 		if ($rel['cascade_delete'])
 			$policy = 'cascade';
 
-		(new ReferenceCleaner($this->activeRecord))->clear($rel['class'], $rel['table'], $match, $policy, $propName);
+		$referrer = [ 'class' => $rel['class'], 'database' => $meta['database'], 'id' => $meta['id'],
+			'base_table' => $meta['table'], 'softdelete' => $meta['softdelete'] ];
+		(new ReferenceCleaner($this->activeRecord))->clear($referrer, $rel['table'], $match, $policy, $propName);
 	}
 
 	/**

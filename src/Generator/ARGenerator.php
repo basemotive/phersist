@@ -69,7 +69,6 @@ class ARGenerator {
 		$txt .= "\tprotected static ?array \$_meta = ".$this->exportArray($meta, 1).";\n\n";
 
 		$txt .= "}\n";
-		$txt .= "?>";
 
 		return $txt;
 	}
@@ -336,7 +335,6 @@ class ARGenerator {
 		$txt .= "\t/** @var array<string, list<array<string, mixed>>> */\n";
 		$txt .= "\tpublic const REFERENCES = ".$this->exportArray($index, 1).";\n";
 		$txt .= "}\n";
-		$txt .= "?>";
 
 		return $txt;
 	}

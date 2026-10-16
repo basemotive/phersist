@@ -51,7 +51,6 @@ class XMLAutoloader {
 
 		// The generator creates complete PHP code, but eval can't handle the '<?php'
 		if (substr($phpcode, 0, 5)=='<?php') $phpcode = substr($phpcode, 5);
-		if (substr($phpcode, strlen($phpcode)-2) == '?>') $phpcode = substr($phpcode, 0, strlen($phpcode)-2);
 
 		// Now load the PHP code
 		eval($phpcode);

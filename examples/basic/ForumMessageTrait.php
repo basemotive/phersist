@@ -35,5 +35,3 @@ trait ForumMessageTrait {
 	    return 'just now';
 	}
 }
-
-?>

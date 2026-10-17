@@ -24,7 +24,7 @@ $user->commit();
 
 echo "User created: {$user->name}\n";
 ```
-And your new `User` is added to the database. Now if you need find that user later, it goes like this:
+And your new `User` is added to the database. If you need to find that user later, it goes like this:
 ```php
 use PHersist\ObjectFinder;
 

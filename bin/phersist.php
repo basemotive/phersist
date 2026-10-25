@@ -106,13 +106,17 @@ try {
 				$namespace = $project->namespace == '' ? '' : $project->namespace.'\\';
 				$prefixes = $autoloader->getPrefixesPsr4();
 				uksort($prefixes, fn($a, $b) => strlen($b) - strlen($a));
+				// composer keeps a "" prefix apart, as the fallback dirs for every namespace
+				$prefixes[''] = $autoloader->getFallbackDirsPsr4();
 				foreach ($prefixes as $prefix => $dirs) {
-					if (str_starts_with($namespace, $prefix)) {
-						$relative = str_replace('\\', '/', substr($namespace, strlen($prefix)));
-						$projectClassesDir = realpath("{$dirs[0]}/{$relative}");
-						// realpath may not actually exist, so only break on success
+					if (!str_starts_with($namespace, $prefix))
+						continue;
+					$relative = str_replace('\\', '/', substr($namespace, strlen($prefix)));
+					foreach ($dirs as $dir) {
+						// the dir may not actually exist, so only stop on success
+						$projectClassesDir = realpath("{$dir}/{$relative}");
 						if ($projectClassesDir)
-							break;
+							break 2;
 					}
 				}
 			}

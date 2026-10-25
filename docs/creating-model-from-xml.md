@@ -901,6 +901,8 @@ vendor/bin/phersist --xml=model/model.xml --mysql=model/schema.sql --skip-classe
 vendor/bin/phersist --xml=core/model.xml --xml=plugins/blog/model.xml --mysql=schema.sql
 ```
 
+Without `--classesdir`, the classes go to the directory that composer's PSR-4 autoloading has for the project's namespace: the one of the longest matching prefix, or else a fallback directory (a `""` prefix in `composer.json`, which is also where the classes of a model without namespace go). The directory must exist; with several directories for a prefix, the first existing one is used. If none is found, the generator asks for `--classesdir`.
+
 Besides a file per class, the generator writes `PHersistReferences.php`, with the references between the classes.
 
 The generator checks the XML before generating anything. It reports, with line numbers, every element that is unknown or in the wrong place (like a `<property>` directly under `<class>`), every unknown attribute (like `requried="true"`, or `default` on a `Date` property), and every required attribute that is missing or empty (like a relation's `local_id`). An optional attribute that holds a name, like a class's `table` or a relation's `local_type`, can't be empty either: leave it out to get the default. Boolean attributes (`softdelete`, `autoload`, `required`, `signed`, `table_owner`, `load_objects`, `cascade_delete` and `use_namespace`) must be exactly `true` or `false`, and `id_style` must be `short` or `long`; other values, like `1`, `yes` or `True`, are reported too. Attributes in an XML namespace, like `xsi:noNamespaceSchemaLocation`, are ignored. For an element that spans several lines, the line number is the one where its start tag ends.

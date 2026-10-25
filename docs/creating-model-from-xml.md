@@ -225,6 +225,8 @@ Example for class `ForumMessage`:
 - class: `ForumMessage`
 - auto-detected trait: `ForumMessageTrait`
 
+The check happens when the classes are generated, not at runtime: the generator asks the autoloader (the one `bin/phersist` uses, normally your project's composer autoloader) whether the trait exists. So the trait must be autoloadable at that moment, for example `src/Model/ForumMessageTrait.php` for the namespace `MyApp\Model` mapped to `src/Model/`. A trait added later is only used after generating the classes again. A trait set with the `trait` attribute is always used, without checking whether it exists.
+
 A sample implementation is available in `examples/basic/ForumMessageTrait.php`, where `ForumMessageTrait::createdAtRelative()` adds a custom convenience method to the generated object.
 
 If the trait cannot be auto-detected, or if you want a different trait name, set the `trait` attribute explicitly on the class:

@@ -26,7 +26,7 @@ The sample model includes practical patterns such as:
 - map properties for key/value-style data
 - trait-based extension of generated objects (for example `ForumMessageTrait`)
 
-PHersist can automatically include a trait during generation when a matching trait exists (for example `ForumMessageTrait` for `ForumMessage`) in the model namespace/autoload path. You can also explicitly set a trait on a class in the model XML using the `trait` attribute.
+When generating the classes, PHersist automatically includes a matching trait (for example `ForumMessageTrait` for `ForumMessage`) if the generator can autoload it from the model namespace. You can also explicitly set a trait on a class in the model XML using the `trait` attribute.
 
 ## Suggested reading order
 

@@ -385,7 +385,7 @@ use PHersist\ActiveRecord;
 use PHersist\DB\DBConnectionManager;
 
 // Users who posted more than 10 messages in the last week
-$stmt = DBConnectionManager::getPDO('default')->prepare("
+$stmt = DBConnectionManager::getPDO('myapp')->prepare("
     select `users`.`id`,
         `users`.`email` as `ds_main#email`,
         `users`.`password` as `ds_main#password`,

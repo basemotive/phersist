@@ -2,7 +2,7 @@
 
 PHersist is a lightweight ORM (Object-Relational Mapper) for PHP.
 
-This allows you to generate PHP model classes that are backed by database tables. You can create objects and work with them like normal, and them commit the changes to the database when you're done modifying them. PHersist handles the SQL for you.
+This allows you to generate PHP model classes that are backed by database tables. You can create objects and work with them like normal, and then commit the changes to the database when you're done modifying them. PHersist handles the SQL for you.
 
 ## Small but powerful
 

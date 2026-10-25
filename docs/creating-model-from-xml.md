@@ -473,7 +473,7 @@ Extra attribute:
 
 | Attribute | Required | Description |
 |---|---|---|
-| `class` | yes | Name of target class in this model XML. |
+| `class` | yes | The class referred to. A name without namespace is a class in this model's namespace (like `Forum`); for a class of a model XML this one [depends on](#model-xmls-that-depend-on-others-depends), include its namespace (like `Core\Model\User`). |
 | `on_remote_delete` | no | What happens to the reference when the referred object is deleted: `null`, `restrict` or `cascade`. Default `restrict` for a `required` property, `null` otherwise. See [Deleting objects with relations](#deleting-objects-with-relations). |
 
 ### `DynamicClass`
@@ -549,7 +549,7 @@ PHersist currently uses `type="NN"` for both one-to-many and many-to-many patter
 |---|---|---|---|
 | `name` | yes | — | Relation property name on object. Must be a [PHP identifier](#allowed-php-names), and [unique](#unique-names) in the class. |
 | `type` | yes | — | Currently `NN`. |
-| `class` | yes | — | Target class name. |
+| `class` | yes | — | The related class. A name without namespace is a class in this model's namespace (like `ForumMessage`); for a class of a model XML this one [depends on](#model-xmls-that-depend-on-others-depends), include its namespace (like `Core\Model\User`). |
 | `table` | yes | — | Relation table: a join table, or one of the related class's own tables for a [derived relation](#read-only-and-derived-relations). It can't be one of this class's own tables, unless the relation is to the same class (like `replies` of a `ForumMessage`). |
 | `local_id` | yes | — | Column storing local object ID. |
 | `remote_id` | yes | — | Column storing related object ID. |

@@ -23,6 +23,7 @@ class DBConnectionManager {
 	 * @param string $host the hostname to connect to
 	 * @param string $username the username to connect as
 	 * @param string $password the password for the username
+	 * @param string $name the name of the database to use
 	 * @param string $charset the charset to use for the connection; utf8mb4 is
 	 *   recommended
 	 * @return PDO the database connection
@@ -54,6 +55,7 @@ class DBConnectionManager {
 	 * @param string $host the hostname to connect to
 	 * @param string $username the username to connect as
 	 * @param string $password the password for the username
+	 * @param string $name the name of the database to use
 	 * @return PDO the database connection
 	 */
 	public static function newSQLSrvLConnection(string $id, string $host, string $username, string $password, string $name) : PDO {
@@ -90,7 +92,7 @@ class DBConnectionManager {
 	 *
 	 * @param string $id the identifier used in the database property on the
 	 *   project node in your XML
-	 * @return PDO the database connection, or null if it doesn't exit
+	 * @return ?PDO the database connection, or null if it doesn't exist
 	 */
 	public static function getPDO(string $id) : ?PDO {
 		return self::$connectionsPDO[$id] ?? null;

@@ -101,7 +101,7 @@ Every model starts with a single `<project>` root:
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `database` | yes | — | Database connection identifier used at runtime with `DBConnectionManager::newMySQLConnection(...)`, `DBConnectionManager::newSQLiteConnection(...)`, or `DBConnectionManager::newSQLSrvLConnection(...)`. |
+| `database` | yes | — | Database connection identifier used at runtime with `DBConnectionManager::newMySQLConnection(...)`, `DBConnectionManager::newSQLiteConnection(...)`, or `DBConnectionManager::newSQLSrvConnection(...)`. |
 | `tablestyle` | yes | — | Name conversion strategy for table/column/id names. Built-in style: `SnakeCase`. |
 | `namespace` | no | none | PHP namespace for generated classes, like `MyApp\Model`. |
 | `id_style` | no | `short` | Primary key naming mode for auto-generated class IDs. `short` => `id`, `long` => converted class name + `_id` (example: `forum_message_id`). |

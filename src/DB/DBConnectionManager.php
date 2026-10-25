@@ -58,7 +58,7 @@ class DBConnectionManager {
 	 * @param string $name the name of the database to use
 	 * @return PDO the database connection
 	 */
-	public static function newSQLSrvLConnection(string $id, string $host, string $username, string $password, string $name) : PDO {
+	public static function newSQLSrvConnection(string $id, string $host, string $username, string $password, string $name) : PDO {
 		$PDO = new MySQLtoMSSQLPDO (
 			"sqlsrv:Server={$host};Database={$name};TrustServerCertificate=yes",
 			$username,

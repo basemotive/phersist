@@ -117,7 +117,7 @@ DBConnectionManager::newMySQLConnection(
 For other backends, use:
 
 - `DBConnectionManager::newSQLiteConnection(...)`
-- `DBConnectionManager::newSQLSrvLConnection(...)`
+- `DBConnectionManager::newSQLSrvConnection(...)`
 
 ---
 

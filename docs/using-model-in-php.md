@@ -31,7 +31,7 @@ DBConnectionManager::newMySQLConnection(
 );
 ```
 
-For other backends, use `DBConnectionManager::newSQLiteConnection(...)` or `DBConnectionManager::newSQLSrvLConnection(...)`.
+For other backends, use `DBConnectionManager::newSQLiteConnection(...)` or `DBConnectionManager::newSQLSrvConnection(...)`.
 
 ---
 

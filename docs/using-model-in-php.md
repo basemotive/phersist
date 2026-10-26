@@ -60,6 +60,8 @@ A new object starts out with the [default values](creating-model-from-xml.md#def
 
 Some property types convert assigned values, so a property always has the same kind of value, whether it was assigned or loaded from the database. For example, `$user->age = '42'` stores the int `42` for an `Int` property, `$event->startsAt = '2026-01-01 12:30'` stores a `DateTimeImmutable` for a `DateTime` property, and `$product->price = 12.5` stores `'12.50'` for a `Decimal`. Invalid values, like `'2026-02-30'` for a date, throw an exception on assignment. See [Property types](creating-model-from-xml.md#property-types).
 
+The generated classes declare these properties for static analysers such as PHPStan and Psalm with the type you read back, like `?string` for a `Decimal`. For `Decimal` and `Float` properties, the types they accept on assignment are declared as well, with `@property-read` and `@property-write`: `int|float|string` for both. For `Date` and `DateTime` properties, the accepted types are `\DateTimeInterface|string`. So `$product->price = 12.5` passes analysis, while reading `$product->price` gives a `string`. Other conversions, like assigning `'42'` to an `Int` or `1` to a `Bool`, work at runtime but are reported by the analyser, as they are more likely to be mistakes.
+
 `isset()` and `empty()` work on properties as they do on regular PHP properties: `isset($user->email)` is `true` when the property has a non-null value, and `false` for `null` or for a property that doesn't exist. The same goes for array syntax (`isset($user['email'])`). Like reading the property, this loads its dataset if it isn't loaded yet.
 
 ### Load and update

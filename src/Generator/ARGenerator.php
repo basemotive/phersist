@@ -102,10 +102,21 @@ class ARGenerator {
 				'DynamicClass' => '\\PHersist\\ActiveRecord',
 				default => 'string',
 			};
-			if (!$property->required)
+			// Types that accept more on assignment than they return get a
+			// separate write type, so assigning e.g. 12.5 to a Decimal passes
+			$writeType = match ($property->type) {
+				'Decimal' => 'int|float|string',
+				'Float' => 'int|float|string',
+				'Date', 'DateTime' => '\\DateTimeInterface|string',
+				default => null,
+			};
+			if (!$property->required) {
 				$phpType = "?{$phpType}";
+				if ($writeType !== null)
+					$writeType .= '|null';
+			}
 
-			$result .= " * @property {$phpType} \${$property->name}";
+			$result .= ' * @property'.($writeType !== null ? '-read' : '')." {$phpType} \${$property->name}";
 
 			if ($property->default !== null)
 				$result .= ' default '.var_export($property->default, true);
@@ -123,6 +134,9 @@ class ARGenerator {
 			}
 
 			$result .= "\n";
+
+			if ($writeType !== null)
+				$result .= " * @property-write {$writeType} \${$property->name}\n";
 		}
 
 		foreach ($record->relations as $relation) {

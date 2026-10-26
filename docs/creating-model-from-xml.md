@@ -388,7 +388,7 @@ Extra attributes:
 
 PHP has no exact decimal type, so values are **strings** with exactly `scale` decimals, like `'12.50'`. You can assign:
 - **numeric strings** and **ints**, like `'12.5'` or `12` (both become `'12.50'`). These must fit exactly: a value with more decimals than `scale` (`'12.345'`), or too many digits before the decimal point, throws an exception instead of being rounded silently. Exponent notation (`'1e3'`) isn't accepted.
-- **floats**, which are rounded to `scale` decimals (`0.1 + 0.2` becomes `'0.30'`), since floats are inexact anyway.
+- **floats**, which are rounded to `scale` decimals (`0.1 + 0.2` becomes `'0.30'`), since floats are inexact anyway. They are rounded with PHP's `round()`, as the number you wrote and with halves away from zero: `49.995` becomes `'50.00'` and `-49.995` becomes `'-50.00'`, even though the float is actually stored as 49.99499999…. PHP 8.4 changed how `round()` does this. For floats with about 15 or more significant digits, the result can differ by one in the last decimal between PHP versions before 8.4 and 8.4 or later. Such floats are beyond a float's precision anyway; assign a string if you need an exact value.
 
 To calculate with these values exactly, use an extension like [bcmath](https://www.php.net/manual/en/book.bc.php), or ints in the smallest unit (e.g. cents).
 

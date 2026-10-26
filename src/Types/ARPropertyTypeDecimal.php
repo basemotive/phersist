@@ -11,7 +11,8 @@ use PHersist\ActiveRecord;
  * are kept as numeric strings with exactly 'scale' decimals, like '12.50'.
  * Ints, numeric strings and floats can be assigned. Strings and ints must fit
  * exactly; values with too many decimals are rejected instead of being rounded
- * silently. Floats are inexact anyway, so they are rounded to the scale.
+ * silently. Floats are inexact anyway, so they are rounded to the scale, with
+ * halves away from zero.
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -70,7 +71,10 @@ class ARPropertyTypeDecimal extends ARPropertyType {
 		if (is_float($value)) {
 			if (!is_finite($value))
 				throw new \InvalidArgumentException("expected a decimal, got $value");
-			$value = sprintf("%.{$scale}F", $value);
+			// round() takes the float as the decimal it was most likely written
+			// as (49.995 is stored as 49.99499...) and rounds halves away from
+			// zero; sprintf() alone would give 49.99, and round 0.125 to even
+			$value = sprintf("%.{$scale}F", round($value, $scale));
 		} elseif (is_int($value)) {
 			$value = (string)$value;
 		} elseif (!is_string($value)) {

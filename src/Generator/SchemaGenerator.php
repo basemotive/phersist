@@ -36,8 +36,10 @@ abstract class SchemaGenerator {
 
 	/**
 	 * Returns the indexes to create for a table: the optional ones only if this
-	 * database supports them, and without those that another index already
-	 * covers, because their columns are the start of its columns.
+	 * database supports them, and without the automatic ones that another
+	 * index already covers, because their columns (with the same prefix
+	 * lengths) are the start of its columns. The indexes from the XML are
+	 * always created.
 	 *
 	 * @param Table $table the table
 	 * @return list<Index> the indexes
@@ -47,14 +49,26 @@ abstract class SchemaGenerator {
 			fn(Index $index) => !$index->optional || $this->supportsIndex($index, $table)));
 
 		return array_values(array_filter($indexes, function(Index $index) use ($indexes) : bool {
-			if ($index->unique)
+			if ($index->unique || $index->explicit)
 				return true;
+			$key = self::indexKey($index);
 			foreach ($indexes as $other)
 				if ($other !== $index && count($other->columns) > count($index->columns)
-						&& array_slice($other->columns, 0, count($index->columns)) === $index->columns)
+						&& array_slice(self::indexKey($other), 0, count($key)) === $key)
 					return false;
 			return true;
 		}));
+	}
+
+	/**
+	 * Returns the parts of an index key, to compare indexes: the column
+	 * names, with their prefix lengths, like 'status(10)'.
+	 *
+	 * @param Index $index the index
+	 * @return list<string> the parts
+	 */
+	private static function indexKey(Index $index) : array {
+		return array_map(fn(string $column) => isset($index->lengths[$column]) ? "{$column}({$index->lengths[$column]})" : $column, $index->columns);
 	}
 
 	/**

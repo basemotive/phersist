@@ -84,7 +84,8 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 		usort($indexes, fn(Index $a, Index $b) => $a->unique <=> $b->unique);
 		foreach ($indexes as $index)
 			$result .= "\t".($index->unique ? 'UNIQUE INDEX' : 'INDEX')." {$this->quote($index->name)} ("
-				.implode(', ', array_map([ $this, 'quote' ], $index->columns))."),\n";
+				.implode(', ', array_map(fn(string $column) => $this->quote($column)
+					.(isset($index->lengths[$column]) ? "({$index->lengths[$column]})" : ''), $index->columns))."),\n";
 
 		if ($table->primaryKey !== null)
 			$result .= "\n\tPRIMARY KEY ({$this->quote($table->primaryKey)})\n";

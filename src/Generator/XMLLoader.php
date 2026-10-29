@@ -5,11 +5,13 @@ namespace PHersist\Generator;
 use DOMDocument;
 use DOMElement;
 use PHersist\Generator\Model\Dataset;
+use PHersist\Generator\Model\Index;
 use PHersist\Generator\Model\Map;
 use PHersist\Generator\Model\Project;
 use PHersist\Generator\Model\Property;
 use PHersist\Generator\Model\Record;
 use PHersist\Generator\Model\Relation;
+use PHersist\Generator\Schema\SchemaBuilder;
 use PHersist\ReferenceRegistry;
 use PHersist\Types\ARPropertyTypeDecimal;
 use PHersist\Types\ARPropertyTypeFloat;
@@ -157,7 +159,7 @@ class XMLLoader {
 			'qualified' => [],
 		],
 		'class' => [
-			'children' => [ 'dataset', 'relation', 'map' ],
+			'children' => [ 'dataset', 'relation', 'map', 'index' ],
 			'attributes' => [ 'name', 'id', 'table', 'database', 'softdelete', 'trait' ],
 			'required' => [ 'name' ],
 			'names' => [ 'id', 'table' ],
@@ -215,6 +217,23 @@ class XMLLoader {
 			'identifiers' => [],
 			'qualified' => [],
 		],
+		'index' => [
+			'children' => [ 'field' ],
+			'attributes' => [ 'name', 'unique' ],
+			'required' => [ 'name' ],
+			'names' => [ 'name' ],
+			'identifiers' => [],
+			'qualified' => [],
+		],
+		'field' => [
+			'children' => [],
+			// One of property and fieldname; buildIndexes() checks that
+			'attributes' => [ 'property', 'fieldname', 'length' ],
+			'required' => [],
+			'names' => [ 'fieldname' ],
+			'identifiers' => [ 'property' ],
+			'qualified' => [],
+		],
 	];
 
 	/**
@@ -258,6 +277,7 @@ class XMLLoader {
 		'load_objects' => [ 'true', 'false' ],
 		'cascade_delete' => [ 'true', 'false' ],
 		'use_namespace' => [ 'true', 'false' ],
+		'unique' => [ 'true', 'false' ],
 	];
 
 	/**
@@ -671,19 +691,173 @@ class XMLLoader {
 			);
 		}
 
+		$idColumn = $element->hasAttribute('id') ? $element->getAttribute('id') : $project->translate('id', $name);
+		$softdelete = self::getBool($element, 'softdelete');
+
 		return new Record(
 			project: $project,
 			name: $name,
-			idColumn: $element->hasAttribute('id') ? $element->getAttribute('id') : $project->translate('id', $name),
+			idColumn: $idColumn,
 			table: $table,
 			database: $element->hasAttribute('database') ? $element->getAttribute('database') : $project->database,
-			softdelete: self::getBool($element, 'softdelete'),
+			softdelete: $softdelete,
 			trait: $element->hasAttribute('trait') ? $element->getAttribute('trait') : null,
 			datasets: $datasets,
 			relations: $relations,
 			maps: $maps,
+			indexes: self::buildIndexes($project, $element, $table, $idColumn, $softdelete, $datasets),
 			line: $element->getLineNo(),
 		);
+	}
+
+	/**
+	 * Builds the indexes of a class from its <index> elements, and checks them:
+	 *
+	 * - Each <field> names a property, or with fieldname a column that isn't
+	 *   one: the id column, or the softdelete column 'deleted'. A DynamicClass
+	 *   property stands for both its columns.
+	 * - A column that holds text of any length (see Property::storesText())
+	 *   needs a prefix length, which MySQL requires to index it; other columns
+	 *   can't have one.
+	 * - All columns are in one table of the class, and each is used once.
+	 * - The name is unique among the indexes of the table, isn't the name of
+	 *   an automatic index on a Class or DynamicClass property there, and
+	 *   isn't PRIMARY. Index names are compared case-insensitively, like MySQL.
+	 *
+	 * @param Project $project the project the class is in
+	 * @param DOMElement $element the <class> element
+	 * @param string $baseTable the base table of the class
+	 * @param string $idColumn the id column of the class
+	 * @param bool $softdelete whether the class has the softdelete column
+	 * @param list<Dataset> $datasets the datasets of the class
+	 * @return list<Index> the indexes
+	 * @throws \Exception listing all the problems, with their line numbers
+	 */
+	private static function buildIndexes(Project $project, DOMElement $element, string $baseTable, string $idColumn, bool $softdelete, array $datasets) : array {
+		$className = $element->getAttribute('name');
+		$properties = [];
+		foreach ($datasets as $dataset)
+			foreach ($dataset->properties as $property)
+				$properties[$property->name] = [ $property, $dataset->table ];
+
+		$problems = [];
+		$indexes = [];
+		foreach ($element->getElementsByTagName('index') as $indexElement) {
+			$name = $indexElement->getAttribute('name');
+			$description = "<index> '{$name}' of class '{$className}'";
+			$at = "line {$indexElement->getLineNo()}";
+
+			$columns = [];
+			$lengths = [];
+			// The table of each column, or null for the id column, which every table has
+			$tables = [];
+			$fieldCount = 0;
+			$fieldProblems = count($problems);
+			foreach ($indexElement->getElementsByTagName('field') as $field) {
+				$fieldCount++;
+				$fieldAt = "line {$field->getLineNo()}";
+				$property = null;
+				if ($field->hasAttribute('property') == $field->hasAttribute('fieldname')) {
+					$problems[] = "{$fieldAt}: <field> of {$description} needs either a property or a fieldname attribute";
+					continue;
+				}
+
+				if ($field->hasAttribute('property')) {
+					$propertyName = $field->getAttribute('property');
+					$fieldDescription = "<field property=\"{$propertyName}\"> of {$description}";
+					if (!isset($properties[$propertyName])) {
+						$problem = "{$fieldAt}: {$fieldDescription} refers to an unknown property";
+						$suggestion = self::suggest($propertyName, array_map('strval', array_keys($properties)));
+						$problems[] = $problem.($suggestion !== null ? ", did you mean '{$suggestion}'?" : '');
+						continue;
+					}
+					[ $property, $table ] = $properties[$propertyName];
+					$fieldColumns = $property->columns;
+				} else {
+					$column = $field->getAttribute('fieldname');
+					$fieldDescription = "<field fieldname=\"{$column}\"> of {$description}";
+					if (strcasecmp($column, $idColumn) == 0) {
+						$column = $idColumn;
+						$table = null;
+					} elseif ($softdelete && strcasecmp($column, 'deleted') == 0) {
+						$column = 'deleted';
+						$table = $baseTable;
+					} else {
+						$owner = null;
+						foreach ($properties as [ $candidate ])
+							if (in_array(strtolower($column), array_map('strtolower', $candidate->columns)))
+								$owner = $candidate;
+						$problems[] = "{$fieldAt}: {$fieldDescription} ".($owner !== null
+							? "is a column of property '{$owner->name}': use property=\"{$owner->name}\" instead"
+							: "isn't a column of the class: fieldname is for the id column '{$idColumn}'"
+								.($softdelete ? " and the softdelete column 'deleted'" : '').', use property for the columns of properties');
+						continue;
+					}
+					$fieldColumns = [ $column ];
+				}
+
+				if ($field->hasAttribute('length')) {
+					$length = $field->getAttribute('length');
+					if ($property === null || !$property->storesText())
+						$problems[] = "{$fieldAt}: {$fieldDescription} can't have a length: only text columns can have a prefix length, "
+							.($property !== null ? "and property '{$property->name}' has type {$property->type}"
+								.($property->type == 'TimestampText' ? ' with the default date format, stored as a date and time' : '')
+							: "and '{$fieldColumns[0]}' is an integer column");
+					elseif (!preg_match('/^[1-9][0-9]*$/D', $length))
+						$problems[] = "{$fieldAt}: {$fieldDescription} has an invalid length '{$length}': expected a positive integer, the number of characters to index";
+					else
+						$lengths[$fieldColumns[0]] = (int)$length;
+				} elseif ($property !== null && $property->storesText())
+					$problems[] = "{$fieldAt}: {$fieldDescription} needs a length attribute: property '{$property->name}' is stored as text,"
+						.' which MySQL only indexes with a prefix length, the number of characters to index';
+
+				foreach ($fieldColumns as $column) {
+					if (in_array(strtolower($column), array_map('strtolower', $columns)))
+						$problems[] = "{$fieldAt}: {$fieldDescription} uses column '{$column}', which is already in the index";
+					else
+						$columns[] = $column;
+				}
+				$tables[] = $table;
+			}
+
+			if ($fieldCount == 0) {
+				$problems[] = "{$at}: {$description} has no <field>, it needs at least one";
+				continue;
+			}
+			if (count($problems) > $fieldProblems)
+				continue;
+
+			$fieldTables = array_values(array_unique(array_filter($tables, fn($table) => $table !== null)));
+			if (count($fieldTables) > 1) {
+				$problems[] = "{$at}: {$description} has columns in different tables (".implode(', ', array_map(fn($table) => "'{$table}'", $fieldTables)).'):'
+					.' an index is on one table, so use the properties of datasets in the same table';
+				continue;
+			}
+			$table = $fieldTables[0] ?? $baseTable;
+
+			if (strcasecmp($name, 'primary') == 0)
+				$problems[] = "{$at}: {$description} can't be named '{$name}', which MySQL reserves for the primary key";
+			foreach ($indexes as $other)
+				if ($other->table == $table && strcasecmp($other->name, $name) == 0)
+					$problems[] = "{$at}: {$description} has the same name as the <index> on line {$other->line}, in table '{$table}'";
+			foreach ($properties as [ $property, $propertyTable ])
+				if ($propertyTable == $table && $property->isReference()
+						&& strcasecmp(SchemaBuilder::referenceIndexName($project, $property), $name) == 0)
+					$problems[] = "{$at}: {$description} has the name of the automatic index on property '{$property->name}', in table '{$table}': choose another name";
+
+			$indexes[] = new Index(
+				name: $name,
+				table: $table,
+				columns: $columns,
+				lengths: $lengths,
+				unique: self::getBool($indexElement, 'unique'),
+				line: $indexElement->getLineNo(),
+			);
+		}
+
+		if ($problems)
+			throw new \Exception("Invalid model XML:\n- ".implode("\n- ", $problems));
+		return $indexes;
 	}
 
 	/**

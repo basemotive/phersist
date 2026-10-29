@@ -7,7 +7,6 @@ use PHersist\Generator\Model\Project;
 use PHersist\Generator\Model\Property;
 use PHersist\Generator\Model\Record;
 use PHersist\Generator\Model\Relation;
-use PHersist\Types\ARPropertyTypeTimestampText;
 
 /**
  * Works out the tables that a model needs: the columns and indexes, but not
@@ -57,6 +56,11 @@ class SchemaBuilder {
 		if ($record->softdelete)
 			$schema->table($record->table)->addColumn(new Column('deleted', ColumnType::UnsignedInt, default: 0));
 
+		// XMLLoader has checked the columns and names
+		foreach ($record->indexes as $index)
+			$schema->table($index->table)->addIndex(new Index($index->name, $index->columns, $index->unique,
+				lengths: $index->lengths, explicit: true));
+
 		foreach ($record->relations as $relation)
 			self::addRelation($schema, $relation);
 
@@ -95,23 +99,45 @@ class SchemaBuilder {
 				$table->addColumn(new Column($columnName, ColumnType::DateTime, $nullable));
 				break;
 			case 'TimestampText':
-				// A custom date format doesn't fit a date and time column, so store it as text
-				$customFormat = $property->dateFormat !== null && $property->dateFormat != ARPropertyTypeTimestampText::DEFAULT_DATE_FORMAT;
-				$table->addColumn(new Column($columnName, $customFormat ? ColumnType::Text : ColumnType::DateTime, $nullable));
+				$table->addColumn(new Column($columnName, $property->storesText() ? ColumnType::Text : ColumnType::DateTime, $nullable));
 				break;
 			case 'Class':
 				$table->addColumn(new Column($columnName, ColumnType::Reference, $nullable));
-				$table->addIndex(new Index('idx_'.$record->project->translate('fieldname', $property->name), [ $columnName ]));
+				self::addReferenceIndex($table, $property, $record);
 				break;
 			case 'DynamicClass':
 				$table->addColumn(new Column($property->columns[0], ColumnType::ClassName, $nullable));
 				$table->addColumn(new Column($property->columns[1], ColumnType::Reference, $nullable));
-				$table->addIndex(new Index('idx_'.$record->project->translate('fieldname', $property->name), $property->columns));
+				self::addReferenceIndex($table, $property, $record);
 				break;
 			default:
 				// A type class without a column definition here
 				throw new \Exception("Property '{$property->name}' of class {$record->name} has type '{$property->type}', which has no column type");
 		}
+	}
+
+	/**
+	 * Returns the name of the automatic index on the columns of a Class or
+	 * DynamicClass property.
+	 *
+	 * @param Project $project the project the property is in
+	 * @param Property $property the property
+	 */
+	public static function referenceIndexName(Project $project, Property $property) : string {
+		return 'idx_'.$project->translate('fieldname', $property->name);
+	}
+
+	/**
+	 * Adds the automatic index on the columns of a Class or DynamicClass
+	 * property, to look up and clean up the references to an object. It's left
+	 * out when an <index> of the class starts with those columns, because
+	 * the database can use that one for the same lookups.
+	 */
+	private static function addReferenceIndex(Table $table, Property $property, Record $record) : void {
+		foreach ($record->indexes as $index)
+			if ($index->table == $table->name && array_slice($index->columns, 0, count($property->columns)) === $property->columns)
+				return;
+		$table->addIndex(new Index(self::referenceIndexName($record->project, $property), $property->columns));
 	}
 
 	/**

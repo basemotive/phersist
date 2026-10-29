@@ -2,6 +2,8 @@
 
 namespace PHersist\Generator\Model;
 
+use PHersist\Types\ARPropertyTypeTimestampText;
+
 /**
  * A <property> of a class. The type-specific values are null for the types
  * that don't have them.
@@ -50,5 +52,17 @@ final class Property {
 	 */
 	public function isReference() : bool {
 		return $this->type == 'Class' || $this->type == 'DynamicClass';
+	}
+
+	/**
+	 * Returns whether the property's column holds text of any length: a Text
+	 * property, or a TimestampText with a custom date format, which doesn't
+	 * fit a date and time column. An index on such a column needs a prefix
+	 * length in MySQL.
+	 */
+	public function storesText() : bool {
+		if ($this->type == 'TimestampText')
+			return $this->dateFormat !== null && $this->dateFormat != ARPropertyTypeTimestampText::DEFAULT_DATE_FORMAT;
+		return $this->type == 'Text';
 	}
 }

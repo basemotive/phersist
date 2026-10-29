@@ -41,7 +41,8 @@ class SQLiteSchemaGenerator extends SchemaGenerator {
 		$result = "DROP TABLE IF EXISTS {$this->quote($table->name)};\n";
 		$result .= "CREATE TABLE {$this->quote($table->name)} (\n".implode(",\n", $columns)."\n);\n";
 
-		// Index names are per database in SQLite, so they get the table name
+		// Index names are per database in SQLite, so they get the table name.
+		// SQLite has no prefix indexes, so it indexes the whole value instead.
 		foreach ($indexes as $index)
 			$result .= 'CREATE '.($index->unique ? 'UNIQUE ' : '')."INDEX {$this->quote("{$table->name}_{$index->name}")}"
 				." ON {$this->quote($table->name)} (".implode(', ', array_map([ $this, 'quote' ], $index->columns)).");\n";

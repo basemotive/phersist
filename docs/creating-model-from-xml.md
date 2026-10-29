@@ -44,6 +44,8 @@ For caching and performance features, see [Advanced features](advanced-features.
   - [Generated table](#generated-table)
   - [Map tables](#map-tables)
   - [Shared map tables and `use_namespace`](#shared-map-tables-and-use_namespace)
+- [Indexes](#indexes-index)
+  - [Automatic indexes](#automatic-indexes)
 - [Name conversion](#name-conversion-tablestylesnakecase)
   - [Conversion behavior](#conversion-behavior)
   - [Table pluralization rules](#table-pluralization-rules)
@@ -160,7 +162,7 @@ The schema generated with `--sqlite` has no settings. SQLite has fewer column ty
 - `Date`, `DateTime` and `TimestampText` columns are `TEXT`, in the formats PHersist writes (`Y-m-d`, `Y-m-d H:i:s`);
 - class names and map keys and values are `TEXT`, which SQLite compares exactly.
 
-Indexes are separate `CREATE INDEX` statements, named after the table and the index (`forum_messages_idx_forum`), since SQLite index names are per database.
+Indexes are separate `CREATE INDEX` statements, named after the table and the index (`forum_messages_idx_forum`), since SQLite index names are per database. SQLite has no prefix indexes, so the `length` of an [index field](#indexes-index) is ignored and the whole value is indexed.
 
 ---
 
@@ -503,7 +505,7 @@ When reading the property, a name with a namespace is used as is. With `use_name
 
 A [derived relation](#read-only-and-derived-relations) whose `local_id` is the id column of a `DynamicClass` property must have the property's class-name column as `local_type`, and the same `use_namespace` value, so it matches the stored names.
 
-In the generated MySQL schema, the class-name column is `VARCHAR(191)` and the id column is `INT UNSIGNED`, indexed together.
+In the generated MySQL schema, the class-name column is `VARCHAR(191)` and the id column is `INT UNSIGNED`, indexed together (unless an [`<index>`](#automatic-indexes) starts with both).
 
 ### `TimestampText`
 Date/time stored as a plain string, with optional auto-updating.
@@ -764,6 +766,83 @@ Set `use_namespace="true"` only when the fully-qualified name is required — fo
 
 ---
 
+## Indexes: `<index>`
+
+The generated schema has the indexes PHersist needs itself (see [Automatic indexes](#automatic-indexes)). For the queries of your application, add your own with `<index>` elements in the `<class>`, next to its datasets. An index lists properties, not columns: the generator finds their columns, so an index follows a property when its column name changes.
+
+```xml
+<class name="ForumMessage">
+    <dataset autoload="true">
+        <property name="forum" type="Class" class="Forum" required="true"/>
+        <property name="user" type="Class" class="User" required="true"/>
+        <property name="title" required="true"/>
+        <property name="createdAt" type="TimestampText" required="true" update_on="create"/>
+    </dataset>
+    <index name="forum_created">
+        <field property="forum"/>
+        <field property="createdAt"/>
+    </index>
+    <index name="title">
+        <field property="title" length="50"/>
+    </index>
+</class>
+
+<class name="User">
+    <dataset autoload="true">
+        <property name="email" required="true"/>
+    </dataset>
+    <index name="email" unique="true">
+        <field property="email" length="191"/>
+    </index>
+</class>
+```
+
+For MySQL and MariaDB, this generates these indexes in `forum_messages`:
+
+```sql
+INDEX `idx_user` (`user_id`),
+INDEX `forum_created` (`forum_id`, `created_at`),
+INDEX `title` (`title`(50)),
+```
+
+and this one in `users`:
+
+```sql
+UNIQUE INDEX `email` (`email`(191)),
+```
+
+### `<index>` attributes
+
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `name` | yes | — | The index name. Must be unique among the indexes of its table (case doesn't matter, as in MySQL), and can't be `PRIMARY`, nor the name of an [automatic index](#automatic-indexes) in the table (`idx_user`). The generator uses it as it is, so an existing database keeps its index names. |
+| `unique` | no | `false` | If `true`, a unique index: the database rejects two rows with the same values. With a `length`, only that part of the value counts. |
+
+### `<field>` attributes
+
+An `<index>` has one or more `<field>` elements, in the order of the index's columns. Each one has either `property` or `fieldname`:
+
+| Attribute | Required | Description |
+|---|---|---|
+| `property` | one of these | A property of the class, from any of its datasets. A `DynamicClass` property stands for both its columns (class name, then id). Relations and maps have no column in the class's tables, so they can't be indexed. |
+| `fieldname` | one of these | A column that isn't a property: the class's id column, or `deleted` in a `softdelete` class. For the column of a property, use `property`. |
+| `length` | for text | The number of characters to index (a prefix length). MySQL and MariaDB only index a `TEXT` column with one, so it's required for a `Text` property and for a `TimestampText` with a custom `date_format`, and not allowed for any other column. SQLite indexes the whole value. |
+
+All columns of an index must be in one table: the properties of datasets in the same table. The id column is in every table of the class, and `deleted` in its base table. An index with only the id column is on the base table. A column can be in an index only once.
+
+### Automatic indexes
+
+The generator adds these indexes itself, named `idx_<name>`:
+
+- on the column of each `Class` property, and on both columns of each `DynamicClass` property (`idx_forum` for property `forum`), to find and clean up the references to an object when it's deleted;
+- on the columns of [join tables](#relations-relation) and [map tables](#generated-table).
+
+An `<index>` that starts with the columns of a `Class` or `DynamicClass` property replaces its automatic index: the database uses the first columns of an index for the same lookups. In the example above, `forum_created` starts with `forum_id`, so there's no `idx_forum`; `idx_user` stays, since `user_id` isn't the first column of an index.
+
+Join tables and map tables don't belong to a class, so `<index>` can't add indexes to them.
+
+---
+
 ## Name conversion (`tablestyle="SnakeCase"`)
 
 PHersist’s `TSSnakeCase` converter maps camel/Pascal case names to snake_case and applies pluralization rules for table names.
@@ -907,7 +986,7 @@ Without `--classesdir`, the classes go to the directory that composer's PSR-4 au
 
 Besides a file per class, the generator writes `PHersistReferences.php`, with the references between the classes.
 
-The generator checks the XML before generating anything. It reports, with line numbers, every element that is unknown or in the wrong place (like a `<property>` directly under `<class>`), every unknown attribute (like `requried="true"`, or `default` on a `Date` property), and every required attribute that is missing or empty (like a relation's `local_id`). An optional attribute that holds a name, like a class's `table` or a relation's `local_type`, can't be empty either: leave it out to get the default. Boolean attributes (`softdelete`, `autoload`, `required`, `signed`, `table_owner`, `load_objects`, `cascade_delete` and `use_namespace`) must be exactly `true` or `false`, and `id_style` must be `short` or `long`; other values, like `1`, `yes` or `True`, are reported too. Attributes in an XML namespace, like `xsi:noNamespaceSchemaLocation`, are ignored. For an element that spans several lines, the line number is the one where its start tag ends.
+The generator checks the XML before generating anything. It reports, with line numbers, every element that is unknown or in the wrong place (like a `<property>` directly under `<class>`), every unknown attribute (like `requried="true"`, or `default` on a `Date` property), and every required attribute that is missing or empty (like a relation's `local_id`). An optional attribute that holds a name, like a class's `table` or a relation's `local_type`, can't be empty either: leave it out to get the default. Boolean attributes (`softdelete`, `autoload`, `required`, `signed`, `table_owner`, `load_objects`, `cascade_delete`, `use_namespace` and `unique`) must be exactly `true` or `false`, and `id_style` must be `short` or `long`; other values, like `1`, `yes` or `True`, are reported too. Attributes in an XML namespace, like `xsi:noNamespaceSchemaLocation`, are ignored. For an element that spans several lines, the line number is the one where its start tag ends.
 
 ---
 

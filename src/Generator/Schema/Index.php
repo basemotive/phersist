@@ -17,11 +17,18 @@ final class Index {
 	 * @param bool $optional whether it can be left out when the database can't
 	 *   create it, like a unique index whose key is too long; PHersist doesn't
 	 *   need it to work
+	 * @param array<string, int> $lengths the prefix lengths, by column name,
+	 *   for the columns that only have the start of their value indexed
+	 * @param bool $explicit whether it's an <index> from the XML, which is
+	 *   always created; an automatic index is left out when another one
+	 *   covers it
 	 */
 	public function __construct(
 		public readonly string $name,
 		public readonly array $columns,
 		public readonly bool $unique = false,
 		public readonly bool $optional = false,
+		public readonly array $lengths = [],
+		public readonly bool $explicit = false,
 	) {}
 }

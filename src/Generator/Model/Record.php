@@ -22,6 +22,7 @@ final class Record {
 	 * @param list<Dataset> $datasets
 	 * @param list<Relation> $relations
 	 * @param list<Map> $maps
+	 * @param list<Index> $indexes the indexes from the XML; SchemaBuilder adds the automatic ones
 	 * @param int $line the line of the element in the XML
 	 */
 	public function __construct(
@@ -35,6 +36,7 @@ final class Record {
 		public readonly array $datasets,
 		public readonly array $relations,
 		public readonly array $maps,
+		public readonly array $indexes,
 		public readonly int $line,
 	) {}
 

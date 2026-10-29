@@ -6,5 +6,6 @@
 
 # local notes and stuff
 /*.md
+!/README.md
 /*.sql
 /*.sh

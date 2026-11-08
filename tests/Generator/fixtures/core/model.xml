@@ -1,0 +1,16 @@
+<project database="main" tablestyle="SnakeCase" namespace="Core\Model">
+	<!-- The core of a project with plugins; the plugin fixture depends on it -->
+	<class name="User">
+		<dataset>
+			<property name="name" required="true"/>
+		</dataset>
+		<relation name="groups" type="NN" class="Group" table="user_groups" local_id="user_id" remote_id="group_id" table_owner="true"/>
+	</class>
+
+	<class name="Group">
+		<dataset>
+			<property name="name" required="true"/>
+		</dataset>
+		<relation name="users" type="NN" class="User" table="user_groups" local_id="group_id" remote_id="user_id"/>
+	</class>
+</project>

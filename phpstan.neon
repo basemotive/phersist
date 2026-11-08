@@ -3,8 +3,18 @@ parameters:
 	paths:
 		- src
 		- bin
+		- tests
+	excludePaths:
+		analyseAndScan:
+			# The expected output of the generator tests
+			- tests/Generator/fixtures
+		analyse:
+			# What the tests generate; the models' classes are loaded by tests/phpstan-bootstrap.php
+			- tests/.generated
 	bootstrapFiles:
 		- vendor/autoload.php
+		# Generates the models the runtime tests use, so their classes are known
+		- tests/phpstan-bootstrap.php
 	checkFunctionNameCase: true
 includes:
 	- vendor/phpstan/phpstan-deprecation-rules/rules.neon

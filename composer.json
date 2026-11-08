@@ -25,9 +25,36 @@
             "PHersist\\" : "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4" : {
+            "Tests\\Support\\" : "tests/Support/"
+        }
+    },
     "require-dev": {
         "phpstan/phpstan": "2.3",
         "phpstan/phpstan-deprecation-rules": "^2.0",
-        "jetbrains/phpstorm-stubs": "dev-master"
+        "jetbrains/phpstorm-stubs": "dev-master",
+        "pestphp/pest": "^4"
+    },
+    "scripts": {
+        "test": "pest",
+        "test:all": [
+            "Composer\\Config::disableProcessTimeout",
+            "tests/docker/run.sh"
+        ],
+        "test:db": [
+            "Composer\\Config::disableProcessTimeout",
+            "tests/docker/run.sh"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Runs the tests on SQLite, on this machine",
+        "test:all": "Runs the tests on every database, in Docker",
+        "test:db": "Runs the tests on the given targets, in Docker (composer test:db -- mysql-8.4 sqlite)"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
     }
 }

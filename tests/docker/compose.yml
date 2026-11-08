@@ -1,0 +1,80 @@
+# The databases the PHersist test suite runs on, and the PHP runner.
+# Use tests/docker/run.sh rather than this file directly; see tests/README.md.
+#
+# Data lives on tmpfs: every start is a clean server, and nothing is kept.
+# Ports are published on localhost only, for running the suite from the host.
+
+name: phersist-tests
+
+x-mysql: &mysql
+  environment:
+    MYSQL_ROOT_PASSWORD: phersist
+    MYSQL_DATABASE: phersist
+  command: [ "--skip-log-bin" ]
+  tmpfs: [ /var/lib/mysql ]
+  healthcheck:
+    test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pphersist" ]
+    interval: 2s
+    timeout: 5s
+    retries: 60
+
+x-mariadb: &mariadb
+  environment:
+    MARIADB_ROOT_PASSWORD: phersist
+    MARIADB_DATABASE: phersist
+  tmpfs: [ /var/lib/mysql ]
+  healthcheck:
+    test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+    interval: 2s
+    timeout: 5s
+    retries: 60
+
+services:
+  php:
+    build:
+      context: .
+      dockerfile: php.Dockerfile
+    image: phersist-tests-php
+    user: "${PHERSIST_UID:-1000}:${PHERSIST_GID:-1000}"
+    volumes: [ "../..:/app" ]
+    # The SQLite test database lives in /tmp; on the container's own disk,
+    # every statement waits for a sync
+    tmpfs: [ /tmp ]
+    environment:
+      PHERSIST_TEST_IN_DOCKER: "1"
+      PHERSIST_TEST_TARGET: "${PHERSIST_TEST_TARGET:-sqlite}"
+      PHERSIST_TEST_CACHE: "${PHERSIST_TEST_CACHE:-off}"
+      PHERSIST_UPDATE_EXPECTED: "${PHERSIST_UPDATE_EXPECTED:-}"
+      PHERSIST_RUN_BUGS: "${PHERSIST_RUN_BUGS:-}"
+      COMPOSER_HOME: /tmp/composer
+    profiles: [ runner ]
+
+  mysql-8.0:
+    <<: *mysql
+    image: mysql:8.0
+    ports: [ "127.0.0.1:33080:3306" ]
+  mysql-8.4:
+    <<: *mysql
+    image: mysql:8.4
+    ports: [ "127.0.0.1:33084:3306" ]
+  mysql-9:
+    <<: *mysql
+    image: mysql:9
+    ports: [ "127.0.0.1:33090:3306" ]
+
+  mariadb-10.6:
+    <<: *mariadb
+    image: mariadb:10.6
+    ports: [ "127.0.0.1:33106:3306" ]
+  mariadb-10.11:
+    <<: *mariadb
+    image: mariadb:10.11
+    ports: [ "127.0.0.1:33111:3306" ]
+  mariadb-11.4:
+    <<: *mariadb
+    image: mariadb:11.4
+    ports: [ "127.0.0.1:33114:3306" ]
+  mariadb-11.8:
+    <<: *mariadb
+    image: mariadb:11.8
+    ports: [ "127.0.0.1:33118:3306" ]

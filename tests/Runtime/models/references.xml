@@ -1,0 +1,68 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\References">
+	<!--
+		References to a deleted object, through Class and DynamicClass
+		properties, with every on_remote_delete; cascade chains and a cycle;
+		soft-deleted referrers. Deleting a Target is what most tests do.
+
+		Tables (ids are INT, auto-increment):
+		- targets:                id, name (text)
+		- null_refs:              id, target_id (Target, on delete: null)
+		- restrict_refs:          id, target_id (Target, required, so on delete: restrict)
+		- optional_restrict_refs: id, target_id (Target, on delete: restrict)
+		- cascade_refs:           id, target_id (Target, on delete: cascade)
+		- chain_refs:             id, parent_id (CascadeRef, on delete: cascade)
+		- dyn_refs:               id, subject_type + subject_id (DynamicClass, on delete: null)
+		- dyn_ns_refs:            id, subject_type + subject_id (DynamicClass, use_namespace, on delete: null)
+		- dyn_cascade_refs:       id, subject_type + subject_id (DynamicClass, on delete: cascade)
+		- both_refs:              id, via_cascade_id (Target, cascade), via_restrict_id (Target, restrict)
+		- soft_refs:              id, deleted, target_id (Target, on delete: null)            softdelete
+		- soft_cascade_refs:      id, deleted, target_id (Target, on delete: cascade)         softdelete
+		- cycle_as:               id, b_id (CycleB, on delete: cascade)
+		- cycle_bs:               id, a_id (CycleA, on delete: cascade)
+	-->
+	<class name="Target">
+		<dataset autoload="true"><property name="name"/></dataset>
+	</class>
+	<class name="NullRef">
+		<dataset autoload="true"><property name="target" type="Class" class="Target"/></dataset>
+	</class>
+	<class name="RestrictRef">
+		<dataset autoload="true"><property name="target" type="Class" class="Target" required="true"/></dataset>
+	</class>
+	<class name="OptionalRestrictRef">
+		<dataset autoload="true"><property name="target" type="Class" class="Target" on_remote_delete="restrict"/></dataset>
+	</class>
+	<class name="CascadeRef">
+		<dataset autoload="true"><property name="target" type="Class" class="Target" on_remote_delete="cascade"/></dataset>
+	</class>
+	<class name="ChainRef">
+		<dataset autoload="true"><property name="parent" type="Class" class="CascadeRef" on_remote_delete="cascade"/></dataset>
+	</class>
+	<class name="DynRef">
+		<dataset autoload="true"><property name="subject" type="DynamicClass"/></dataset>
+	</class>
+	<class name="DynNsRef">
+		<dataset autoload="true"><property name="subject" type="DynamicClass" use_namespace="true"/></dataset>
+	</class>
+	<class name="DynCascadeRef">
+		<dataset autoload="true"><property name="subject" type="DynamicClass" on_remote_delete="cascade"/></dataset>
+	</class>
+	<class name="BothRef">
+		<dataset autoload="true">
+			<property name="viaCascade" type="Class" class="Target" on_remote_delete="cascade"/>
+			<property name="viaRestrict" type="Class" class="Target" on_remote_delete="restrict"/>
+		</dataset>
+	</class>
+	<class name="SoftRef" softdelete="true">
+		<dataset autoload="true"><property name="target" type="Class" class="Target"/></dataset>
+	</class>
+	<class name="SoftCascadeRef" softdelete="true">
+		<dataset autoload="true"><property name="target" type="Class" class="Target" on_remote_delete="cascade"/></dataset>
+	</class>
+	<class name="CycleA">
+		<dataset autoload="true"><property name="b" type="Class" class="CycleB" on_remote_delete="cascade"/></dataset>
+	</class>
+	<class name="CycleB">
+		<dataset autoload="true"><property name="a" type="Class" class="CycleA" on_remote_delete="cascade"/></dataset>
+	</class>
+</project>

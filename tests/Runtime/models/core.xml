@@ -1,0 +1,17 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\Core">
+	<!--
+		The core of a project with a plugin (plugin.xml depends on it).
+
+		Tables (ids are INT, auto-increment):
+		- members:       id, name (text)
+		- teams:         id, name (text)
+		- member_teams:  member_id, team_id        Member.teams (owned)
+	-->
+	<class name="Member">
+		<dataset autoload="true"><property name="name"/></dataset>
+		<relation name="teams" type="NN" class="Team" table="member_teams" local_id="member_id" remote_id="team_id" table_owner="true"/>
+	</class>
+	<class name="Team">
+		<dataset autoload="true"><property name="name"/></dataset>
+	</class>
+</project>

@@ -1,0 +1,39 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\Basic">
+	<!--
+		The basic model: create/restore/update/delete, finder, simple references.
+
+		Tables (all ids are INT, auto-increment):
+		- users:       id, name (text, required), email (text), age (int)
+		- groups:      id, name (text, required)
+		- user_groups: user_id, group_id                   (join table of User.groups / Group.users)
+		- posts:       id, title (text, required), body (text), author_id (User, on delete: null)
+	-->
+	<class name="User">
+		<dataset autoload="true">
+			<property name="name" required="true"/>
+			<property name="email"/>
+			<property name="age" type="Int"/>
+		</dataset>
+		<relation name="groups" type="NN" class="Group" table="user_groups" local_id="user_id" remote_id="group_id" table_owner="true"/>
+		<relation name="posts" type="NN" class="Post" table="posts" local_id="author_id" remote_id="id" table_owner="false"/>
+	</class>
+
+	<class name="Group">
+		<dataset autoload="true">
+			<property name="name" required="true"/>
+		</dataset>
+		<relation name="users" type="NN" class="User" table="user_groups" local_id="group_id" remote_id="user_id"/>
+	</class>
+
+	<class name="Post">
+		<dataset autoload="true">
+			<property name="title" required="true"/>
+		</dataset>
+		<dataset name="content">
+			<property name="body"/>
+		</dataset>
+		<dataset autoload="true">
+			<property name="author" type="Class" class="User"/>
+		</dataset>
+	</class>
+</project>

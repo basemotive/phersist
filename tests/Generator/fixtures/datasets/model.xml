@@ -1,0 +1,24 @@
+<project database="main" tablestyle="SnakeCase" id_style="long">
+	<!-- No namespace, long ids, softdelete, datasets in other tables, class-level overrides -->
+	<class name="Person" softdelete="true">
+		<dataset name="core" autoload="true">
+			<property name="name" required="true"/>
+		</dataset>
+		<dataset name="details" table="person_details">
+			<property name="bio"/>
+			<property name="age" type="Int"/>
+		</dataset>
+		<dataset table="person_extras">
+			<property name="nickname"/>
+		</dataset>
+	</class>
+
+	<class name="Company" table="firms" id="firm_no" database="other" trait="Some\CompanyTrait">
+		<dataset>
+			<property name="title"/>
+			<property name="boss" type="Class" class="Person"/>
+		</dataset>
+	</class>
+
+	<class name="Marker"/>
+</project>

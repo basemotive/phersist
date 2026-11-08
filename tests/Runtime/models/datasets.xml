@@ -1,0 +1,47 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\Datasets" id_style="long">
+	<!--
+		Datasets: in the base table and in other tables, named and positional,
+		autoload or not; a class without properties; custom table and id names;
+		required properties with defaults and update_on.
+
+		Tables (ids are INT, auto-increment; id_style="long", so ids are <class>_id):
+		- persons:        person_id, name (text, required), nickname (text), id (text: property externalId)   dataset "core", autoload
+		- person_details: person_id, bio (text), age (int)                           dataset "details", not autoload
+		- person_extras:  person_id, shoe_size (int)                                  dataset 2 (no name), not autoload
+		- markers:        marker_id                                                   no properties at all
+		- profiles:       profile_id                                                  every property in another table:
+		- profile_data:   profile_id, motto (text)
+		- memo:           note_no, text (text, required, default 'empty'), views (int unsigned, required, default 0), created_at (datetime, required, update_on create)
+	-->
+	<class name="Person">
+		<dataset name="core" autoload="true">
+			<property name="name" required="true"/>
+			<property name="nickname"/>
+			<!-- A column named id, which the primary key isn't (BUGS-ALREADY-FIXED4 #1) -->
+			<property name="externalId" fieldname="id"/>
+		</dataset>
+		<dataset name="details" table="person_details">
+			<property name="bio"/>
+			<property name="age" type="Int"/>
+		</dataset>
+		<dataset table="person_extras">
+			<property name="shoeSize" type="Int"/>
+		</dataset>
+	</class>
+
+	<class name="Marker"/>
+
+	<class name="Profile">
+		<dataset table="profile_data">
+			<property name="motto"/>
+		</dataset>
+	</class>
+
+	<class name="Note" table="memo" id="note_no">
+		<dataset autoload="true">
+			<property name="text" required="true" default="empty"/>
+			<property name="views" type="Int" signed="false" required="true" default="0"/>
+			<property name="createdAt" type="DateTime" required="true" update_on="create"/>
+		</dataset>
+	</class>
+</project>

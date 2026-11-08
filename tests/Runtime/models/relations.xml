@@ -1,0 +1,79 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\Relations">
+	<!--
+		Every relation setup: derived 1-N, owned N-N with and without
+		order_field, the other side of a join table, polymorphic join tables and
+		derived polymorphic relations, self-references, load_objects, and
+		cascade_delete on a derived relation.
+
+		Tables (ids are INT, auto-increment):
+		- authors:      id, name (text)
+		- articles:     id, title (text), author_id (Author, required: restrict)
+		- tags:         id, name (text)
+		- article_tags: article_id, tag_id, position        Article.tags (owned, order_field) / Tag.articles (read-only)
+		- photos:       id, url (text)
+		- likes:        liked_id, liked_type, author_id      Article.likers / Photo.likers (owned, local_type)
+		- comments:     id, body (text), subject_type + subject_id (DynamicClass, required, cascade)
+		                                                      Article.comments / Photo.comments (derived, local_type)
+		- friendships:  author_id, friend_id                 Author.friends (owned, self-reference)
+		- attachments:  id, name (text), article_id (Article) Article.attachments (derived, cascade_delete)
+		- categories:   id, name (text), parent_id (Category) Category.children (derived, self-reference, load_objects, order_field)
+
+		Derived relations: Author.articles (load_objects, on the articles base
+		table, which is Article's autoload dataset table).
+	-->
+	<class name="Author">
+		<dataset autoload="true">
+			<property name="name"/>
+		</dataset>
+		<relation name="articles" type="NN" class="Article" table="articles" local_id="author_id" remote_id="id" load_objects="true"/>
+		<relation name="friends" type="NN" class="Author" table="friendships" local_id="author_id" remote_id="friend_id" table_owner="true"/>
+	</class>
+
+	<class name="Article">
+		<dataset autoload="true">
+			<property name="title"/>
+			<property name="author" type="Class" class="Author" required="true"/>
+		</dataset>
+		<relation name="tags" type="NN" class="Tag" table="article_tags" local_id="article_id" remote_id="tag_id" table_owner="true" order_field="position"/>
+		<relation name="likers" type="NN" class="Author" table="likes" local_id="liked_id" local_type="liked_type" remote_id="author_id" table_owner="true"/>
+		<relation name="comments" type="NN" class="Comment" table="comments" local_id="subject_id" local_type="subject_type" remote_id="id"/>
+		<relation name="attachments" type="NN" class="Attachment" table="attachments" local_id="article_id" remote_id="id" cascade_delete="true"/>
+	</class>
+
+	<class name="Tag">
+		<dataset autoload="true">
+			<property name="name"/>
+		</dataset>
+		<relation name="articles" type="NN" class="Article" table="article_tags" local_id="tag_id" remote_id="article_id"/>
+	</class>
+
+	<class name="Photo">
+		<dataset autoload="true">
+			<property name="url"/>
+		</dataset>
+		<relation name="likers" type="NN" class="Author" table="likes" local_id="liked_id" local_type="liked_type" remote_id="author_id" table_owner="true" load_objects="true"/>
+		<relation name="comments" type="NN" class="Comment" table="comments" local_id="subject_id" local_type="subject_type" remote_id="id"/>
+	</class>
+
+	<class name="Comment">
+		<dataset autoload="true">
+			<property name="body"/>
+			<property name="subject" type="DynamicClass" required="true" on_remote_delete="cascade"/>
+		</dataset>
+	</class>
+
+	<class name="Attachment">
+		<dataset autoload="true">
+			<property name="name"/>
+			<property name="article" type="Class" class="Article"/>
+		</dataset>
+	</class>
+
+	<class name="Category">
+		<dataset autoload="true">
+			<property name="name"/>
+			<property name="parent" type="Class" class="Category"/>
+		</dataset>
+		<relation name="children" type="NN" class="Category" table="categories" local_id="parent_id" remote_id="id" load_objects="true" order_field="name"/>
+	</class>
+</project>

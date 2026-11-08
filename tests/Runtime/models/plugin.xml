@@ -1,0 +1,29 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\Plugin">
+	<!--
+		A plugin of core.xml: its classes refer to the core's classes, which
+		don't know about them. Deleting a core object only cleans these up when
+		the plugin's namespace is registered with ReferenceRegistry.
+
+		Tables (ids are INT, auto-increment):
+		- entries:        id, title (text), author_id (core Member, on delete: null), editor_id (core Member, on delete: cascade)
+		- entry_likes:    entry_id, member_id                   Entry.likers (owned, to core Member)
+		- notes:          id, text (text), subject_type + subject_id (DynamicClass, on delete: cascade)
+	-->
+	<depends xml="core.xml"/>
+
+	<class name="Entry">
+		<dataset autoload="true">
+			<property name="title"/>
+			<property name="author" type="Class" class="Tests\Models\Core\Member"/>
+			<property name="editor" type="Class" class="Tests\Models\Core\Member" on_remote_delete="cascade"/>
+		</dataset>
+		<relation name="likers" type="NN" class="Tests\Models\Core\Member" table="entry_likes" local_id="entry_id" remote_id="member_id" table_owner="true"/>
+	</class>
+
+	<class name="Note">
+		<dataset autoload="true">
+			<property name="text"/>
+			<property name="subject" type="DynamicClass" on_remote_delete="cascade"/>
+		</dataset>
+	</class>
+</project>

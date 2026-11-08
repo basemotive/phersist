@@ -1,0 +1,48 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\Maps">
+	<!--
+		Maps: one key and several keys, a shared map table with a type column
+		(with and without use_namespace), and a map with too many keys for a
+		unique index.
+
+		Tables (ids are INT, auto-increment):
+		- accounts:       id, name (text)
+		- teams:          id, name (text)
+		- settings:       owner_type, owner_id, section, name, value     Account.settings / Team.settings (2 keys, shared;
+		                                                                  Team stores its class name with namespace)
+		- account_flags:  account_id, flag, state                        Account.flags (1 key)
+		- account_matrix: account_id, a, b, c, d, e, v                   Account.matrix (5 keys: no unique index)
+	-->
+	<class name="Account">
+		<dataset autoload="true">
+			<property name="name"/>
+		</dataset>
+		<map name="settings" table="settings" id="owner_id" type="owner_type">
+			<key name="section"/>
+			<key name="name"/>
+			<value name="value"/>
+		</map>
+		<map name="flags" table="account_flags">
+			<key name="flag"/>
+			<value name="state"/>
+		</map>
+		<map name="matrix" table="account_matrix">
+			<key name="a"/>
+			<key name="b"/>
+			<key name="c"/>
+			<key name="d"/>
+			<key name="e"/>
+			<value name="v"/>
+		</map>
+	</class>
+
+	<class name="Team">
+		<dataset autoload="true">
+			<property name="name"/>
+		</dataset>
+		<map name="settings" table="settings" id="owner_id" type="owner_type" use_namespace="true">
+			<key name="section"/>
+			<key name="name"/>
+			<value name="value"/>
+		</map>
+	</class>
+</project>

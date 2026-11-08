@@ -1,0 +1,21 @@
+<project database="main" tablestyle="SnakeCase" namespace="Blog\Model">
+	<!-- A plugin, with references to the classes of the core -->
+	<depends xml="../core/model.xml"/>
+
+	<class name="Post">
+		<dataset>
+			<property name="title"/>
+			<property name="author" type="Class" class="Core\Model\User" required="true"/>
+			<property name="editor" type="Class" class="\Core\Model\User" on_remote_delete="cascade"/>
+		</dataset>
+		<relation name="likers" type="NN" class="Core\Model\User" table="post_likes" local_id="post_id" remote_id="user_id" table_owner="true"/>
+		<relation name="comments" type="NN" class="Comment" table="comments" local_id="post_id" remote_id="id"/>
+	</class>
+
+	<class name="Comment">
+		<dataset>
+			<property name="post" type="Class" class="Post" on_remote_delete="cascade"/>
+			<property name="subject" type="DynamicClass" use_namespace="true" on_remote_delete="cascade"/>
+		</dataset>
+	</class>
+</project>

@@ -1,0 +1,19 @@
+<project database="main" tablestyle="SnakeCase">
+	<!--
+		Classes without a namespace (in the global namespace): cache keys and
+		DynamicClass names without a namespace.
+
+		Tables (ids are INT, auto-increment):
+		- global_gadgets: id, name (text)
+		- global_widgets: id, gadget_id (GlobalGadget), thing_type + thing_id (DynamicClass)
+	-->
+	<class name="GlobalGadget">
+		<dataset autoload="true"><property name="name"/></dataset>
+	</class>
+	<class name="GlobalWidget">
+		<dataset autoload="true">
+			<property name="gadget" type="Class" class="GlobalGadget"/>
+			<property name="thing" type="DynamicClass"/>
+		</dataset>
+	</class>
+</project>

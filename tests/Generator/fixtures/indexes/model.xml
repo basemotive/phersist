@@ -1,0 +1,66 @@
+<project database="main" tablestyle="SnakeCase" namespace="Fixture\Indexes">
+	<!-- Indexes from the XML: on properties and other columns, with prefix lengths, unique, in a dataset table -->
+	<class name="SurveyInvitation">
+		<dataset autoload="true">
+			<property name="receiver" type="Class" class="User" required="true"/>
+			<property name="surveyCombo" type="Class" class="User"/>
+			<property name="status"/>
+			<property name="code"/>
+			<property name="sentAt" type="DateTime"/>
+		</dataset>
+		<!-- Covers the automatic index on receiver_id, which is left out -->
+		<index name="receiver">
+			<field property="receiver"/>
+			<field property="surveyCombo"/>
+			<field property="status" length="10"/>
+		</index>
+		<index name="code" unique="true">
+			<field property="code" length="32"/>
+		</index>
+		<index name="sent"><field property="sentAt"/></index>
+	</class>
+
+	<class name="User" softdelete="true">
+		<dataset autoload="true">
+			<property name="role"/>
+			<property name="userType"/>
+			<property name="email"/>
+		</dataset>
+		<dataset table="user_profiles">
+			<property name="city"/>
+			<property name="manager" type="Class" class="User"/>
+			<property name="stamp" type="TimestampText" date_format="d-m-Y"/>
+		</dataset>
+		<index name="role"><field property="role" length="10"/></index>
+		<index name="user_type"><field property="userType" length="10"/></index>
+		<!-- An index on the start of another index's columns is still created -->
+		<index name="email"><field property="email" length="64"/></index>
+		<index name="email_role"><field property="email" length="64"/><field property="role" length="10"/></index>
+		<index name="active"><field fieldname="deleted"/><field fieldname="id"/></index>
+		<!-- In the dataset table; the index on manager_id doesn't start with it, so that one stays -->
+		<index name="city">
+			<field property="city" length="20"/>
+			<field property="manager"/>
+		</index>
+		<index name="stamp"><field property="stamp" length="10"/><field fieldname="id"/></index>
+	</class>
+
+	<class name="BenchmarkValue">
+		<dataset>
+			<property name="survey" type="Class" class="User"/>
+			<property name="surveyInvitation" type="Class" class="SurveyInvitation"/>
+			<property name="name"/>
+			<property name="subject" type="DynamicClass"/>
+		</dataset>
+		<index name="selectlist">
+			<field property="survey"/>
+			<field property="surveyInvitation"/>
+			<field property="name" length="50"/>
+		</index>
+		<!-- Expands to subject_type, subject_id, and covers their automatic index -->
+		<index name="subject_name">
+			<field property="subject"/>
+			<field property="name" length="20"/>
+		</index>
+	</class>
+</project>

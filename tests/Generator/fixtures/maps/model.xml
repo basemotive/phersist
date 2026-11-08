@@ -1,0 +1,42 @@
+<project database="main" tablestyle="SnakeCase" namespace="Fixture\Maps" id_style="long">
+	<!-- Maps shared by classes, and maps with too many keys for a unique index -->
+	<schema dialect="mysql" collate="utf8mb4_0900_ai_ci"/>
+
+	<class name="Account">
+		<dataset>
+			<property name="name"/>
+		</dataset>
+		<map name="settings" table="settings" id="owner_id" type="owner_type">
+			<key name="section"/>
+			<key name="name"/>
+			<value name="value"/>
+		</map>
+		<map name="matrix" table="account_matrix" id="acc">
+			<key name="a"/>
+			<key name="b"/>
+			<key name="c"/>
+			<key name="d"/>
+			<key name="e"/>
+			<value name="v"/>
+		</map>
+		<map name="flags" table="account_flags">
+			<key name="flag"/>
+			<value name="state"/>
+		</map>
+		<map name="labels" table="account_labels" type="owner_type">
+			<key name="a"/>
+			<key name="b"/>
+			<key name="c"/>
+			<key name="d"/>
+			<value name="label"/>
+		</map>
+	</class>
+
+	<class name="Team">
+		<map name="settings" table="settings" id="owner_id" type="owner_type" use_namespace="true">
+			<key name="section"/>
+			<key name="name"/>
+			<value name="value"/>
+		</map>
+	</class>
+</project>

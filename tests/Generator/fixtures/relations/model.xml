@@ -1,0 +1,42 @@
+<project database="main" tablestyle="SnakeCase" namespace="Fixture\Relations">
+	<!-- Join tables owned from one or both sides, local_type, order_field, derived relations -->
+	<class name="Article">
+		<dataset>
+			<property name="title"/>
+			<property name="author" type="Class" class="Author" required="true"/>
+		</dataset>
+		<relation name="tags" type="NN" class="Tag" table="article_tags" local_id="article_id" remote_id="tag_id" table_owner="true" order_field="position"/>
+		<relation name="comments" type="NN" class="Comment" table="comments" local_id="subject_id" remote_id="id" local_type="subject_type" table_owner="false"/>
+		<relation name="likers" type="NN" class="Author" table="likes" local_id="liked_id" local_type="liked_type" remote_id="author_id" table_owner="true" cascade_delete="true"/>
+	</class>
+
+	<class name="Tag">
+		<dataset>
+			<property name="name"/>
+		</dataset>
+		<relation name="articles" type="NN" class="Article" table="article_tags" local_id="tag_id" remote_id="article_id" table_owner="false"/>
+	</class>
+
+	<class name="Photo">
+		<dataset>
+			<property name="url"/>
+		</dataset>
+		<relation name="comments" type="NN" class="Comment" table="comments" local_id="subject_id" remote_id="id" local_type="subject_type" table_owner="false"/>
+		<relation name="likers" type="NN" class="Author" table="likes" local_id="liked_id" local_type="liked_type" remote_id="author_id" table_owner="true" load_objects="true"/>
+	</class>
+
+	<class name="Comment">
+		<dataset>
+			<property name="body"/>
+			<property name="subject" type="DynamicClass" required="true" on_remote_delete="cascade"/>
+		</dataset>
+	</class>
+
+	<class name="Author">
+		<dataset>
+			<property name="name"/>
+		</dataset>
+		<relation name="articles" type="NN" class="Article" table="articles" local_id="author_id" remote_id="id" table_owner="false"/>
+		<relation name="friends" type="NN" class="Author" table="friendships" local_id="author_id" remote_id="friend_id" table_owner="true"/>
+	</class>
+</project>

@@ -1,0 +1,37 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\Softdelete">
+	<!--
+		Soft-deleted classes, and what refers to them: they must keep working
+		wherever they are referenced.
+
+		Tables (ids are INT, auto-increment; softdelete classes have deleted, 0 or 1):
+		- writers:      id, deleted, name (text, required)                 softdelete
+		- writer_bios:  id, bio (text)                                      Writer's second dataset
+		- tags:         id, deleted, name (text, required)                 softdelete
+		- articles:     id, title (text, required), author_id (Writer)
+		- article_tags: article_id, tag_id                                  Article.tags (owned) / Tag.articles
+	-->
+	<class name="Writer" softdelete="true">
+		<dataset autoload="true">
+			<property name="name" required="true"/>
+		</dataset>
+		<dataset table="writer_bios">
+			<property name="bio"/>
+		</dataset>
+		<relation name="articles" type="NN" class="Article" table="articles" local_id="author_id" remote_id="id" table_owner="false"/>
+	</class>
+
+	<class name="Tag" softdelete="true">
+		<dataset autoload="true">
+			<property name="name" required="true"/>
+		</dataset>
+		<relation name="articles" type="NN" class="Article" table="article_tags" local_id="tag_id" remote_id="article_id" table_owner="false"/>
+	</class>
+
+	<class name="Article">
+		<dataset autoload="true">
+			<property name="title" required="true"/>
+			<property name="author" type="Class" class="Writer"/>
+		</dataset>
+		<relation name="tags" type="NN" class="Tag" table="article_tags" local_id="article_id" remote_id="tag_id" table_owner="true"/>
+	</class>
+</project>

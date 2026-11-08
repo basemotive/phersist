@@ -1,0 +1,47 @@
+<project database="main" tablestyle="SnakeCase" namespace="Tests\Models\Types">
+	<!--
+		Every property type, with defaults, custom column names and update_on.
+
+		Tables (ids are INT, auto-increment):
+		- items:  id,
+		          title (text, required, default 'Untitled'), notes (text),
+		          count (int, default -3), stock (int unsigned, required, default 0),
+		          ratio (double, default 1.5),
+		          price (decimal 12,4, default 9.99), amount (decimal 10,2),
+		          active (bool, required, default true), hidden (bool),
+		          birthday (date), starts_at (datetime),
+		          created_at (datetime, update_on create), modified_at (datetime, update_on modify),
+		          stamp (TimestampText, update_on modify), custom_stamp (TimestampText, date_format d-m-Y),
+		          owner_ref (Owner), subject_type + subject_id (DynamicClass),
+		          target_class + target_ref (DynamicClass, use_namespace)
+		- owners: id, name (text)
+	-->
+	<class name="Item">
+		<dataset autoload="true">
+			<property name="title" required="true" default="Untitled"/>
+			<property name="notes"/>
+			<property name="count" type="Int" default="-3"/>
+			<property name="stock" type="Int" signed="false" required="true" default="0"/>
+			<property name="ratio" type="Float" default="1.5"/>
+			<property name="price" type="Decimal" precision="12" scale="4" default="9.99"/>
+			<property name="amount" type="Decimal"/>
+			<property name="active" type="Bool" required="true" default="true"/>
+			<property name="hidden" type="Bool"/>
+			<property name="birthday" type="Date"/>
+			<property name="startsAt" type="DateTime"/>
+			<property name="createdAt" type="DateTime" update_on="create"/>
+			<property name="modifiedAt" type="DateTime" update_on="modify"/>
+			<property name="stamp" type="TimestampText" update_on="modify"/>
+			<property name="customStamp" type="TimestampText" date_format="d-m-Y"/>
+			<property name="owner" type="Class" class="Owner" fieldname="owner_ref"/>
+			<property name="subject" type="DynamicClass"/>
+			<property name="target" type="DynamicClass" use_namespace="true" fieldnames="target_class,target_ref"/>
+		</dataset>
+	</class>
+
+	<class name="Owner">
+		<dataset autoload="true">
+			<property name="name"/>
+		</dataset>
+	</class>
+</project>

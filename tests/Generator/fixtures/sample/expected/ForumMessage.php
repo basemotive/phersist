@@ -96,6 +96,7 @@ class ForumMessage extends ActiveRecord {
 							'view_count'
 						],
 						'signed' => false,
+						'size' => 'normal',
 						'required' => true,
 						'default' => 0
 					]

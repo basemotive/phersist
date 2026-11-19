@@ -55,6 +55,12 @@ describe('a valid value', function () {
 		'Int signed maximum' => [ 'count', fn () => 2147483647, 2147483647, [ 'count' => 2147483647 ] ],
 		'Int unsigned maximum' => [ 'stock', fn () => 4294967295, 4294967295, [ 'stock' => 4294967295 ] ],
 		'Int null' => [ 'count', fn () => null, null, [ 'count' => null ] ],
+		'Int small minimum' => [ 'rank', fn () => -32768, -32768, [ 'rank' => -32768 ] ],
+		'Int small maximum' => [ 'rank', fn () => 32767, 32767, [ 'rank' => 32767 ] ],
+		'Int big minimum' => [ 'views', fn () => PHP_INT_MIN, PHP_INT_MIN, [ 'views' => PHP_INT_MIN ] ],
+		'Int big maximum' => [ 'views', fn () => PHP_INT_MAX, PHP_INT_MAX, [ 'views' => PHP_INT_MAX ] ],
+		'Int big from a string' => [ 'views', fn () => '-9223372036854775808', PHP_INT_MIN, [ 'views' => PHP_INT_MIN ] ],
+		'Int big unsigned maximum' => [ 'bytes', fn () => PHP_INT_MAX, PHP_INT_MAX, [ 'bytes' => PHP_INT_MAX ] ],
 
 		'Float' => [ 'ratio', fn () => 0.25, 0.25, [ 'ratio' => 0.25 ] ],
 		'Float from an int' => [ 'ratio', fn () => 3, 3.0, [ 'ratio' => 3.0 ] ],
@@ -126,6 +132,12 @@ describe('an invalid value', function () {
 		'Int negative for unsigned' => [ 'stock', fn () => -1 ],
 		'Int above the unsigned range' => [ 'stock', fn () => 4294967296 ],
 		'Int from an empty string' => [ 'count', fn () => '' ],
+		'Int below the small range' => [ 'rank', fn () => -32769 ],
+		'Int above the small range' => [ 'rank', fn () => 32768 ],
+		'Int above the big range' => [ 'views', fn () => '9223372036854775808' ],
+		'Int negative for big unsigned' => [ 'bytes', fn () => -1 ],
+		'Int above PHP_INT_MAX for big unsigned' => [ 'bytes', fn () => '9223372036854775808' ],
+		'Int float above PHP_INT_MAX for big unsigned' => [ 'bytes', fn () => 1.0e19 ],
 
 		'Float infinite' => [ 'ratio', fn () => INF ],
 		'Float NaN' => [ 'ratio', fn () => NAN ],
@@ -170,7 +182,7 @@ describe('defaults', function () {
 		$item->commit();
 
 		expectState([ 'items' => [ [
-			'id' => 1, 'title' => 'Untitled', 'notes' => null, 'count' => -3, 'stock' => 0, 'ratio' => 1.5,
+			'id' => 1, 'title' => 'Untitled', 'notes' => null, 'count' => -3, 'stock' => 0, 'rank' => null, 'views' => null, 'bytes' => null, 'ratio' => 1.5,
 			'price' => '9.9900', 'amount' => null, 'active' => 1, 'hidden' => null, 'birthday' => null,
 			'starts_at' => null, 'created_at' => now(), 'modified_at' => now(), 'stamp' => now(), 'custom_stamp' => null,
 			'owner_ref' => null, 'subject_type' => null, 'subject_id' => null, 'target_class' => null, 'target_ref' => null,
@@ -222,6 +234,21 @@ describe('loading', function () {
 			->toBe([ 5, 2.5, '1.5000', '7.00', false, true,
 				'DateTime(2000-12-31 00:00:00 UTC)', 'DateTime(2026-03-04 05:06:07 UTC)', 'Tests\Models\Types\Owner#1',
 				'Tests\Models\Types\Owner#1', 'Tests\Models\Basic\User#5' ]);
+	});
+
+	it('returns BIGINT values as int', function () {
+		given([ 'items' => [ [ 'id' => 1, 'views' => PHP_INT_MIN, 'bytes' => PHP_INT_MAX ] ] ]);
+
+		$item = Item::fetch(1);
+		expect([ $item->views, $item->bytes ])->toBe([ PHP_INT_MIN, PHP_INT_MAX ]);
+	});
+
+	it('rejects an unsigned BIGINT value beyond PHP_INT_MAX instead of clamping it', function () {
+		// Only another application can store it; SQLite has no such integers at all
+		onlyOn('mysql', 'mariadb');
+		db()->exec("insert into items (id, title, stock, active, bytes) values (1, 'T', 0, 1, 18446744073709551615)");
+
+		expect(fn () => Item::fetch(1)->bytes)->toThrow(UnexpectedValueException::class, "Value '18446744073709551615' of column bytes doesn't fit a PHP int");
 	});
 
 	it('rejects a DynamicClass column that names a class that isn\'t an ActiveRecord', function () {

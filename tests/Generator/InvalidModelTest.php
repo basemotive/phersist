@@ -112,6 +112,49 @@ it('rejects the model with a readable error', function (string $xml, string $exp
 		Invalid default for property 'count': -1 is out of range for an unsigned INT column
 		ERROR,
 	],
+	'bad-int-size' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="count" type="Int" size="huge"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid model XML:
+		- line 4: <property> 'count' of class 'Item' has an invalid 'size' attribute: expected 'small' or 'normal' or 'big', got 'huge'
+		ERROR,
+	],
+	'bad-small-int-default' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="count" type="Int" size="small" default="32768"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid default for property 'count': 32768 is out of range for a signed SMALLINT column
+		ERROR,
+	],
+	'bad-big-unsigned-int-default' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="count" type="Int" size="big" signed="false" default="9223372036854775808"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid default for property 'count': '9223372036854775808' is out of range for an int
+		ERROR,
+	],
 	'bad-mysql-charset' => [
 		<<<'XML'
 		<project database="main" tablestyle="SnakeCase">

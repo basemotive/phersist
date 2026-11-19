@@ -80,7 +80,12 @@ class SchemaBuilder {
 				$table->addColumn(new Column($columnName, ColumnType::Text, $nullable, $property->default));
 				break;
 			case 'Int':
-				$table->addColumn(new Column($columnName, $property->signed ? ColumnType::Int : ColumnType::UnsignedInt, $nullable, $property->default));
+				$columnType = match ($property->size) {
+					'small' => $property->signed ? ColumnType::SmallInt : ColumnType::UnsignedSmallInt,
+					'big' => $property->signed ? ColumnType::BigInt : ColumnType::UnsignedBigInt,
+					default => $property->signed ? ColumnType::Int : ColumnType::UnsignedInt,
+				};
+				$table->addColumn(new Column($columnName, $columnType, $nullable, $property->default));
 				break;
 			case 'Float':
 				$table->addColumn(new Column($columnName, ColumnType::Float, $nullable, $property->default));

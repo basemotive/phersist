@@ -51,6 +51,7 @@ class Person extends ActiveRecord {
 							'age'
 						],
 						'signed' => true,
+						'size' => 'normal',
 						'required' => false
 					]
 				]

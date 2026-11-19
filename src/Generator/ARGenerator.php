@@ -119,7 +119,8 @@ class ARGenerator {
 			$result .= ' * @property'.($writeType !== null ? '-read' : '')." {$phpType} \${$property->name}";
 
 			if ($property->default !== null)
-				$result .= ' default '.var_export($property->default, true);
+				// var_export() writes PHP_INT_MIN as -9223372036854775807-1
+				$result .= ' default '.(is_int($property->default) ? (string)$property->default : var_export($property->default, true));
 
 			if ($property->type == 'Decimal') {
 				$result .= " decimal({$property->precision},{$property->scale})";
@@ -209,6 +210,7 @@ class ARGenerator {
 					$metaprop['class'] = $property->class;
 				} elseif ($property->type == 'Int') {
 					$metaprop['signed'] = $property->signed;
+					$metaprop['size'] = $property->size;
 				} elseif ($property->type == 'Decimal') {
 					$metaprop['precision'] = $property->precision;
 					$metaprop['scale'] = $property->scale;
@@ -376,7 +378,8 @@ class ARGenerator {
 				is_array($value)  => $this->exportArray($value, $depth + 1),
 				is_bool($value)   => ($value ? 'true' : 'false'),
 				is_null($value)   => 'null',
-				is_int($value)    => (string)$value,
+				// The literal -9223372036854775808 would be a float
+				is_int($value)    => $value === PHP_INT_MIN ? 'PHP_INT_MIN' : (string)$value,
 				is_float($value)  => var_export($value, true),
 				default           => "'".addcslashes((string)$value, "'\\")."'",
 			};

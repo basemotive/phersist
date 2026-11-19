@@ -56,7 +56,9 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 			$bytes += match ($column?->type) {
 				// VARCHAR(191) at 4 bytes per character
 				ColumnType::ClassName, ColumnType::MapKey => 764,
+				ColumnType::SmallInt, ColumnType::UnsignedSmallInt => 2,
 				ColumnType::Id, ColumnType::Reference, ColumnType::Int, ColumnType::UnsignedInt => 4,
+				ColumnType::BigInt, ColumnType::UnsignedBigInt => 8,
 				ColumnType::Bool => 1,
 				default => self::MAX_INDEX_KEY_BYTES + 1,
 			};
@@ -106,6 +108,10 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 		return match ($column->type) {
 			ColumnType::Id, ColumnType::Reference, ColumnType::UnsignedInt => 'INT UNSIGNED',
 			ColumnType::Int => 'INT',
+			ColumnType::SmallInt => 'SMALLINT',
+			ColumnType::UnsignedSmallInt => 'SMALLINT UNSIGNED',
+			ColumnType::BigInt => 'BIGINT',
+			ColumnType::UnsignedBigInt => 'BIGINT UNSIGNED',
 			ColumnType::Bool => 'TINYINT UNSIGNED',
 			// DOUBLE matches the precision of PHP floats
 			ColumnType::Float => 'DOUBLE',

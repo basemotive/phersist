@@ -229,8 +229,12 @@ final class State {
 		switch ($column->type) {
 			case ColumnType::Id:
 			case ColumnType::Reference:
+			case ColumnType::SmallInt:
+			case ColumnType::UnsignedSmallInt:
 			case ColumnType::Int:
 			case ColumnType::UnsignedInt:
+			case ColumnType::BigInt:
+			case ColumnType::UnsignedBigInt:
 			case ColumnType::Bool:
 				if (is_bool($value))
 					return (int)$value;

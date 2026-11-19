@@ -241,7 +241,7 @@ class XMLLoader {
 	 */
 	private const PROPERTY_TYPE_ATTRIBUTES = [
 		'Text' => [ 'attributes' => [ 'default' ], 'required' => [] ],
-		'Int' => [ 'attributes' => [ 'default', 'signed' ], 'required' => [] ],
+		'Int' => [ 'attributes' => [ 'default', 'signed', 'size' ], 'required' => [] ],
 		'Float' => [ 'attributes' => [ 'default' ], 'required' => [] ],
 		'Decimal' => [ 'attributes' => [ 'default', 'precision', 'scale' ], 'required' => [] ],
 		'Bool' => [ 'attributes' => [ 'default' ], 'required' => [] ],
@@ -273,6 +273,7 @@ class XMLLoader {
 		'autoload' => [ 'true', 'false' ],
 		'required' => [ 'true', 'false' ],
 		'signed' => [ 'true', 'false' ],
+		'size' => [ 'small', 'normal', 'big' ],
 		'table_owner' => [ 'true', 'false' ],
 		'load_objects' => [ 'true', 'false' ],
 		'cascade_delete' => [ 'true', 'false' ],
@@ -903,6 +904,7 @@ class XMLLoader {
 			columns: self::getFieldNames($project, $element, $type),
 			default: self::getDefault($element, $type, $precision, $scale),
 			signed: self::getBool($element, 'signed', true),
+			size: self::getIntSize($element),
 			precision: $precision,
 			scale: $scale,
 			updateOn: $updateOn,
@@ -946,6 +948,17 @@ class XMLLoader {
 	}
 
 	/**
+	 * Reads the size of an Int property. checkElements() has checked its value
+	 * (see ATTRIBUTE_VALUES).
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @return string 'small', 'normal' or 'big'
+	 */
+	private static function getIntSize(DOMElement $property) : string {
+		return $property->hasAttribute('size') ? $property->getAttribute('size') : 'normal';
+	}
+
+	/**
 	 * Reads the precision and scale for a Decimal property.
 	 *
 	 * @param DOMElement $property the property element in the XML tree
@@ -982,7 +995,7 @@ class XMLLoader {
 				return $default;
 
 			if ($type == 'Int')
-				return (new ARPropertyTypeInt())->normalize([ 'signed' => self::getBool($property, 'signed', true) ], $default);
+				return (new ARPropertyTypeInt())->normalize([ 'signed' => self::getBool($property, 'signed', true), 'size' => self::getIntSize($property) ], $default);
 
 			if ($type == 'Float')
 				return (new ARPropertyTypeFloat())->normalize([], $default);

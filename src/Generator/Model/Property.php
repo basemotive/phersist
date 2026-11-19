@@ -21,6 +21,7 @@ final class Property {
 	 * @param string|int|float|bool|null $default the value for new objects, null if there is none;
 	 *   Decimal defaults are normalized strings
 	 * @param bool $signed for Int: whether the column is signed
+	 * @param string $size for Int: 'small', 'normal' or 'big' (see ARPropertyTypeInt::SIZES)
 	 * @param ?int $precision for Decimal: the total number of digits
 	 * @param ?int $scale for Decimal: the number of digits after the decimal point
 	 * @param ?string $updateOn for Date, DateTime and TimestampText: 'create' or 'modify', or null if not set
@@ -37,6 +38,7 @@ final class Property {
 		public readonly array $columns,
 		public readonly string|int|float|bool|null $default,
 		public readonly bool $signed,
+		public readonly string $size,
 		public readonly ?int $precision,
 		public readonly ?int $scale,
 		public readonly ?string $updateOn,

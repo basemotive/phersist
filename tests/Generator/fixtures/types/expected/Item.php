@@ -12,6 +12,9 @@ use PHersist\ActiveRecord;
  * @property ?string $notes
  * @property ?int $count default -3
  * @property int $stock default 0
+ * @property ?int $rank default 65535
+ * @property ?int $views default -9223372036854775808
+ * @property int $bytes default 9223372036854775807
  * @property-read ?float $ratio default 1.5
  * @property-write int|float|string|null $ratio
  * @property-read ?string $price default '9.9900' decimal(12,4)
@@ -68,6 +71,7 @@ class Item extends ActiveRecord {
 							'count'
 						],
 						'signed' => true,
+						'size' => 'normal',
 						'required' => false,
 						'default' => -3
 					],
@@ -77,8 +81,39 @@ class Item extends ActiveRecord {
 							'stock'
 						],
 						'signed' => false,
+						'size' => 'normal',
 						'required' => true,
 						'default' => 0
+					],
+					'rank' => [
+						'type' => 'Int',
+						'fieldnames' => [
+							'rank'
+						],
+						'signed' => false,
+						'size' => 'small',
+						'required' => false,
+						'default' => 65535
+					],
+					'views' => [
+						'type' => 'Int',
+						'fieldnames' => [
+							'views'
+						],
+						'signed' => true,
+						'size' => 'big',
+						'required' => false,
+						'default' => PHP_INT_MIN
+					],
+					'bytes' => [
+						'type' => 'Int',
+						'fieldnames' => [
+							'bytes'
+						],
+						'signed' => false,
+						'size' => 'big',
+						'required' => true,
+						'default' => 9223372036854775807
 					],
 					'ratio' => [
 						'type' => 'Float',

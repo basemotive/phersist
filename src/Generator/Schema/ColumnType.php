@@ -15,9 +15,16 @@ enum ColumnType {
 	case Id;
 	/** The id of another object: a Class property, a relation's ids, or a map's owner */
 	case Reference;
+	/** A 16-bit integer */
+	case SmallInt;
+	case UnsignedSmallInt;
+	/** A 32-bit integer */
 	case Int;
-	/** A non-negative integer, like a position or the softdelete column */
+	/** A non-negative 32-bit integer, also used for a position or the softdelete column */
 	case UnsignedInt;
+	/** A 64-bit integer */
+	case BigInt;
+	case UnsignedBigInt;
 	case Bool;
 	case Float;
 	/** A fixed-point number, with the column's precision and scale */

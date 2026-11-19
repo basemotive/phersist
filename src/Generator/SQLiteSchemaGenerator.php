@@ -52,8 +52,11 @@ class SQLiteSchemaGenerator extends SchemaGenerator {
 
 	protected function columnType(Column $column) : string {
 		return match ($column->type) {
-			// INTEGER PRIMARY KEY makes the id the rowid, which AUTOINCREMENT needs
-			ColumnType::Id, ColumnType::Reference, ColumnType::Int, ColumnType::UnsignedInt, ColumnType::Bool => 'INTEGER',
+			// INTEGER PRIMARY KEY makes the id the rowid, which AUTOINCREMENT needs.
+			// INTEGER is 64-bit, so it fits every size.
+			ColumnType::Id, ColumnType::Reference, ColumnType::SmallInt, ColumnType::UnsignedSmallInt,
+				ColumnType::Int, ColumnType::UnsignedInt, ColumnType::BigInt, ColumnType::UnsignedBigInt,
+				ColumnType::Bool => 'INTEGER',
 			ColumnType::Float => 'REAL',
 			// Has numeric affinity
 			ColumnType::Decimal => "DECIMAL({$column->precision},{$column->scale})",

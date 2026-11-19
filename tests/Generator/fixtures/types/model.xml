@@ -8,6 +8,9 @@
 			<property name="notes"/>
 			<property name="count" type="Int" default="-3"/>
 			<property name="stock" type="Int" signed="false" required="true" default="0"/>
+			<property name="rank" type="Int" size="small" signed="false" default="65535"/>
+			<property name="views" type="Int" size="big" default="-9223372036854775808"/>
+			<property name="bytes" type="Int" size="big" signed="false" required="true" default="9223372036854775807"/>
 			<property name="ratio" type="Float" default="1.5"/>
 			<property name="price" type="Decimal" precision="12" scale="4" default="9.99"/>
 			<property name="amount" type="Decimal"/>

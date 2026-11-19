@@ -41,7 +41,7 @@ class OFWhereExpression extends OFExpression {
 		// restricting that is probably not productive
 
 		// The id is an unsigned int, but not part of any dataset
-		$prop = $resolved['prop'] ?? [ 'type' => 'Int', 'signed' => false ];
+		$prop = $resolved['prop'] ?? [ 'type' => 'Int', 'signed' => false, 'size' => 'normal' ];
 		$type = self::_getPropertyType($prop['type']);
 		if (($operator == 'LIKE' || $operator == 'NOT LIKE') && !$type->supportsLike())
 			$of->error("Operator '{$operator}' only works on text properties, not on $property (type {$prop['type']}); use = or a range instead");

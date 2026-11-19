@@ -341,22 +341,32 @@ Default value behaviour:
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Int`
-Integer field. Maps to an `INT` column (signed by default, `INT UNSIGNED` when `signed="false"`). Values read from the database are returned as `int`. Assigned integer strings (like `'42'`) and floats without a fractional part (like `42.0`) are converted to `int`; other values, like `3.5`, `'3.0'` or `'1e3'`, throw an exception. So do values that don't fit the column: `-2147483648` to `2147483647`, or `0` to `4294967295` with `signed="false"`.
+Integer field. Maps to an `INT` column by default; `size` picks a `SMALLINT` or `BIGINT` instead, and `signed="false"` makes it unsigned. Values read from the database are returned as `int`. Assigned integer strings (like `'42'`) and floats without a fractional part (like `42.0`) are converted to `int`; other values, like `3.5`, `'3.0'` or `'1e3'`, throw an exception. So do values that don't fit the column:
+
+| `size` | Column | Range | Range with `signed="false"` |
+|---|---|---|---|
+| `small` | `SMALLINT` | `-32768` to `32767` | `0` to `65535` |
+| `normal` | `INT` | `-2147483648` to `2147483647` | `0` to `4294967295` |
+| `big` | `BIGINT` | `-9223372036854775808` to `9223372036854775807` | `0` to `9223372036854775807` |
 
 ```xml
 <property name="price" type="Int"/>
 <property name="score" type="Int" signed="false"/>
 <property name="viewCount" type="Int" required="true" default="0"/>
+<property name="fileSize" type="Int" size="big" signed="false"/>
 ```
 
-Extra attribute:
+Extra attributes:
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `signed` | no | `true` | Set to `false` to emit `INT UNSIGNED`. |
+| `signed` | no | `true` | Set to `false` for an unsigned column, like `INT UNSIGNED`. |
+| `size` | no | `normal` | `small` (16-bit, `SMALLINT`), `normal` (32-bit, `INT`) or `big` (64-bit, `BIGINT`). In SQLite, every size is an `INTEGER` column. |
+
+> **Unsigned `BIGINT`:** a PHP `int` is a signed 64-bit integer, so it can't hold the upper half of a `BIGINT UNSIGNED` column. With `size="big" signed="false"`, values above `9223372036854775807` (`PHP_INT_MAX`) are rejected on assignment, and loading a row that holds such a value (written by something else than PHersist) throws an exception instead of returning a wrong number. If an existing column really holds such values, map it to a `Text` property instead.
 
 Default value behaviour:
-- If `default` is set, it must be a whole number (like `0`, `-5` or `+12`) that fits the `INT` column: `-2147483648` to `2147483647`, or `0` to `4294967295` with `signed="false"`. The generator reports an error otherwise, for example for `1.5` or `abc`.
+- If `default` is set, it must be a whole number (like `0`, `-5` or `+12`) within the range of the column (see the table above). The generator reports an error otherwise, for example for `1.5` or `abc`.
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Float`

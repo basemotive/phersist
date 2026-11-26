@@ -5,6 +5,7 @@ namespace PHersist\Generator;
 use PHersist\Generator\Model\Project;
 use PHersist\Generator\Model\Record;
 use PHersist\ReferenceRegistry;
+use PHersist\Types\ARPropertyTypeText;
 
 /**
  * Generates ActiveRecord instances.
@@ -124,6 +125,8 @@ class ARGenerator {
 
 			if ($property->type == 'Text' && $property->length !== null) {
 				$result .= " max length {$property->length}";
+			} elseif ($property->type == 'Text' && $property->size != 'normal') {
+				$result .= ' '.strtolower(ARPropertyTypeText::SIZES[$property->size]['type']);
 			} elseif ($property->type == 'Decimal') {
 				$result .= " decimal({$property->precision},{$property->scale})";
 			} elseif (($property->type == 'Date' || $property->type == 'DateTime') && $property->updateOn !== null) {
@@ -212,6 +215,8 @@ class ARGenerator {
 					$metaprop['class'] = $property->class;
 				} elseif ($property->type == 'Text' && $property->length !== null) {
 					$metaprop['length'] = $property->length;
+				} elseif ($property->type == 'Text' && $property->size != 'normal') {
+					$metaprop['size'] = $property->size;
 				} elseif ($property->type == 'Int') {
 					$metaprop['signed'] = $property->signed;
 					$metaprop['size'] = $property->size;

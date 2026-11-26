@@ -209,6 +209,36 @@ describe('the length of a Text', function () {
 	});
 });
 
+describe('the size of a Text', function () {
+	it('holds a value of the maximum number of bytes', function (string $property, int $bytes) {
+		// 'é' is 2 bytes
+		$value = str_repeat('é', intdiv($bytes, 2)).'a';
+		$item = new Item();
+		$item->$property = $value;
+		$item->commit();
+
+		$item->reload();
+		expect($item->$property === $value)->toBeTrue();
+	})->with([
+		'tiny' => [ 'tag', 255 ],
+		'normal' => [ 'notes', 65535 ],
+		'medium, above the size of a TEXT' => [ 'body', 200001 ],
+		'long, above the size of a TEXT' => [ 'archive', 200001 ],
+	]);
+
+	it('rejects a value of more bytes, counted in bytes and not characters', function (string $property, int $bytes, string $column) {
+		$item = new Item();
+
+		expect(function () use ($item, $property, $bytes) { $item->$property = str_repeat('é', intdiv($bytes, 2) + 1); })
+			->toThrow(Exception::class, "Invalid value for property {$property}: the value is ".($bytes + 1)." bytes, the maximum for a {$column} column is {$bytes}");
+		expect($item->$property)->toBeNull();
+	})->with([
+		'tiny' => [ 'tag', 255, 'TINYTEXT' ],
+		'normal' => [ 'notes', 65535, 'TEXT' ],
+		'medium' => [ 'body', 16777215, 'MEDIUMTEXT' ],
+	]);
+});
+
 describe('defaults', function () {
 	it('are set on new objects, and stored', function () {
 		$item = new Item();
@@ -218,7 +248,7 @@ describe('defaults', function () {
 		$item->commit();
 
 		expectState([ 'items' => [ [
-			'id' => 1, 'title' => 'Untitled', 'notes' => null, 'code' => null, 'count' => -3, 'stock' => 0, 'rank' => null, 'views' => null, 'bytes' => null, 'ratio' => 1.5,
+			'id' => 1, 'title' => 'Untitled', 'notes' => null, 'code' => null, 'tag' => null, 'body' => null, 'archive' => null, 'count' => -3, 'stock' => 0, 'rank' => null, 'views' => null, 'bytes' => null, 'ratio' => 1.5,
 			'price' => '9.9900', 'amount' => null, 'active' => 1, 'hidden' => null, 'birthday' => null,
 			'starts_at' => null, 'created_at' => now(), 'modified_at' => now(), 'stamp' => now(), 'custom_stamp' => null,
 			'owner_ref' => null, 'subject_type' => null, 'subject_id' => null, 'target_class' => null, 'target_ref' => null,

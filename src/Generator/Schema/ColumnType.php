@@ -29,8 +29,12 @@ enum ColumnType {
 	case Float;
 	/** A fixed-point number, with the column's precision and scale */
 	case Decimal;
-	/** Text of any length */
+	/** Text of up to 64 KB */
 	case Text;
+	/** Text of up to 255 bytes, 16 MB and 4 GB */
+	case TinyText;
+	case MediumText;
+	case LongText;
 	/** Text of at most the column's length, in characters */
 	case VarChar;
 	case Date;

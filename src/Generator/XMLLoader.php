@@ -241,7 +241,7 @@ class XMLLoader {
 	 * The type-specific attributes of a property, and which of them are required.
 	 */
 	private const PROPERTY_TYPE_ATTRIBUTES = [
-		'Text' => [ 'attributes' => [ 'default', 'length' ], 'required' => [] ],
+		'Text' => [ 'attributes' => [ 'default', 'length', 'size' ], 'required' => [] ],
 		'Int' => [ 'attributes' => [ 'default', 'signed', 'size' ], 'required' => [] ],
 		'Float' => [ 'attributes' => [ 'default' ], 'required' => [] ],
 		'Decimal' => [ 'attributes' => [ 'default', 'precision', 'scale' ], 'required' => [] ],
@@ -274,6 +274,7 @@ class XMLLoader {
 		'autoload' => [ 'true', 'false' ],
 		'required' => [ 'true', 'false' ],
 		'signed' => [ 'true', 'false' ],
+		// Of an Int; checkElement() has those of a Text
 		'size' => [ 'small', 'normal', 'big' ],
 		'table_owner' => [ 'true', 'false' ],
 		'load_objects' => [ 'true', 'false' ],
@@ -373,10 +374,14 @@ class XMLLoader {
 			if (trim($element->getAttribute($name)) === '')
 				$problems[] = "line {$element->getLineNo()}: $description ".($element->hasAttribute($name) ? "has an empty '{$name}' attribute" : "is missing the required attribute '{$name}'");
 
-		foreach (self::ATTRIBUTE_VALUES as $name => $values)
+		foreach (self::ATTRIBUTE_VALUES as $name => $values) {
+			// The sizes of a Text are other ones than those of an Int
+			if ($name == 'size' && isset($type) && $type == 'Text')
+				$values = array_keys(ARPropertyTypeText::SIZES);
 			if ($element->hasAttribute($name) && in_array($name, $known) && !in_array($element->getAttribute($name), $values, true))
 				$problems[] = "line {$element->getLineNo()}: {$description} has an invalid '{$name}' attribute: expected "
 					.implode(' or ', array_map(fn($value) => "'{$value}'", $values)).", got '{$element->getAttribute($name)}'";
+		}
 
 		// An optional name attribute that is set must have a value: the
 		// generators would use an empty value as the name
@@ -911,7 +916,7 @@ class XMLLoader {
 			default: self::getDefault($element, $type, $length, $precision, $scale),
 			length: $length,
 			signed: self::getBool($element, 'signed', true),
-			size: self::getIntSize($element),
+			size: self::getSize($element),
 			precision: $precision,
 			scale: $scale,
 			updateOn: $updateOn,
@@ -955,13 +960,13 @@ class XMLLoader {
 	}
 
 	/**
-	 * Reads the size of an Int property. checkElements() has checked its value
-	 * (see ATTRIBUTE_VALUES).
+	 * Reads the size of an Int or Text property. checkElements() has checked
+	 * its value (see ATTRIBUTE_VALUES).
 	 *
 	 * @param DOMElement $property the property element in the XML tree
-	 * @return string 'small', 'normal' or 'big'
+	 * @return string 'small', 'normal' or 'big' for an Int; 'tiny', 'normal', 'medium' or 'long' for a Text
 	 */
-	private static function getIntSize(DOMElement $property) : string {
+	private static function getSize(DOMElement $property) : string {
 		return $property->hasAttribute('size') ? $property->getAttribute('size') : 'normal';
 	}
 
@@ -975,6 +980,8 @@ class XMLLoader {
 	private static function getTextLength(DOMElement $property) : ?int {
 		if (!$property->hasAttribute('length'))
 			return null;
+		if ($property->hasAttribute('size'))
+			throw new \Exception("Property '{$property->getAttribute('name')}' can't have both a length and a size: a length makes it a VARCHAR column, a size picks a kind of TEXT column");
 		$length = $property->getAttribute('length');
 		if (!preg_match('/^[1-9][0-9]{0,4}$/D', $length) || (int)$length > ARPropertyTypeText::MAX_LENGTH)
 			throw new \Exception("Invalid length '{$length}' for property '{$property->getAttribute('name')}': expected a whole number from 1 to "
@@ -1017,10 +1024,10 @@ class XMLLoader {
 
 		try {
 			if ($type == 'Text')
-				return (new ARPropertyTypeText())->normalize($length !== null ? [ 'length' => $length ] : [], $default);
+				return (new ARPropertyTypeText())->normalize($length !== null ? [ 'length' => $length ] : [ 'size' => self::getSize($property) ], $default);
 
 			if ($type == 'Int')
-				return (new ARPropertyTypeInt())->normalize([ 'signed' => self::getBool($property, 'signed', true), 'size' => self::getIntSize($property) ], $default);
+				return (new ARPropertyTypeInt())->normalize([ 'signed' => self::getBool($property, 'signed', true), 'size' => self::getSize($property) ], $default);
 
 			if ($type == 'Float')
 				return (new ARPropertyTypeFloat())->normalize([], $default);

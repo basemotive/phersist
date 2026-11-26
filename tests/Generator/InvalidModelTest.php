@@ -185,6 +185,51 @@ it('rejects the model with a readable error', function (string $xml, string $exp
 		- line 6: <field property="code"> of <index> 'code' of class 'Item' has length 11, which is more than the length 10 of property 'code'
 		ERROR,
 	],
+	'bad-text-size' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="body" size="big"/>
+					<property name="count" type="Int" size="medium"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid model XML:
+		- line 4: <property> 'body' of class 'Item' has an invalid 'size' attribute: expected 'tiny' or 'normal' or 'medium' or 'long', got 'big'
+		- line 5: <property> 'count' of class 'Item' has an invalid 'size' attribute: expected 'small' or 'normal' or 'big', got 'medium'
+		ERROR,
+	],
+	'text-length-and-size' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="code" length="10" size="tiny"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Property 'code' can't have both a length and a size: a length makes it a VARCHAR column, a size picks a kind of TEXT column
+		ERROR,
+	],
+	'bad-tiny-text-default' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="code" size="tiny" default="éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid default for property 'code': the value is 264 bytes, the maximum for a TINYTEXT column is 255
+		ERROR,
+	],
 	'bad-int-size' => [
 		<<<'XML'
 		<project database="main" tablestyle="SnakeCase">

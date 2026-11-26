@@ -134,6 +134,7 @@ describe('types', function () {
 		'Float <' => [ 'ratio', '<', 1, [ 1 ] ],
 		'Bool true' => [ 'hidden', '=', true, [ 2 ] ],
 		'Text = longer than the length of the column' => [ 'code', '=', 'abcdef', [] ],
+		'Text = longer than the size of the column' => [ 'tag', '=', str_repeat('a', 256), [] ],
 		'Text != longer than the length of the column' => [ 'code', '!=', 'abcdef', [ 1, 2, 3 ] ],
 		'Bool false' => [ 'hidden', '=', false, [ 1 ] ],
 		'Bool from \'0\'' => [ 'active', '=', '0', [ 2 ] ],

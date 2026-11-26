@@ -80,7 +80,12 @@ class SchemaBuilder {
 				if ($property->length !== null)
 					$table->addColumn(new Column($columnName, ColumnType::VarChar, $nullable, $property->default, length: $property->length));
 				else
-					$table->addColumn(new Column($columnName, ColumnType::Text, $nullable, $property->default));
+					$table->addColumn(new Column($columnName, match ($property->size) {
+						'tiny' => ColumnType::TinyText,
+						'medium' => ColumnType::MediumText,
+						'long' => ColumnType::LongText,
+						default => ColumnType::Text,
+					}, $nullable, $property->default));
 				break;
 			case 'Int':
 				$columnType = match ($property->size) {

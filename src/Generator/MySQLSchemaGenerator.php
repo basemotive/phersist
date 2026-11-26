@@ -118,6 +118,9 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 			ColumnType::Float => 'DOUBLE',
 			ColumnType::Decimal => "DECIMAL({$column->precision},{$column->scale})",
 			ColumnType::Text => 'TEXT',
+			ColumnType::TinyText => 'TINYTEXT',
+			ColumnType::MediumText => 'MEDIUMTEXT',
+			ColumnType::LongText => 'LONGTEXT',
 			// The length is in characters, not bytes
 			ColumnType::VarChar => "VARCHAR({$column->length})",
 			ColumnType::Date => 'DATE',
@@ -144,11 +147,12 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 			return (string)$value;
 		if (is_string($value)) {
 			$literal = "'".str_replace(['\\', "'"], ['\\\\', "''"], $value)."'";
-			// MySQL only allows a default on a TEXT column as an expression, in
-			// parentheses (from 8.0.13). Other columns get a plain literal, which
-			// is what MySQL reports for a column that was created the usual way:
-			// an expression default shows up as DEFAULT_GENERATED.
-			return $column->type == ColumnType::Text ? "({$literal})" : $literal;
+			// MySQL only allows a default on a TEXT column (of any size) as an
+			// expression, in parentheses (from 8.0.13). Other columns get a plain
+			// literal, which is what MySQL reports for a column that was created
+			// the usual way: an expression default shows up as DEFAULT_GENERATED.
+			$isText = in_array($column->type, [ ColumnType::Text, ColumnType::TinyText, ColumnType::MediumText, ColumnType::LongText ], true);
+			return $isText ? "({$literal})" : $literal;
 		}
 		if (is_bool($value))
 			return $value ? '1' : '0';

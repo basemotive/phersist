@@ -62,7 +62,8 @@ class SQLiteSchemaGenerator extends SchemaGenerator {
 			ColumnType::Decimal => "DECIMAL({$column->precision},{$column->scale})",
 			// Stored as TEXT; SQLite doesn't enforce the length
 			ColumnType::VarChar => "VARCHAR({$column->length})",
-			ColumnType::Text, ColumnType::Date, ColumnType::DateTime,
+			ColumnType::Text, ColumnType::TinyText, ColumnType::MediumText, ColumnType::LongText,
+				ColumnType::Date, ColumnType::DateTime,
 				ColumnType::ClassName, ColumnType::MapKey, ColumnType::MapValue => 'TEXT',
 		};
 	}

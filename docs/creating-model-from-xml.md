@@ -323,7 +323,7 @@ Objects loaded from the database are unaffected; they always get the stored valu
 
 On a new object, a property without a default reads as `null` until it is assigned. PHersist never assumes a default that isn't in the model: if a `required` property has no `default` and isn't assigned, `commit()` throws an exception listing the missing properties instead of storing an empty value. The exception is a `Date`, `DateTime` or `TimestampText` property with `update_on`, which gets its value on commit. In the generated schema, such a column is `NOT NULL` without a `DEFAULT`.
 
-In the generated MySQL and MariaDB schema, the default of a `Text` property with a `length` (a `VARCHAR` column) is a plain literal, like ``VARCHAR(2) NOT NULL DEFAULT 'nl'``. Without a `length` the column is a `TEXT`, for which MySQL only accepts an expression default, in parentheses: ``TEXT NOT NULL DEFAULT ('nl')``. Both work the same, but MySQL reports them differently in `information_schema.COLUMNS`: the literal as `COLUMN_DEFAULT` `nl` with an empty `EXTRA`, the expression as `_utf8mb4\'nl\'` with `EXTRA` `DEFAULT_GENERATED`.
+In the generated MySQL and MariaDB schema, the default of a `Text` property with a `length` (a `VARCHAR` column) is a plain literal, like ``VARCHAR(2) NOT NULL DEFAULT 'nl'``. Without a `length` the column is a `TEXT` (or another size of it), for which MySQL only accepts an expression default, in parentheses: ``TEXT NOT NULL DEFAULT ('nl')``. Both work the same, but MySQL reports them differently in `information_schema.COLUMNS`: the literal as `COLUMN_DEFAULT` `nl` with an empty `EXTRA`, the expression as `_utf8mb4\'nl\'` with `EXTRA` `DEFAULT_GENERATED`.
 
 > **Changed:** `VARCHAR` defaults used to be written as expressions too. A regenerated schema differs there, but an existing database doesn't need a change.
 
@@ -334,19 +334,37 @@ In the generated MySQL and MariaDB schema, the default of a `Text` property with
 ## Property types
 
 ### `Text`
-Default string-like field. Maps to a `TEXT` column, or with a `length` to a `VARCHAR` column of that length. Assigned ints, floats and `Stringable` objects are converted to `string`; other values, like arrays and bools, throw an exception. So do values that are longer than the `length`.
+Default string-like field. Maps to a `TEXT` column; `size` picks a `TINYTEXT`, `MEDIUMTEXT` or `LONGTEXT` instead, and `length` a `VARCHAR` column of that length. Assigned ints, floats and `Stringable` objects are converted to `string`; other values, like arrays and bools, throw an exception. So do values that don't fit the column.
 
 ```xml
 <property name="description" type="Text"/>
 <property name="title" type="Text" required="true" default="Untitled"/>
 <property name="email" type="Text" length="255"/>
+<property name="body" type="Text" size="medium"/>
 ```
 
-Extra attribute:
+Extra attributes:
 
 | Attribute | Required | Default | Description |
 |---|---|---|---|
-| `length` | no | — | The maximum number of characters, from `1` to `16383`: the column is a `VARCHAR(length)`. Without it, the column is a `TEXT`, for text of any length. |
+| `length` | no | — | The maximum number of characters, from `1` to `16383`: the column is a `VARCHAR(length)`. Without it, the column is a text column of the given `size`. |
+| `size` | no | `normal` | `tiny` (`TINYTEXT`), `normal` (`TEXT`), `medium` (`MEDIUMTEXT`) or `long` (`LONGTEXT`). Can't be combined with `length`. In SQLite, every size is a `TEXT` column. |
+
+Without a `length`, the `size` sets how much the column holds, in **bytes**:
+
+| `size` | Column | Maximum |
+|---|---|---|
+| `tiny` | `TINYTEXT` | 255 bytes |
+| `normal` | `TEXT` | 65535 bytes (64 KB) |
+| `medium` | `MEDIUMTEXT` | 16777215 bytes (16 MB) |
+| `long` | `LONGTEXT` | 4294967295 bytes (4 GB) |
+
+- Assigning a value of more bytes throws an exception, on every database, also for the default `TEXT`: MySQL and MariaDB would refuse it on `commit()`, or silently truncate it, depending on the SQL mode.
+- These limits are bytes, unlike a `length`: in UTF-8, `é` takes 2 bytes and `😀` 4, so a `TINYTEXT` holds 255 ASCII characters, but only 63 emoji. PHersist counts the bytes of the string as PHP has it (`strlen()`), which is what a `utf8mb4` column stores. If the table has a single-byte [`charset`](#mysql) like `latin1`, the database stores non-ASCII characters in fewer bytes, so there the check is stricter than the column.
+- An [index](#indexes-index) on the column needs a prefix length, whatever its size.
+- For a large `MEDIUMTEXT` or `LONGTEXT` value, the server's `max_allowed_packet` must be large enough too.
+
+The `size` is stored in the generated classes' metadata, so regenerate your classes after adding or changing it; an existing column needs an ``ALTER TABLE ... MODIFY`` to change its type.
 
 With a `length`:
 
@@ -356,7 +374,7 @@ With a `length`:
 - Values aren't trimmed or truncated, and trailing spaces count.
 - Searching isn't limited: `where()` accepts a longer value, which simply doesn't match with `=`.
 - The column can be [indexed](#indexes-index) as a whole, without a prefix length.
-- MySQL and MariaDB limit a row to 65535 bytes for all its `VARCHAR` columns together, at up to 4 bytes per character with `utf8mb4`. So a table can't have many long ones; leave the `length` out for long text.
+- MySQL and MariaDB limit a row to 65535 bytes for all its `VARCHAR` columns together, at up to 4 bytes per character with `utf8mb4`. So a table can't have many long ones; leave the `length` out for long text, which makes it a text column.
 
 The length is stored in the generated classes' metadata, so regenerate your classes after adding or changing a `length`. An existing `TEXT` column isn't changed by that: alter it yourself, for example with ``ALTER TABLE `users` MODIFY `email` VARCHAR(255) NULL``.
 
@@ -860,7 +878,7 @@ An `<index>` has one or more `<field>` elements, in the order of the index's col
 |---|---|---|
 | `property` | one of these | A property of the class, from any of its datasets. A `DynamicClass` property stands for both its columns (class name, then id). Relations and maps have no column in the class's tables, so they can't be indexed. |
 | `fieldname` | one of these | A column that isn't a property: the class's id column, or `deleted` in a `softdelete` class. For the column of a property, use `property`. |
-| `length` | for text | The number of characters to index (a prefix length). MySQL and MariaDB only index a `TEXT` column with one, so it's required for a `Text` property without a [`length`](#text) and for a `TimestampText` with a custom `date_format`. A `Text` property with a `length` is a `VARCHAR` column, which is indexed as a whole without it; it can have a prefix length up to its own length, which it needs if the index would get longer than MySQL's 3072 bytes (768 characters with `utf8mb4`, for all columns of the index together). It's not allowed for any other column. SQLite indexes the whole value. |
+| `length` | for text | The number of characters to index (a prefix length). MySQL and MariaDB only index a `TEXT` column (of any `size`) with one, so it's required for a `Text` property without a [`length`](#text) and for a `TimestampText` with a custom `date_format`. A `Text` property with a `length` is a `VARCHAR` column, which is indexed as a whole without it; it can have a prefix length up to its own length, which it needs if the index would get longer than MySQL's 3072 bytes (768 characters with `utf8mb4`, for all columns of the index together). It's not allowed for any other column. SQLite indexes the whole value. |
 
 All columns of an index must be in one table: the properties of datasets in the same table. The id column is in every table of the class, and `deleted` in its base table. An index with only the id column is on the base table. A column can be in an index only once.
 

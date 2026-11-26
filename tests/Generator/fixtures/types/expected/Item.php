@@ -12,6 +12,10 @@ use PHersist\ActiveRecord;
  * @property ?string $notes
  * @property string $code default 'né\'\\1' max length 5
  * @property ?string $label max length 1000
+ * @property ?string $initials default 'n/a' tinytext
+ * @property ?string $summary
+ * @property string $body mediumtext
+ * @property ?string $archive longtext
  * @property ?int $count default -3
  * @property int $stock default 0
  * @property ?int $rank default 65535
@@ -82,6 +86,38 @@ class Item extends ActiveRecord {
 							'label'
 						],
 						'length' => 1000,
+						'required' => false
+					],
+					'initials' => [
+						'type' => 'Text',
+						'fieldnames' => [
+							'initials'
+						],
+						'size' => 'tiny',
+						'required' => false,
+						'default' => 'n/a'
+					],
+					'summary' => [
+						'type' => 'Text',
+						'fieldnames' => [
+							'summary'
+						],
+						'required' => false
+					],
+					'body' => [
+						'type' => 'Text',
+						'fieldnames' => [
+							'body'
+						],
+						'size' => 'medium',
+						'required' => true
+					],
+					'archive' => [
+						'type' => 'Text',
+						'fieldnames' => [
+							'archive'
+						],
+						'size' => 'long',
 						'required' => false
 					],
 					'count' => [

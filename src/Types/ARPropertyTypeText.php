@@ -13,6 +13,10 @@ use PHersist\ActiveRecord;
  * length, and longer values are rejected. Like the database, it counts
  * characters (Unicode code points), not bytes: see length().
  *
+ * Without it, the column is a TEXT, or with a 'size' entry a TINYTEXT,
+ * MEDIUMTEXT or LONGTEXT. Those hold a number of bytes, see SIZES, and values
+ * with more bytes are rejected.
+ *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
  * // SPDX-License-Identifier: LGPL-2.1-or-later
@@ -23,6 +27,17 @@ class ARPropertyTypeText extends ARPropertyType {
 	 * (utf8mb4); longer text needs a property without a length.
 	 */
 	const MAX_LENGTH = 16383;
+
+	/**
+	 * Per size of a property without a length: the SQL type, and the number
+	 * of bytes it holds.
+	 */
+	const SIZES = [
+		'tiny' => [ 'type' => 'TINYTEXT', 'bytes' => 255 ],
+		'normal' => [ 'type' => 'TEXT', 'bytes' => 65535 ],
+		'medium' => [ 'type' => 'MEDIUMTEXT', 'bytes' => 16777215 ],
+		'long' => [ 'type' => 'LONGTEXT', 'bytes' => 4294967295 ],
+	];
 
 	public function __construct(?ActiveRecord $activeRecord = null) {
 		parent::__construct($activeRecord);
@@ -38,12 +53,20 @@ class ARPropertyTypeText extends ARPropertyType {
 
 	public function normalize(array $prop, mixed $value) : mixed {
 		$value = $this->_toString($value);
-		if (isset($prop['length']) && strlen($value) > $prop['length']) {
+		if (isset($prop['length'])) {
 			// Only counted when it could be too long: a string never has more characters than bytes
-			$length = self::length($value);
-			if ($length > $prop['length'])
-				throw new \InvalidArgumentException("the value has $length characters, the maximum is {$prop['length']}");
+			if (strlen($value) > $prop['length']) {
+				$length = self::length($value);
+				if ($length > $prop['length'])
+					throw new \InvalidArgumentException("the value has $length characters, the maximum is {$prop['length']}");
+			}
+			return $value;
 		}
+
+		// Only a size other than 'normal' is in the metadata
+		$size = self::SIZES[$prop['size'] ?? 'normal'];
+		if (strlen($value) > $size['bytes'])
+			throw new \InvalidArgumentException('the value is '.strlen($value)." bytes, the maximum for a {$size['type']} column is {$size['bytes']}");
 		return $value;
 	}
 

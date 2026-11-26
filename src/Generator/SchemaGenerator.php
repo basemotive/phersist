@@ -5,6 +5,7 @@ namespace PHersist\Generator;
 use PHersist\Generator\Model\Project;
 use PHersist\Generator\Schema\Column;
 use PHersist\Generator\Schema\Index;
+use PHersist\Generator\Schema\Schema;
 use PHersist\Generator\Schema\SchemaBuilder;
 use PHersist\Generator\Schema\Table;
 
@@ -28,10 +29,23 @@ abstract class SchemaGenerator {
 	 * @return string the SQL that (re)creates the tables
 	 */
 	public function generate() : string {
+		$schema = SchemaBuilder::build($this->project);
 		$result = '';
-		foreach (SchemaBuilder::build($this->project)->tables() as $table)
+		foreach ($schema->tables() as $table)
 			$result .= $this->createTable($table, $this->indexes($table));
-		return $result;
+		return $this->finish($result, $schema);
+	}
+
+	/**
+	 * Completes the SQL of the schema, for what a database needs around or
+	 * after its tables, like their foreign keys.
+	 *
+	 * @param string $sql the SQL that (re)creates the tables
+	 * @param Schema $schema the tables
+	 * @return string the SQL of the whole schema
+	 */
+	protected function finish(string $sql, Schema $schema) : string {
+		return $sql;
 	}
 
 	/**

@@ -39,15 +39,17 @@ final class State {
 		self::$testStart = time();
 		$database = Database::current();
 		$pdo = Target::current()->pdo();
-		foreach (Models::tables() as $name => $table) {
-			$quoted = $database->quote($name);
-			if (Target::current()->dialect === 'sqlite') {
-				$pdo->exec("delete from {$quoted}");
-				if ($pdo->query("select 1 from sqlite_master where name = 'sqlite_sequence'")->fetchColumn())
-					$pdo->prepare('delete from sqlite_sequence where name = ?')->execute([ $name ]);
-			} else
-				$pdo->exec("truncate table {$quoted}");
-		}
+		$database->withoutForeignKeyChecks(function () use ($database, $pdo) {
+			foreach (Models::tables() as $name => $table) {
+				$quoted = $database->quote($name);
+				if (Target::current()->dialect === 'sqlite') {
+					$pdo->exec("delete from {$quoted}");
+					if ($pdo->query("select 1 from sqlite_master where name = 'sqlite_sequence'")->fetchColumn())
+						$pdo->prepare('delete from sqlite_sequence where name = ?')->execute([ $name ]);
+				} else
+					$pdo->exec("truncate table {$quoted}");
+			}
+		});
 		self::$before = array_map(fn () => [], Models::tables());
 	}
 
@@ -68,17 +70,20 @@ final class State {
 		self::reset();
 		$database = Database::current();
 		$pdo = Target::current()->pdo();
-		foreach ($tables as $name => $rows) {
-			$table = Models::table($name);
-			foreach ($rows as $row) {
-				self::checkColumns($table, $row);
-				$columns = array_keys($row);
-				$sql = 'insert into '.$database->quote($name)
-					.' ('.implode(', ', array_map([ $database, 'quote' ], $columns)).')'
-					.' values ('.implode(', ', array_fill(0, count($columns), '?')).')';
-				$pdo->prepare($sql)->execute(array_map(fn ($value) => self::toSQL($value), array_values($row)));
+		// Without the foreign key checks: the tables are filled in the order they are given
+		$database->withoutForeignKeyChecks(function () use ($tables, $database, $pdo) {
+			foreach ($tables as $name => $rows) {
+				$table = Models::table($name);
+				foreach ($rows as $row) {
+					self::checkColumns($table, $row);
+					$columns = array_keys($row);
+					$sql = 'insert into '.$database->quote($name)
+						.' ('.implode(', ', array_map([ $database, 'quote' ], $columns)).')'
+						.' values ('.implode(', ', array_fill(0, count($columns), '?')).')';
+					$pdo->prepare($sql)->execute(array_map(fn ($value) => self::toSQL($value), array_values($row)));
+				}
 			}
-		}
+		});
 		self::$before = self::read();
 	}
 

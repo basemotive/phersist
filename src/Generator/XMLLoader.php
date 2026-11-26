@@ -256,11 +256,12 @@ class XMLLoader {
 	/**
 	 * The dialect-specific attributes of a <schema> element. Their values end up
 	 * in the SQL as they are, so they may only contain letters, digits and
-	 * underscores.
+	 * underscores. SQLite has no foreign_keys: it can't add them to a table
+	 * afterwards, and only enforces them on a connection that asks for it.
 	 */
 	private const DIALECT_ATTRIBUTES = [
-		'mysql' => [ 'charset', 'collate' ],
-		'mariadb' => [ 'charset', 'collate' ],
+		'mysql' => [ 'charset', 'collate', 'foreign_keys' ],
+		'mariadb' => [ 'charset', 'collate', 'foreign_keys' ],
 		'sqlite' => [],
 	];
 
@@ -269,6 +270,7 @@ class XMLLoader {
 	 * that has them. The generators read the boolean ones with getBool().
 	 */
 	private const ATTRIBUTE_VALUES = [
+		'foreign_keys' => [ 'true', 'false' ],
 		'id_style' => [ 'short', 'long' ],
 		'softdelete' => [ 'true', 'false' ],
 		'autoload' => [ 'true', 'false' ],
@@ -365,7 +367,9 @@ class XMLLoader {
 					}
 			}
 			$suggestion = self::suggest($attribute->name, $known);
-			if ($suggestion !== null)
+			if ($element->tagName == 'schema' && in_array($attribute->name, array_merge(...array_values(self::DIALECT_ATTRIBUTES))))
+				$problem = "line {$element->getLineNo()}: {$description} has attribute '{$attribute->name}', which the {$element->getAttribute('dialect')} dialect doesn't have";
+			elseif ($suggestion !== null)
 				$problem .= ", did you mean '$suggestion'?";
 			$problems[] = $problem;
 		}

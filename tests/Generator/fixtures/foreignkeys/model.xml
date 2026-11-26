@@ -1,0 +1,129 @@
+<project database="main" tablestyle="SnakeCase" namespace="Fixture\ForeignKeys">
+	<!--
+		Foreign keys: every on_remote_delete, a cycle (user → survey set →
+		survey → user), a self-reference, join tables, dataset and map tables,
+		and everything that gets no key. SQLite has no foreign keys.
+	-->
+	<schema dialect="mysql" foreign_keys="true"/>
+	<schema dialect="mariadb" foreign_keys="true"/>
+
+	<class name="User">
+		<dataset autoload="true">
+			<property name="name"/>
+			<!-- null -->
+			<property name="surveySet" type="Class" class="SurveySet"/>
+		</dataset>
+		<!-- A dataset table: its id refers to the base table -->
+		<dataset table="user_profiles">
+			<property name="bio"/>
+			<property name="avatar" type="Class" class="Upload"/>
+		</dataset>
+		<!-- A join table, defined from both sides: one key per column -->
+		<relation name="groups" type="NN" class="Group" table="user_groups" local_id="user_id" remote_id="group_id" table_owner="true"/>
+		<!-- A derived relation: the key is that of Survey's owner property -->
+		<relation name="surveys" type="NN" class="Survey" table="surveys" local_id="owner_id" remote_id="id"/>
+		<!-- A join table to the class itself -->
+		<relation name="friends" type="NN" class="User" table="friendships" local_id="user_id" remote_id="friend_id" table_owner="true"/>
+		<!-- A map table: its owner id refers to the base table -->
+		<map name="settings" table="user_settings">
+			<key name="name"/>
+			<value name="value"/>
+		</map>
+		<!-- A shared map table: the owner id is that of several classes, so no key -->
+		<map name="notes" table="notes" id="owner_id" type="owner_type">
+			<key name="name"/>
+			<value name="value"/>
+		</map>
+	</class>
+
+	<class name="Group">
+		<dataset autoload="true">
+			<property name="name"/>
+			<!-- A self-reference -->
+			<property name="parent" type="Class" class="Group"/>
+		</dataset>
+		<relation name="users" type="NN" class="User" table="user_groups" local_id="group_id" remote_id="user_id" table_owner="true"/>
+		<map name="notes" table="notes" id="owner_id" type="owner_type">
+			<key name="name"/>
+			<value name="value"/>
+		</map>
+	</class>
+
+	<class name="SurveySet">
+		<dataset autoload="true">
+			<!-- cascade -->
+			<property name="survey" type="Class" class="Survey" on_remote_delete="cascade"/>
+		</dataset>
+	</class>
+
+	<class name="Survey">
+		<dataset autoload="true">
+			<!-- restrict, by default for a required property -->
+			<property name="owner" type="Class" class="User" required="true"/>
+			<property name="reviewer" type="Class" class="User" on_remote_delete="restrict"/>
+			<property name="status"/>
+		</dataset>
+		<!-- Starts with the reviewer's column, so it replaces the automatic index; the key uses it -->
+		<index name="reviewer_status">
+			<field property="reviewer"/>
+			<field property="status" length="10"/>
+		</index>
+		<!-- A join table with a local_type: only the remote id gets a key -->
+		<relation name="likers" type="NN" class="User" table="likes" local_id="liked_id" local_type="liked_type" remote_id="user_id" table_owner="true"/>
+	</class>
+
+	<class name="Upload">
+		<dataset autoload="true">
+			<!-- A DynamicClass: no key -->
+			<property name="subject" type="DynamicClass" on_remote_delete="cascade"/>
+		</dataset>
+		<relation name="likers" type="NN" class="User" table="likes" local_id="liked_id" local_type="liked_type" remote_id="user_id" table_owner="true"/>
+		<!-- A join table whose remote id is that of another class than Survey's: no key on tagged_id either -->
+		<relation name="tags" type="NN" class="Group" table="taggings" local_id="item_id" local_type="item_type" remote_id="tagged_id" table_owner="true"/>
+	</class>
+
+	<class name="Report">
+		<relation name="tags" type="NN" class="User" table="taggings" local_id="item_id" local_type="item_type" remote_id="tagged_id" table_owner="true"/>
+	</class>
+
+	<!-- A softdelete class: softdeleted objects keep their reference on a cascade, so that one gets no key -->
+	<class name="Invitation" softdelete="true">
+		<dataset autoload="true">
+			<property name="survey" type="Class" class="Survey" on_remote_delete="cascade"/>
+			<property name="sender" type="Class" class="User"/>
+			<property name="receiver" type="Class" class="User" on_remote_delete="restrict"/>
+		</dataset>
+	</class>
+
+	<!-- A class in another database: no keys to it or from it, but its own tables have them -->
+	<class name="AuditEntry" database="audit">
+		<dataset autoload="true">
+			<property name="user" type="Class" class="User"/>
+			<property name="previous" type="Class" class="AuditEntry"/>
+		</dataset>
+	</class>
+	<class name="AuditReader">
+		<dataset autoload="true">
+			<property name="lastEntry" type="Class" class="AuditEntry"/>
+		</dataset>
+	</class>
+
+	<!-- A name of more than 64 characters gets a hash -->
+	<class name="SurveyParticipationReminderSchedule">
+		<dataset autoload="true">
+			<property name="originatingSurveySetTemplate" type="Class" class="SurveySet"/>
+		</dataset>
+	</class>
+
+	<!-- Two keys that would both be named fk_a_b_c get a hash -->
+	<class name="Alpha" table="a_b">
+		<dataset autoload="true">
+			<property name="user" type="Class" class="User" fieldname="c"/>
+		</dataset>
+	</class>
+	<class name="Beta" table="a">
+		<dataset autoload="true">
+			<property name="user" type="Class" class="User" fieldname="b_c"/>
+		</dataset>
+	</class>
+</project>

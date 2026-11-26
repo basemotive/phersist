@@ -15,6 +15,7 @@ For caching and performance features, see [Advanced features](advanced-features.
 - [Database-specific settings](#database-specific-settings)
   - [MySQL](#mysql)
   - [MariaDB](#mariadb)
+  - [Foreign keys](#foreign-keys)
   - [SQLite](#sqlite)
 - [Model XMLs that depend on others](#model-xmls-that-depend-on-others-depends)
 - [Defining classes](#defining-classes-class)
@@ -130,12 +131,12 @@ Settings that only apply to one database type go in a `<schema>` element directl
 </project>
 ```
 
-There can be one `<schema>` element for each dialect; each schema generator only reads its own. The settings only affect the generated schema; the generated PHP classes are unaffected. The other attributes depend on the dialect, and their values may only contain letters, digits and underscores.
+There can be one `<schema>` element for each dialect; each schema generator only reads its own. The settings only affect the generated schema; the generated PHP classes are unaffected. The other attributes depend on the dialect, and their values may only contain letters, digits and underscores. An attribute that the dialect doesn't have is an error.
 
 | Dialect | Schema option | Attributes |
 |---|---|---|
-| `mysql` | `--mysql` | [`charset`, `collate`](#mysql) |
-| `mariadb` | `--mariadb` | [`charset`, `collate`](#mariadb) |
+| `mysql` | `--mysql` | [`charset`, `collate`](#mysql), [`foreign_keys`](#foreign-keys) |
+| `mariadb` | `--mariadb` | [`charset`, `collate`](#mariadb), [`foreign_keys`](#foreign-keys) |
 | `sqlite` | `--sqlite` | none |
 
 ### MySQL
@@ -146,6 +147,7 @@ There can be one `<schema>` element for each dialect; each schema generator only
 |---|---|---|---|
 | `charset` | no | `utf8mb4` | Table character set (`DEFAULT CHARSET=...`). |
 | `collate` | no | `utf8mb4_unicode_ci` if `charset` is not set, otherwise none | Table collation (`COLLATE=...`). When `charset` is set without `collate`, no `COLLATE` clause is emitted and MySQL uses the charset's default collation. |
+| `foreign_keys` | no | `false` | `true` adds foreign key constraints for the references in the model; see [Foreign keys](#foreign-keys). |
 
 The element itself is optional; without it the defaults above are used. The schema needs MySQL 8.0 or newer, and 8.0.13 or newer if a `Text` property without a `length` has a `default` (see [Default values](#default-values)).
 
@@ -153,9 +155,83 @@ The element itself is optional; without it the defaults above are used. The sche
 
 `<schema dialect="mariadb">`, for the schema generated with `--mariadb`, has the same attributes and defaults as [MySQL](#mysql); MariaDB doesn't read the `mysql` settings, since some collations only exist in one of them. The schema is the same as for MySQL, except for the collation of [map](#generated-table) keys and values, and needs MariaDB 10.2 or newer.
 
+### Foreign keys
+
+PHersist cleans up the references to an object when it deletes it (see [Deleting objects with relations](#deleting-objects-with-relations)), but it can't do that for rows that are deleted without it, like with plain SQL in a maintenance script. Those leave rows that refer to nothing. With `foreign_keys="true"`, the MySQL or MariaDB schema gets foreign key constraints, so the database guards the references too:
+
+```xml
+<project database="myapp" tablestyle="SnakeCase" namespace="MyApp\Model">
+    <schema dialect="mysql" foreign_keys="true"/>
+    <!-- classes -->
+</project>
+```
+
+It's off by default, per model XML and per dialect (`mysql` and `mariadb` each have their own `<schema>` element). The generated classes are the same either way, and PHersist doesn't need the keys: it keeps cleaning up references itself, in an order the keys allow, so the database rules only come into play for what happens outside PHersist.
+
+The keys come from what the model already says, with the rule that matches what PHersist does:
+
+| Reference | Foreign key | `ON DELETE` |
+|---|---|---|
+| [`Class`](#class) property | its column → the id of the class's base table | by `on_remote_delete`: `null` → `SET NULL`, `restrict` → `RESTRICT`, `cascade` → `CASCADE` |
+| [Join table](#relations-relation) of a relation (`table_owner="true"`) | `local_id` → the id of the class with the relation; `remote_id` → the id of the related class | `CASCADE`: the row is deleted with either object |
+| [Dataset](#datasets-dataset) in another table than the base table | its id → the id of the base table | `CASCADE` |
+| [Map table](#generated-table) | its owner id → the id of the owner's base table | `CASCADE` |
+
+A derived relation, on a table of the related class, has no key of its own: the column is that of a `Class` property, which has the key. A join table that is defined from both sides gets one key per column.
+
+These get no key:
+
+- a [`DynamicClass`](#dynamicclass) property, the `local_id` of a relation with a `local_type`, and the owner id of a map with a `type` column: the id is that of objects of several classes, so there's no single table to refer to;
+- the `remote_id` of a join table that is shared by relations with different related classes, for the same reason;
+- a reference to a class in another `database`;
+- a `Class` property with `on_remote_delete="cascade"` in a class with `softdelete="true"`. When the object it refers to is deleted, PHersist softdeletes the referring objects, and they keep their reference (see [Deleting objects with relations](#deleting-objects-with-relations)). A key would either delete those rows for real or refuse the deletion.
+
+So these references are still only guarded by PHersist.
+
+**In the schema.** The keys are added after all tables, since tables refer to each other in cycles (a user's survey set, its survey, the survey's user) and to themselves:
+
+```sql
+SET @OLD_FOREIGN_KEY_CHECKS = @@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS = 0;
+
+-- DROP TABLE IF EXISTS and CREATE TABLE for every table, as without foreign keys
+
+SET FOREIGN_KEY_CHECKS = @OLD_FOREIGN_KEY_CHECKS;
+
+ALTER TABLE `forum_messages`
+	ADD CONSTRAINT `fk_forum_messages_forum_id` FOREIGN KEY (`forum_id`) REFERENCES `forums` (`id`) ON DELETE RESTRICT,
+	ADD CONSTRAINT `fk_forum_messages_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT;
+```
+
+The checks are off while the tables are dropped and created, because the database refuses to drop a table that others refer to. There's no `ON UPDATE` rule, since ids don't change. The tables and their indexes are the same as without foreign keys: every column with a key is already the first column of an index (an [automatic index](#automatic-indexes) or the `<index>` that replaces it, or the primary key), so the database doesn't add indexes of its own.
+
+**Names.** A key is named `fk_<table>_<column>`, like `fk_forum_messages_forum_id`. Constraint names are unique per database and at most 64 characters long, so:
+
+- a name of more than 64 characters is cut off after 55, followed by `_` and the first 8 hex digits of the MD5 hash of `<table>.<column>`. In PHP: `substr("fk_{$table}_{$column}", 0, 55).'_'.substr(md5("{$table}.{$column}"), 0, 8)`;
+- when two keys in a model XML would get the same name (table `a_b`, column `c` and table `a`, column `b_c` both give `fk_a_b_c`), both get that hash after their name as well: `fk_a_b_c_e279a010` and `fk_a_b_c_8c9527d0`.
+
+The names only depend on the table and the column, so a migration can use the same ones.
+
+**Adding the keys to an existing database.** The generated schema creates the tables from scratch. For a database that's in use, add the keys with a migration: the `ALTER TABLE` statements from the generated schema, or the same ones written out, with the same names. The database refuses a key while rows violate it, so clean those up first. For each key, this finds them:
+
+```sql
+SELECT m.* FROM forum_messages m
+LEFT JOIN forums f ON f.id = m.forum_id
+WHERE m.forum_id IS NOT NULL AND f.id IS NULL;
+```
+
+What to do with such rows is what the `ON DELETE` rule would have done: set the column to `NULL`, or delete the row (through PHersist, if other rows refer to it in turn). This is also why the setting is off by default: a database with such rows can't take the keys as it is.
+
+**Soft delete.** The database rules act on rows that are really deleted. Softdeleting an object only sets its `deleted` column, so nothing happens to what refers to it, with or without keys; PHersist doesn't clean up references on a softdelete either. A softdeleted row still counts as a row: other rows can refer to it, and it has to be deleted for real before the rules apply.
+
+**With several model XMLs.** Each model XML has its own setting, and the keys of a plugin refer to the tables of the model XMLs it [depends on](#model-xmls-that-depend-on-others-depends), so load those schemas first (`bin/phersist` writes them in the order of its `--xml` options). Give them all the same setting: once a plugin's keys refer to the core's tables, only a core schema with `foreign_keys="true"` can be loaded again, since it's the one that switches the checks off to drop them.
+
+The database also cleans up a plugin's rows when the plugin isn't [registered](advanced-features.md#9-projects-with-several-model-xmls-plugins), as far as they have keys. Keep registering plugins anyway: only PHersist cleans up the references without a key, deletes referring objects with everything that belongs to them, and reports a `restrict` with a readable message instead of a database error.
+
+**Limits of the database.** MySQL and MariaDB check a key at once, for each statement, so rows that refer to each other can't be inserted with both references in place: insert one without its reference and set it afterwards, which is what happens anyway when you commit PHersist objects one by one. Cascades in the database don't fire triggers.
+
 ### SQLite
 
-The schema generated with `--sqlite` has no settings. SQLite has fewer column types than MySQL:
+The schema generated with `--sqlite` has no settings, and no foreign keys: SQLite can't add a key to an existing table, and only enforces keys on connections that switch them on. SQLite has fewer column types than MySQL:
 
 - integers, booleans, ids and references are `INTEGER`, and floats `REAL`;
 - `Decimal` columns are `DECIMAL(precision,scale)`, which SQLite stores as a number: exact up to about 15 significant digits;
@@ -680,6 +756,8 @@ References from other classes are cleaned up even when the deleted object's clas
 
 The generator writes the references from the classes of a model XML into a `PHersistReferences` class, next to the model classes, so deploy its `PHersistReferences.php` with them. The references from the deleted object's own model XML are always cleaned up. Those from other model XMLs, like plugins, only when their namespace is registered; see [Projects with several model XMLs](advanced-features.md#9-projects-with-several-model-xmls-plugins).
 
+With [`foreign_keys="true"`](#foreign-keys), the generated MySQL or MariaDB schema has foreign keys with these rules, so the database does the same for rows that are deleted without PHersist.
+
 References with `restrict` are checked after the others, so an object that is deleted along through `cascade` doesn't stop the deletion, even if it refers to the deleted object with `restrict` too.
 
 A cascade may lead back to an object that is already being deleted, for example when two objects refer to each other with `cascade`; that object is then simply deleted once.
@@ -892,6 +970,8 @@ The generator adds these indexes itself, named `idx_<name>`:
 An `<index>` that starts with the columns of a `Class` or `DynamicClass` property replaces its automatic index: the database uses the first columns of an index for the same lookups. In the example above, `forum_created` starts with `forum_id`, so there's no `idx_forum`; `idx_user` stays, since `user_id` isn't the first column of an index.
 
 Join tables and map tables don't belong to a class, so `<index>` can't add indexes to them.
+
+These are also the indexes that [foreign keys](#foreign-keys) use, so a schema with keys has the same indexes as one without.
 
 ---
 

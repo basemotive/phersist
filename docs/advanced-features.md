@@ -210,6 +210,7 @@ ReferenceRegistry::register('Blog\Model');
 Rules:
 
 - **Register every installed plugin, on every request**, whether the request uses it or not. Otherwise, deleting an object in a request that didn't register a plugin skips that plugin's references: its `restrict` doesn't stop the deletion, and its rows keep referring to the deleted object.
+  With [foreign keys](creating-model-from-xml.md#foreign-keys) in the schema, the database stops or cleans up most of those rows itself, but not the references without a key (like a `DynamicClass`), and a `restrict` then shows up as a database error.
 - **Register disabled plugins too**, if their tables are kept: their rows need to be cleaned up as well.
 - **Keep the classes of every installed plugin autoloadable**, disabled ones included. The `PHersistReferences` class has to be found; registering a namespace without one is an error. Setting references to `NULL`, checking `restrict` and deleting join table rows don't load the plugin's model classes, but `on_remote_delete="cascade"` does when there are objects to delete, since they're deleted like any other object.
 

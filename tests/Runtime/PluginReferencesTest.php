@@ -57,10 +57,27 @@ it('accepts the namespace with a leading backslash, and more than once', functio
 });
 
 it('leaves the plugin\'s references alone without the registration', function () {
+	onlyWithoutForeignKeys();
+
 	// Documented: only the deleted object's own model XML is known by default
 	Member::fetch(1)->delete();
 
 	expectState([ 'members' => [ [ 'id' => 2 ] ], 'member_teams' => [] ]);
+});
+
+it('leaves the plugin\'s references to the database\'s foreign keys without the registration', function () {
+	onlyWithForeignKeys();
+
+	Member::fetch(1)->delete();
+
+	// The database follows the keys, but it knows nothing of the DynamicClass
+	// references: the note about Ann stays, and so would one about entry 2
+	expectState([
+		'members' => [ [ 'id' => 2 ] ],
+		'member_teams' => [],
+		'entries' => [ [ 'id' => 1, 'author_id' => null ] ],
+		'entry_likes' => [ [ 'entry_id' => 1, 'member_id' => 2 ] ],
+	]);
 });
 
 it('cleans up references within the plugin itself without registration', function () {

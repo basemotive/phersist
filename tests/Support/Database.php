@@ -49,8 +49,29 @@ final class Database {
 	 * Drops every table in the database. Only for test databases!
 	 */
 	public function dropAllTables() : void {
-		foreach ($this->tableNames() as $table)
-			$this->pdo->exec('drop table '.$this->quote($table));
+		$this->withoutForeignKeyChecks(function () {
+			foreach ($this->tableNames() as $table)
+				$this->pdo->exec('drop table '.$this->quote($table));
+		});
+	}
+
+	/**
+	 * Runs a function with the foreign key checks of the connection off, to
+	 * set up a state: empty or drop tables that others refer to, and insert
+	 * rows in any order (or rows that refer to nothing, for a test that needs
+	 * those). SQLite's are always off: PHersist generates no keys for it.
+	 */
+	public function withoutForeignKeyChecks(callable $fn) : void {
+		if ($this->dialect === 'sqlite') {
+			$fn();
+			return;
+		}
+		$this->pdo->exec('set foreign_key_checks = 0');
+		try {
+			$fn();
+		} finally {
+			$this->pdo->exec('set foreign_key_checks = 1');
+		}
 	}
 
 	/**

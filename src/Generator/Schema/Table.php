@@ -6,8 +6,9 @@ namespace PHersist\Generator\Schema;
  * A table in the schema.
  *
  * A table can be shared, like a join table that is defined from both sides,
- * or a map table of several classes. Each one adds the columns and indexes
- * that it needs, and those that the table already has are left as they are.
+ * or a map table of several classes. Each one adds the columns, indexes and
+ * foreign keys that it needs, and those that the table already has are left
+ * as they are.
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -49,6 +50,31 @@ final class Table {
 	}
 
 	/**
+	 * Adds a foreign key, unless the table already has that key.
+	 *
+	 * A column can only have a key if all its values refer to the same table.
+	 * So when a shared table gets another key on a column that already has
+	 * one, like a join table whose relations have different related classes,
+	 * the column ends up without a key.
+	 *
+	 * @param ForeignKey $foreignKey the foreign key
+	 */
+	public function addForeignKey(ForeignKey $foreignKey) : void {
+		if (in_array($foreignKey->column, $this->ambiguousColumns, true))
+			return;
+		foreach ($this->foreignKeys as $index => $existing) {
+			if ($existing->column !== $foreignKey->column)
+				continue;
+			if (!$existing->equals($foreignKey)) {
+				array_splice($this->foreignKeys, $index, 1);
+				$this->ambiguousColumns[] = $foreignKey->column;
+			}
+			return;
+		}
+		$this->foreignKeys[] = $foreignKey;
+	}
+
+	/**
 	 * Returns a column of the table.
 	 *
 	 * @param string $name the column name
@@ -69,4 +95,10 @@ final class Table {
 
 	/** @var list<Index> the indexes, in the order they were added */
 	public array $indexes = [];
+
+	/** @var list<ForeignKey> the foreign keys, in the order they were added */
+	public array $foreignKeys = [];
+
+	/** @var list<string> the columns that refer to more than one table, see addForeignKey() */
+	private array $ambiguousColumns = [];
 }

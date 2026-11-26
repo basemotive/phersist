@@ -11,7 +11,9 @@
 # The database containers keep running for quick re-runs; --down stops them.
 #
 # Targets: see tests/Support/Target.php. 'sqlite-cache' is SQLite with
-# ObjectCache enabled. 'local' runs on this machine, outside Docker.
+# ObjectCache enabled. A MySQL or MariaDB target with '-fk' after its name,
+# like 'mysql-8.4-fk' or 'local-fk', loads every model with foreign keys.
+# 'local' runs on this machine, outside Docker.
 #
 # @author Stefan Mensink <stefan@basemotive.nl>
 # @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -21,7 +23,8 @@ set -u
 
 cd "$(dirname "$0")/../.." || exit 1
 
-ALL_TARGETS=(sqlite sqlite-cache mysql-8.0 mysql-8.4 mysql-9 mariadb-10.6 mariadb-10.11 mariadb-11.4 mariadb-11.8 mariadb-11.8-mysql)
+ALL_TARGETS=(sqlite sqlite-cache mysql-8.0 mysql-8.4 mysql-9 mariadb-10.6 mariadb-10.11 mariadb-11.4 mariadb-11.8 mariadb-11.8-mysql
+	mysql-8.0-fk mysql-9-fk mariadb-10.6-fk mariadb-11.8-fk)
 COMPOSE=(docker compose -f tests/docker/compose.yml)
 
 export PHERSIST_UID="$(id -u)" PHERSIST_GID="$(id -g)"
@@ -46,9 +49,9 @@ done
 # The compose service a target needs, if any
 service_of() {
 	case "$1" in
-		sqlite|sqlite-cache|local) ;;
-		mariadb-11.8-mysql) echo mariadb-11.8 ;;
-		*) echo "$1" ;;
+		sqlite|sqlite-cache|local|local-fk) ;;
+		mariadb-11.8-mysql|mariadb-11.8-mysql-fk) echo mariadb-11.8 ;;
+		*) echo "${1%-fk}" ;;
 	esac
 }
 
@@ -75,9 +78,13 @@ first=1
 for target in "${targets[@]}"; do
 	cache=off
 	name="$target"
+	foreign_keys=off
 	if [[ "$target" == "sqlite-cache" ]]; then
 		name=sqlite
 		cache=on
+	elif [[ "$target" == *-fk ]]; then
+		name="${target%-fk}"
+		foreign_keys=on
 	fi
 
 	args=("${pest_args[@]}")
@@ -88,10 +95,10 @@ for target in "${targets[@]}"; do
 
 	echo
 	echo "=== ${target} ==="
-	if [[ "$target" == "local" ]]; then
-		PHERSIST_TEST_TARGET=local PHERSIST_TEST_CACHE=$cache vendor/bin/pest "${args[@]}"
+	if [[ "$name" == "local" ]]; then
+		PHERSIST_TEST_TARGET=local PHERSIST_TEST_CACHE=$cache PHERSIST_TEST_FOREIGN_KEYS=$foreign_keys vendor/bin/pest "${args[@]}"
 	else
-		PHERSIST_TEST_TARGET="$name" PHERSIST_TEST_CACHE=$cache \
+		PHERSIST_TEST_TARGET="$name" PHERSIST_TEST_CACHE=$cache PHERSIST_TEST_FOREIGN_KEYS=$foreign_keys \
 			"${COMPOSE[@]}" run --rm php vendor/bin/pest "${args[@]}"
 	fi
 	if [[ $? -eq 0 ]]; then passed+=("$target"); else failed+=("$target"); fi

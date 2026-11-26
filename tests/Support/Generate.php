@@ -52,8 +52,17 @@ final class Generate {
 		return (new ARGenerator($project))->generate();
 	}
 
-	public static function schema(Project $project, string $dialect) : string {
+	/**
+	 * @param ?bool $foreignKeys whether the schema gets foreign keys, whatever
+	 *   the model says (foreign_keys="true"); null for what the model says.
+	 *   Ignored for a dialect without foreign keys.
+	 */
+	public static function schema(Project $project, string $dialect, ?bool $foreignKeys = null) : string {
 		$generatorClass = self::SCHEMA_GENERATORS[$dialect] ?? throw new \InvalidArgumentException("Unknown dialect '{$dialect}'");
-		return (new $generatorClass($project))->generate();
+		$generator = new $generatorClass($project);
+		// Through reflection, so src/ has nothing just for the tests
+		if ($foreignKeys !== null && $generator instanceof MySQLSchemaGenerator)
+			(new \ReflectionProperty(MySQLSchemaGenerator::class, 'foreignKeys'))->setValue($generator, $foreignKeys);
+		return $generator->generate();
 	}
 }

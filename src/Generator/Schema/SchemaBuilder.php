@@ -9,8 +9,25 @@ use PHersist\Generator\Model\Record;
 use PHersist\Generator\Model\Relation;
 
 /**
- * Works out the tables that a model needs: the columns and indexes, but not
- * their SQL, which is up to the schema generator for each database.
+ * Works out the tables that a model needs: the columns, indexes and foreign
+ * keys, but not their SQL, which is up to the schema generator for each
+ * database.
+ *
+ * The foreign keys are always worked out; a schema generator only writes
+ * them if its database has them and the model asks for them. They follow
+ * what PHersist does itself when an object is deleted (see ReferenceCleaner
+ * and ActiveRecord::delete()), so the database and PHersist agree:
+ *
+ * - A Class property refers to the base table of its class, with the rule of
+ *   its on_remote_delete. A DynamicClass property has no key, because the
+ *   table it refers to differs per row.
+ * - The columns of a join table refer to the two classes of the relation, and
+ *   the rows are deleted along with either of them.
+ * - The id of a dataset table other than the base table, and the owner of a
+ *   map, refer to the base table; the rows are deleted along with the object.
+ *
+ * There's no key to a class in another database, nor on a column that holds
+ * the ids of several classes (next to a local_type or map type column).
  *
  * @author Stefan Mensink <stefan@basemotive.nl>
  * @copyright Basemotive VOF - https://www.basemotive.nl/
@@ -31,7 +48,43 @@ class SchemaBuilder {
 		$schema = new Schema();
 		foreach ($project->records() as $record)
 			self::addRecord($schema, $record);
+		self::makeForeignKeyNamesUnique($schema);
 		return $schema;
+	}
+
+	/**
+	 * Gives the foreign keys that have the same name a name with a hash,
+	 * which tells them apart: 'fk_a_b_c' is both the key of table 'a_b',
+	 * column 'c' and that of table 'a', column 'b_c'.
+	 */
+	private static function makeForeignKeyNamesUnique(Schema $schema) : void {
+		$count = [];
+		foreach ($schema->tables() as $table)
+			foreach ($table->foreignKeys as $key)
+				$count[strtolower($key->name)] = ($count[strtolower($key->name)] ?? 0) + 1;
+
+		foreach ($schema->tables() as $table)
+			foreach ($table->foreignKeys as $index => $key)
+				if ($count[strtolower($key->name)] > 1)
+					$table->foreignKeys[$index] = new ForeignKey(ForeignKey::name($table->name, $key->column, true),
+						$key->column, $key->referencedTable, $key->referencedColumn, $key->onDelete);
+	}
+
+	/**
+	 * Adds a foreign key on a column to the base table of a class, unless the
+	 * class is in another database than the table of the column.
+	 *
+	 * @param Table $table the table of the column
+	 * @param string $column the column that holds the id
+	 * @param Record $record the class that has the table
+	 * @param ?Record $target the class the column refers to; null if the model doesn't have it
+	 * @param ForeignKey::SET_NULL|ForeignKey::RESTRICT|ForeignKey::CASCADE $onDelete
+	 *   what happens to the row when the object it refers to is deleted
+	 */
+	private static function addForeignKey(Table $table, string $column, Record $record, ?Record $target, string $onDelete) : void {
+		if ($target === null || $target->database !== $record->database)
+			return;
+		$table->addForeignKey(new ForeignKey(ForeignKey::name($table->name, $column), $column, $target->table, $target->idColumn, $onDelete));
 	}
 
 	/**
@@ -46,6 +99,9 @@ class SchemaBuilder {
 			// Other dataset tables receive their ids from the base table
 			$table = $schema->table($dataset->table);
 			$table->addColumn(new Column($record->idColumn, ColumnType::Id), true);
+			// ActiveRecord deletes those rows before the one in the base table
+			if ($dataset->table != $record->table)
+				self::addForeignKey($table, $record->idColumn, $record, $record, ForeignKey::CASCADE);
 
 			foreach ($dataset->properties as $property)
 				self::addProperty($table, $property, $record);
@@ -62,10 +118,10 @@ class SchemaBuilder {
 				lengths: $index->lengths, explicit: true));
 
 		foreach ($record->relations as $relation)
-			self::addRelation($schema, $relation);
+			self::addRelation($schema, $relation, $record);
 
 		foreach ($record->maps as $map)
-			self::addMap($schema, $map);
+			self::addMap($schema, $map, $record);
 	}
 
 	/**
@@ -117,8 +173,10 @@ class SchemaBuilder {
 			case 'Class':
 				$table->addColumn(new Column($columnName, ColumnType::Reference, $nullable));
 				self::addReferenceIndex($table, $property, $record);
+				self::addReferenceKey($table, $property, $record);
 				break;
 			case 'DynamicClass':
+				// No foreign key: the table it refers to differs per row
 				$table->addColumn(new Column($property->columns[0], ColumnType::ClassName, $nullable));
 				$table->addColumn(new Column($property->columns[1], ColumnType::Reference, $nullable));
 				self::addReferenceIndex($table, $property, $record);
@@ -154,11 +212,33 @@ class SchemaBuilder {
 	}
 
 	/**
+	 * Adds the foreign key of a Class property, with the rule of its
+	 * on_remote_delete. The automatic index, or the <index> that replaces
+	 * it, starts with the column, as the database needs for a foreign key.
+	 *
+	 * A softdelete class with on_remote_delete="cascade" gets no key. When the
+	 * object it refers to is deleted, PHersist softdeletes the referring
+	 * objects, which keep their reference so they can be told apart later. A
+	 * key would either delete those rows for real (CASCADE) or stop the
+	 * deletion (RESTRICT).
+	 */
+	private static function addReferenceKey(Table $table, Property $property, Record $record) : void {
+		if ($property->onRemoteDelete == 'cascade' && $record->softdelete)
+			return;
+		$onDelete = match ($property->onRemoteDelete) {
+			'cascade' => ForeignKey::CASCADE,
+			'restrict' => ForeignKey::RESTRICT,
+			default => ForeignKey::SET_NULL,
+		};
+		self::addForeignKey($table, $property->columns[0], $record, $record->project->findRecord((string)$property->class), $onDelete);
+	}
+
+	/**
 	 * Adds the join table of a relation, if the relation owns it. A relation
 	 * that doesn't own its table reads one that another relation or a class
 	 * writes, and XMLLoader makes sure an owned table never holds a class.
 	 */
-	private static function addRelation(Schema $schema, Relation $relation) : void {
+	private static function addRelation(Schema $schema, Relation $relation, Record $record) : void {
 		if (!$relation->tableOwner)
 			return;
 
@@ -177,13 +257,20 @@ class SchemaBuilder {
 
 		$table->addIndex(new Index('idx_'.$relation->localId, $localColumns));
 		$table->addIndex(new Index('idx_'.$relation->remoteId, [ $relation->remoteId ]));
+
+		// PHersist deletes the rows of a join table when the object on either
+		// side is deleted. Both indexes start with the id, as a foreign key
+		// needs. With a local_type, the local id is that of several classes.
+		if ($relation->localType === null)
+			self::addForeignKey($table, $relation->localId, $record, $record, ForeignKey::CASCADE);
+		self::addForeignKey($table, $relation->remoteId, $record, $record->project->findRecord($relation->class), ForeignKey::CASCADE);
 	}
 
 	/**
 	 * Adds the table of a map. XMLLoader only lets maps of different classes
 	 * share a table, with the same columns.
 	 */
-	private static function addMap(Schema $schema, Map $map) : void {
+	private static function addMap(Schema $schema, Map $map, Record $record) : void {
 		$table = $schema->table($map->table);
 
 		$ownerColumns = [];
@@ -203,5 +290,11 @@ class SchemaBuilder {
 		// serves to look up the owner's rows.
 		$table->addIndex(new Index('idx_'.$map->idColumn, $ownerColumns));
 		$table->addIndex(new Index('uniq_'.$map->idColumn, array_merge($ownerColumns, $map->keys), unique: true, optional: true));
+
+		// The map is deleted along with its owner. Without a type column the
+		// owner index starts with the id, as a foreign key needs; with one,
+		// the id is that of several classes.
+		if ($map->typeColumn === null)
+			self::addForeignKey($table, $map->idColumn, $record, $record, ForeignKey::CASCADE);
 	}
 }

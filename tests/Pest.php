@@ -161,6 +161,22 @@ function onlyOn(string ...$dialects) : void {
 }
 
 /**
+ * Skips the current test unless this run loads the models with foreign keys.
+ */
+function onlyWithForeignKeys() : void {
+	if (!Target::foreignKeysEnabled())
+		skip('Only with foreign keys (PHERSIST_TEST_FOREIGN_KEYS=on, on MySQL or MariaDB)');
+}
+
+/**
+ * Skips the current test when this run loads the models with foreign keys.
+ */
+function onlyWithoutForeignKeys() : void {
+	if (Target::foreignKeysEnabled())
+		skip('Only without foreign keys');
+}
+
+/**
  * Skips the current test unless this run uses ObjectCache.
  */
 function onlyWithCache() : void {

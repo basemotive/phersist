@@ -5,7 +5,9 @@ namespace PHersist\Generator;
 use PHersist\Generator\Model\Project;
 use PHersist\Generator\Schema\Column;
 use PHersist\Generator\Schema\ColumnType;
+use PHersist\Generator\Schema\ForeignKey;
 use PHersist\Generator\Schema\Index;
+use PHersist\Generator\Schema\Schema;
 use PHersist\Generator\Schema\Table;
 
 /**
@@ -47,6 +49,58 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 		}
 		if (isset($settings['collate']))
 			$this->collate = $settings['collate'];
+		$this->foreignKeys = ($settings['foreign_keys'] ?? 'false') === 'true';
+	}
+
+	/**
+	 * With foreign_keys="true", adds the foreign keys after the tables, since
+	 * tables refer to each other in cycles, and to themselves.
+	 *
+	 * The tables are dropped and created with the foreign key checks off:
+	 * a table that others refer to can't be dropped otherwise. The keys are
+	 * added with the checks on again, so a key that the database can't create
+	 * is reported.
+	 */
+	protected function finish(string $sql, Schema $schema) : string {
+		if (!$this->foreignKeys)
+			return $sql;
+
+		$keys = '';
+		foreach ($schema->tables() as $table) {
+			if (!$table->foreignKeys)
+				continue;
+			$this->checkForeignKeyIndexes($table);
+			$keys .= "ALTER TABLE {$this->quote($table->name)}\n";
+			$keys .= implode(",\n", array_map(fn(ForeignKey $key) => "\tADD CONSTRAINT {$this->quote($key->name)}"
+				." FOREIGN KEY ({$this->quote($key->column)})"
+				." REFERENCES {$this->quote($key->referencedTable)} ({$this->quote($key->referencedColumn)})"
+				." ON DELETE {$key->onDelete}", $table->foreignKeys));
+			$keys .= ";\n\n";
+		}
+
+		return "SET @OLD_FOREIGN_KEY_CHECKS = @@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS = 0;\n\n"
+			.$sql
+			."SET FOREIGN_KEY_CHECKS = @OLD_FOREIGN_KEY_CHECKS;\n\n"
+			.$keys;
+	}
+
+	/**
+	 * Makes sure that each foreign key column of a table is the first column
+	 * of an index (or the primary key). InnoDB needs such an index, and
+	 * creates one itself if there is none; then the database would have an
+	 * index that the schema doesn't.
+	 *
+	 * @param Table $table the table
+	 * @throws \Exception if a foreign key column has no index
+	 */
+	private function checkForeignKeyIndexes(Table $table) : void {
+		$indexed = [ $table->primaryKey ];
+		foreach ($this->indexes($table) as $index)
+			if (!isset($index->lengths[$index->columns[0]]))
+				$indexed[] = $index->columns[0];
+		foreach ($table->foreignKeys as $key)
+			if (!in_array($key->column, $indexed, true))
+				throw new \Exception("Cannot generate foreign key '{$key->name}': column '{$key->column}' of table '{$table->name}' has no index that starts with it");
 	}
 
 	protected function supportsIndex(Index $index, Table $table) : bool {
@@ -163,4 +217,5 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 
 	private string $charset = 'utf8mb4';
 	private ?string $collate = 'utf8mb4_unicode_ci';
+	private bool $foreignKeys = false;
 }

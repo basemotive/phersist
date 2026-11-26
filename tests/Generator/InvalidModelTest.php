@@ -285,6 +285,20 @@ it('rejects the model with a readable error', function (string $xml, string $exp
 		- line 2: <schema dialect="mysql"> has an invalid 'charset' attribute: 'utf8-mb4' may only contain letters, digits and underscores
 		ERROR,
 	],
+	'bad-foreign-keys' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<schema dialect="mysql" foreign_keys="yes"/>
+			<schema dialect="sqlite" foreign_keys="true"/>
+			<class name="Item"/>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid model XML:
+		- line 2: <schema dialect="mysql"> has an invalid 'foreign_keys' attribute: expected 'true' or 'false', got 'yes'
+		- line 3: <schema dialect="sqlite"> has attribute 'foreign_keys', which the sqlite dialect doesn't have
+		ERROR,
+	],
 	'bad-on-remote-delete' => [
 		<<<'XML'
 		<project database="main" tablestyle="SnakeCase">

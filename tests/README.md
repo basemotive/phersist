@@ -45,6 +45,7 @@ it. They're defined in `Support/Target.php`, and the servers in
 | `mariadb-11.4`       | MariaDB 11.4  | mariadb | 33114             |
 | `mariadb-11.8`       | MariaDB 11.8  | mariadb | 33118             |
 | `mariadb-11.8-mysql` | MariaDB 11.8  | mysql   | 33118 (database `phersist_mysql`) |
+| `<target>-fk`        | that target's | its own | (with foreign keys, see below) |
 | `local`              | your own      | mariadb | —                 |
 
 - Every run checks that the server reports the expected version, so a run
@@ -70,6 +71,7 @@ it. They're defined in `Support/Target.php`, and the servers in
 |-----------------------------|--------|
 | `PHERSIST_TEST_TARGET`      | The target (default `sqlite`) |
 | `PHERSIST_TEST_CACHE=on`    | Runs with `ObjectCache` enabled (the `sqlite-cache` target does this on SQLite) |
+| `PHERSIST_TEST_FOREIGN_KEYS=on` | Loads every model with foreign keys (the `-fk` targets do this); no effect on SQLite |
 | `PHERSIST_RUN_BUGS=1`       | Runs the tests of known bugs instead of skipping them |
 | `PHERSIST_UPDATE_EXPECTED=1`| Rewrites the expected generator output (see below) |
 | `PHERSIST_TEST_LOCAL_*`     | The `local` target |
@@ -108,9 +110,14 @@ tests/
 - **ExamplesTest**: `examples/basic/sample-model.sql` is up to date, and the
   `sample` fixture is the example's XML.
 
+- **ForeignKeysTest**: which references get a foreign key, with which rule
+  and name; the `foreignkeys` fixture has the complete output.
+
 `Runtime/SchemaLoadTest` belongs with these, but needs the database: every
 fixture's schema must load on the target, twice, with exactly the tables and
-columns of the schema model.
+columns of the schema model. On MySQL and MariaDB, every fixture is also
+loaded with foreign keys: the database must have exactly the keys of the
+schema model, and no other indexes than without them.
 
 ## Runtime tests
 
@@ -254,6 +261,7 @@ generator's schema model:
 | `skip('reason')` | Skips the test (instead of `$this->markTestSkipped()`, see below) |
 | `onlyOn('mysql', 'mariadb')` | Skips the test unless the target has one of these dialects |
 | `onlyWithCache()`, `onlyWithoutCache()` | Skips the test unless the run does or doesn't use `ObjectCache` |
+| `onlyWithForeignKeys()`, `onlyWithoutForeignKeys()` | Skips the test unless the run does or doesn't load the models with foreign keys |
 | `db()`, `target()` | The test connection (registered as `main`) and the target |
 
 Values in memory are checked with plain `expect()`. Both kinds of checks are
@@ -280,6 +288,23 @@ every database with the cache off, plus SQLite with the cache on
 (`sqlite-cache`). A test whose expectation really depends on the cache says so
 with `onlyWithCache()` or `onlyWithoutCache()`. `ObjectCacheTest` switches the
 cache itself, so it covers both states in every run.
+
+### With and without foreign keys
+
+The models don't ask for foreign keys (`foreign_keys="true"`), since that's
+PHersist's default. A run with `PHERSIST_TEST_FOREIGN_KEYS=on` loads all of
+them with keys anyway, on MySQL and MariaDB, so every runtime test also shows
+that PHersist deletes and inserts rows in an order the keys allow. `run.sh`
+does this for a target with `-fk` after its name (`mysql-8.4-fk`, `local-fk`);
+`test:all` has the oldest and newest MySQL and MariaDB that way.
+
+- `given()` and the cleanup between tests switch the foreign key checks off,
+  so a before-state can have its tables in any order, and rows that refer to
+  nothing. Plain SQL in a test itself is checked; wrap it in
+  `Database::current()->withoutForeignKeyChecks()` if it has to break a key.
+- A test whose expectation depends on the keys says so with
+  `onlyWithForeignKeys()` or `onlyWithoutForeignKeys()`. `ForeignKeysTest` has
+  the tests of the keys themselves.
 
 ### Regression tests
 

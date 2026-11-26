@@ -82,6 +82,15 @@ final class Target {
 		return getenv('PHERSIST_TEST_CACHE') === 'on';
 	}
 
+	/**
+	 * Whether this run loads the models with foreign keys
+	 * (PHERSIST_TEST_FOREIGN_KEYS=on), also those that don't ask for them.
+	 * SQLite has none.
+	 */
+	public static function foreignKeysEnabled() : bool {
+		return getenv('PHERSIST_TEST_FOREIGN_KEYS') === 'on' && self::current()->dialect !== 'sqlite';
+	}
+
 	public static function byName(string $name) : Target {
 		if ($name === 'sqlite')
 			return new Target('sqlite', 'sqlite', null, null);

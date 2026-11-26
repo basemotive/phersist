@@ -10,6 +10,7 @@ use PHersist\Generator\Schema\Column;
 use PHersist\Generator\Schema\ColumnType;
 use PHPUnit\Framework\ExpectationFailedException;
 use Tests\Models\Basic\User;
+use Tests\Support\Database;
 use Tests\Support\Internals;
 use Tests\Support\State;
 
@@ -100,7 +101,8 @@ describe('expectState()', function () {
 	});
 
 	it('compares rows of tables without an id, in any order', function () {
-		db()->exec('insert into user_groups (user_id, group_id) values (2, 5), (1, 5), (1, 4)');
+		// The groups don't exist, which only matters to foreign keys
+		Database::current()->withoutForeignKeyChecks(fn () => db()->exec('insert into user_groups (user_id, group_id) values (2, 5), (1, 5), (1, 4)'));
 
 		expectState([ 'user_groups' => [
 			[ 'user_id' => 1, 'group_id' => 4 ],
@@ -123,7 +125,7 @@ describe('expectUnchanged()', function () {
 		given([ 'groups' => [ [ 'id' => 1, 'name' => 'Admins' ] ] ]);
 		expectUnchanged();
 
-		db()->exec("insert into user_groups (user_id, group_id) values (1, 1)");
+		Database::current()->withoutForeignKeyChecks(fn () => db()->exec("insert into user_groups (user_id, group_id) values (1, 1)"));
 		expect(fn () => expectUnchanged())->toThrow(ExpectationFailedException::class, "Table 'user_groups' should be unchanged");
 	});
 });

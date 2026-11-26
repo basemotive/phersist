@@ -60,7 +60,7 @@ final class Models {
 			throw new \RuntimeException("No model '{$name}': ".self::dir()."/{$name}.xml doesn't exist");
 
 		$project = XMLLoader::load($xmlFile);
-		$sql = Generate::schema($project, Target::current()->dialect);
+		$sql = Generate::schema($project, Target::current()->dialect, Target::foreignKeysEnabled() ?: null);
 		$files = [ 'schema.sql' => $sql ];
 		foreach (Generate::classes($project) as $className => $code)
 			$files["{$className}.php"] = $code;

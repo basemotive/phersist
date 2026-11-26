@@ -147,7 +147,7 @@ There can be one `<schema>` element for each dialect; each schema generator only
 | `charset` | no | `utf8mb4` | Table character set (`DEFAULT CHARSET=...`). |
 | `collate` | no | `utf8mb4_unicode_ci` if `charset` is not set, otherwise none | Table collation (`COLLATE=...`). When `charset` is set without `collate`, no `COLLATE` clause is emitted and MySQL uses the charset's default collation. |
 
-The element itself is optional; without it the defaults above are used. The schema needs MySQL 8.0 or newer.
+The element itself is optional; without it the defaults above are used. The schema needs MySQL 8.0 or newer, and 8.0.13 or newer if a `Text` property without a `length` has a `default` (see [Default values](#default-values)).
 
 ### MariaDB
 
@@ -322,6 +322,10 @@ A default value is used in two places:
 Objects loaded from the database are unaffected; they always get the stored values.
 
 On a new object, a property without a default reads as `null` until it is assigned. PHersist never assumes a default that isn't in the model: if a `required` property has no `default` and isn't assigned, `commit()` throws an exception listing the missing properties instead of storing an empty value. The exception is a `Date`, `DateTime` or `TimestampText` property with `update_on`, which gets its value on commit. In the generated schema, such a column is `NOT NULL` without a `DEFAULT`.
+
+In the generated MySQL and MariaDB schema, the default of a `Text` property with a `length` (a `VARCHAR` column) is a plain literal, like ``VARCHAR(2) NOT NULL DEFAULT 'nl'``. Without a `length` the column is a `TEXT`, for which MySQL only accepts an expression default, in parentheses: ``TEXT NOT NULL DEFAULT ('nl')``. Both work the same, but MySQL reports them differently in `information_schema.COLUMNS`: the literal as `COLUMN_DEFAULT` `nl` with an empty `EXTRA`, the expression as `_utf8mb4\'nl\'` with `EXTRA` `DEFAULT_GENERATED`.
+
+> **Changed:** `VARCHAR` defaults used to be written as expressions too. A regenerated schema differs there, but an existing database doesn't need a change.
 
 > Default values are stored in the generated classes' metadata, so regenerate your classes after adding or changing a `default`.
 

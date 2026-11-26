@@ -3,7 +3,7 @@ CREATE TABLE "items" (
 	"id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	"title" TEXT NOT NULL DEFAULT 'It''s a \ ''test'' */',
 	"notes" TEXT NULL,
-	"code" VARCHAR(5) NOT NULL DEFAULT 'né-1',
+	"code" VARCHAR(5) NOT NULL DEFAULT 'né''\1',
 	"label" VARCHAR(1000) NULL,
 	"count" INTEGER NULL DEFAULT -3,
 	"stock" INTEGER NOT NULL DEFAULT 0,

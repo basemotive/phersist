@@ -10,7 +10,7 @@ use PHersist\ActiveRecord;
  * @property-read ?int $id id field: id
  * @property string $title default 'It\'s a \\ \'test\' *\/'
  * @property ?string $notes
- * @property string $code default 'né-1' max length 5
+ * @property string $code default 'né\'\\1' max length 5
  * @property ?string $label max length 1000
  * @property ?int $count default -3
  * @property int $stock default 0
@@ -74,7 +74,7 @@ class Item extends ActiveRecord {
 						],
 						'length' => 5,
 						'required' => true,
-						'default' => 'né-1'
+						'default' => 'né\'\\1'
 					],
 					'label' => [
 						'type' => 'Text',

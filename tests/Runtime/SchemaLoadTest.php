@@ -39,3 +39,23 @@ it('loads on the target database', function (string $xmlFile) {
 
 	expect($actual)->toBe($expected);
 })->with($fixtures);
+
+it('writes the default of a VARCHAR column as a literal, and of a TEXT column as an expression', function () {
+	// MariaDB reports both kinds of default the same way
+	onlyOn('mysql');
+	if (str_contains(target()->serverVersion(), 'MariaDB'))
+		skip('Only on a MySQL server');
+
+	$project = XMLLoader::load(dirname(__DIR__).'/Generator/fixtures/types/model.xml');
+	$database = Database::current();
+	$database->dropAllTables();
+	$database->loadSchema(Generate::schema($project, target()->dialect));
+
+	$columns = [];
+	foreach (db()->query("select COLUMN_NAME, COLUMN_DEFAULT, EXTRA from information_schema.COLUMNS"
+			." where TABLE_SCHEMA = database() and TABLE_NAME = 'items' and COLUMN_NAME in ('title', 'code')") as $row)
+		$columns[$row['COLUMN_NAME']] = [ $row['COLUMN_DEFAULT'], $row['EXTRA'] ];
+
+	expect($columns['code'])->toBe([ "né'\\1", '' ]);
+	expect($columns['title'][1])->toBe('DEFAULT_GENERATED');
+});

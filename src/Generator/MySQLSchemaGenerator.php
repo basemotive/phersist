@@ -56,6 +56,7 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 			$bytes += match ($column?->type) {
 				// VARCHAR(191) at 4 bytes per character
 				ColumnType::ClassName, ColumnType::MapKey => 764,
+				ColumnType::VarChar => 4 * (int)$column->length,
 				ColumnType::SmallInt, ColumnType::UnsignedSmallInt => 2,
 				ColumnType::Id, ColumnType::Reference, ColumnType::Int, ColumnType::UnsignedInt => 4,
 				ColumnType::BigInt, ColumnType::UnsignedBigInt => 8,
@@ -117,6 +118,8 @@ class MySQLSchemaGenerator extends SchemaGenerator {
 			ColumnType::Float => 'DOUBLE',
 			ColumnType::Decimal => "DECIMAL({$column->precision},{$column->scale})",
 			ColumnType::Text => 'TEXT',
+			// The length is in characters, not bytes
+			ColumnType::VarChar => "VARCHAR({$column->length})",
 			ColumnType::Date => 'DATE',
 			ColumnType::DateTime => 'DATETIME',
 			// The class name is indexed, which MySQL doesn't allow on a TEXT

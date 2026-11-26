@@ -18,12 +18,16 @@ CREATE TABLE "users" (
 	"role" TEXT NULL,
 	"user_type" TEXT NULL,
 	"email" TEXT NULL,
+	"login" VARCHAR(64) NULL,
+	"last_name" VARCHAR(100) NULL,
 	"deleted" INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX "users_role" ON "users" ("role");
 CREATE INDEX "users_user_type" ON "users" ("user_type");
 CREATE INDEX "users_email" ON "users" ("email");
 CREATE INDEX "users_email_role" ON "users" ("email", "role");
+CREATE UNIQUE INDEX "users_login" ON "users" ("login");
+CREATE INDEX "users_last_name" ON "users" ("last_name", "login");
 CREATE INDEX "users_active" ON "users" ("deleted", "id");
 
 DROP TABLE IF EXISTS "user_profiles";

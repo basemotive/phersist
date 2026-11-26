@@ -19,6 +19,7 @@ final class Column {
 	 * @param bool $autoIncrement whether the database hands out the values (only for an Id)
 	 * @param ?int $precision for a Decimal column: the total number of digits
 	 * @param ?int $scale for a Decimal column: the number of digits after the decimal point
+	 * @param ?int $length for a VarChar column: the maximum number of characters
 	 */
 	public function __construct(
 		public readonly string $name,
@@ -28,5 +29,6 @@ final class Column {
 		public readonly bool $autoIncrement = false,
 		public readonly ?int $precision = null,
 		public readonly ?int $scale = null,
+		public readonly ?int $length = null,
 	) {}
 }

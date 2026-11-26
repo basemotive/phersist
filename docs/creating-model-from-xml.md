@@ -159,6 +159,7 @@ The schema generated with `--sqlite` has no settings. SQLite has fewer column ty
 
 - integers, booleans, ids and references are `INTEGER`, and floats `REAL`;
 - `Decimal` columns are `DECIMAL(precision,scale)`, which SQLite stores as a number: exact up to about 15 significant digits;
+- a `Text` column with a `length` is `VARCHAR(length)`, which SQLite stores as `TEXT` without enforcing the length (PHersist still checks it on assignment);
 - `Date`, `DateTime` and `TimestampText` columns are `TEXT`, in the formats PHersist writes (`Y-m-d`, `Y-m-d H:i:s`);
 - class names and map keys and values are `TEXT`, which SQLite compares exactly.
 
@@ -329,15 +330,34 @@ On a new object, a property without a default reads as `null` until it is assign
 ## Property types
 
 ### `Text`
-Default string-like field. Maps to a `TEXT` column. Assigned ints, floats and `Stringable` objects are converted to `string`; other values, like arrays and bools, throw an exception.
+Default string-like field. Maps to a `TEXT` column, or with a `length` to a `VARCHAR` column of that length. Assigned ints, floats and `Stringable` objects are converted to `string`; other values, like arrays and bools, throw an exception. So do values that are longer than the `length`.
 
 ```xml
 <property name="description" type="Text"/>
 <property name="title" type="Text" required="true" default="Untitled"/>
+<property name="email" type="Text" length="255"/>
 ```
 
+Extra attribute:
+
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `length` | no | — | The maximum number of characters, from `1` to `16383`: the column is a `VARCHAR(length)`. Without it, the column is a `TEXT`, for text of any length. |
+
+With a `length`:
+
+- Assigning a longer value throws an exception, instead of the database refusing or silently truncating it on `commit()`. SQLite doesn't enforce the length of a `VARCHAR` at all, so there PHersist's check is the only one.
+- The length counts **characters, not bytes**, like `VARCHAR(n)` does in MySQL and MariaDB. A character is a Unicode code point of the UTF-8 string: `é` and `😀` each count as one, though they are 2 and 4 bytes. What looks like one character can be several code points, which each count: an `e` followed by a combining accent is 2, and a family emoji like `👨‍👩‍👧` is 5 (three people and two joiners). That's `mb_strlen($value, 'UTF-8')`, not `strlen($value)`; PHersist doesn't need the `mbstring` extension for it.
+- A string that isn't valid UTF-8 is taken to be in a single-byte charset like `latin1` (for a connection with such a charset), so each byte counts as a character.
+- Values aren't trimmed or truncated, and trailing spaces count.
+- Searching isn't limited: `where()` accepts a longer value, which simply doesn't match with `=`.
+- The column can be [indexed](#indexes-index) as a whole, without a prefix length.
+- MySQL and MariaDB limit a row to 65535 bytes for all its `VARCHAR` columns together, at up to 4 bytes per character with `utf8mb4`. So a table can't have many long ones; leave the `length` out for long text.
+
+The length is stored in the generated classes' metadata, so regenerate your classes after adding or changing a `length`. An existing `TEXT` column isn't changed by that: alter it yourself, for example with ``ALTER TABLE `users` MODIFY `email` VARCHAR(255) NULL``.
+
 Default value behaviour:
-- If `default` is set, that string value is used as the default.
+- If `default` is set, that string value is used as the default. With a `length`, it can't be longer than that.
 - There is no implicit default, so a `required` field without `default` must be assigned before the first `commit()`.
 
 ### `Int`
@@ -799,10 +819,10 @@ The generated schema has the indexes PHersist needs itself (see [Automatic index
 
 <class name="User">
     <dataset autoload="true">
-        <property name="email" required="true"/>
+        <property name="email" required="true" length="255"/>
     </dataset>
     <index name="email" unique="true">
-        <field property="email" length="191"/>
+        <field property="email"/>
     </index>
 </class>
 ```
@@ -818,7 +838,7 @@ INDEX `title` (`title`(50)),
 and this one in `users`:
 
 ```sql
-UNIQUE INDEX `email` (`email`(191)),
+UNIQUE INDEX `email` (`email`),
 ```
 
 ### `<index>` attributes
@@ -836,7 +856,7 @@ An `<index>` has one or more `<field>` elements, in the order of the index's col
 |---|---|---|
 | `property` | one of these | A property of the class, from any of its datasets. A `DynamicClass` property stands for both its columns (class name, then id). Relations and maps have no column in the class's tables, so they can't be indexed. |
 | `fieldname` | one of these | A column that isn't a property: the class's id column, or `deleted` in a `softdelete` class. For the column of a property, use `property`. |
-| `length` | for text | The number of characters to index (a prefix length). MySQL and MariaDB only index a `TEXT` column with one, so it's required for a `Text` property and for a `TimestampText` with a custom `date_format`, and not allowed for any other column. SQLite indexes the whole value. |
+| `length` | for text | The number of characters to index (a prefix length). MySQL and MariaDB only index a `TEXT` column with one, so it's required for a `Text` property without a [`length`](#text) and for a `TimestampText` with a custom `date_format`. A `Text` property with a `length` is a `VARCHAR` column, which is indexed as a whole without it; it can have a prefix length up to its own length, which it needs if the index would get longer than MySQL's 3072 bytes (768 characters with `utf8mb4`, for all columns of the index together). It's not allowed for any other column. SQLite indexes the whole value. |
 
 All columns of an index must be in one table: the properties of datasets in the same table. The id column is in every table of the class, and `deleted` in its base table. An index with only the id column is on the base table. A column can be in an index only once.
 

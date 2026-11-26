@@ -77,7 +77,10 @@ class SchemaBuilder {
 
 		switch ($property->type) {
 			case 'Text':
-				$table->addColumn(new Column($columnName, ColumnType::Text, $nullable, $property->default));
+				if ($property->length !== null)
+					$table->addColumn(new Column($columnName, ColumnType::VarChar, $nullable, $property->default, length: $property->length));
+				else
+					$table->addColumn(new Column($columnName, ColumnType::Text, $nullable, $property->default));
 				break;
 			case 'Int':
 				$columnType = match ($property->size) {

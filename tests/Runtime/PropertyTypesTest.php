@@ -46,6 +46,11 @@ describe('a valid value', function () {
 		'Text from a float' => [ 'notes', fn () => 1.5, '1.5', [ 'notes' => '1.5' ] ],
 		'Text from a Stringable' => [ 'notes', fn () => new class { public function __toString() : string { return 'str'; } }, 'str', [ 'notes' => 'str' ] ],
 		'Text null' => [ 'notes', fn () => null, null, [ 'notes' => null ] ],
+		'Text of the maximum length' => [ 'code', fn () => 'abcde', 'abcde', [ 'code' => 'abcde' ] ],
+		'Text of the maximum length in multibyte characters' => [ 'code', fn () => 'ééééé', 'ééééé', [ 'code' => 'ééééé' ] ],
+		'Text of the maximum length in 4-byte characters' => [ 'code', fn () => '😀😀😀😀😀', '😀😀😀😀😀', [ 'code' => '😀😀😀😀😀' ] ],
+		'Text of the maximum length from an int' => [ 'code', fn () => 12345, '12345', [ 'code' => '12345' ] ],
+		'Text with a length, empty' => [ 'code', fn () => '', '', [ 'code' => '' ] ],
 
 		'Int' => [ 'count', fn () => 7, 7, [ 'count' => 7 ] ],
 		'Int from a string' => [ 'count', fn () => '-12', -12, [ 'count' => -12 ] ],
@@ -122,6 +127,11 @@ describe('an invalid value', function () {
 		'Text from an array' => [ 'notes', fn () => [ 'a' ] ],
 		'Text from a bool' => [ 'notes', fn () => true ],
 		'Text from an object' => [ 'notes', fn () => new stdClass() ],
+		'Text above the maximum length' => [ 'code', fn () => 'abcdef' ],
+		'Text above the maximum length in multibyte characters' => [ 'code', fn () => 'éééééé' ],
+		'Text above the maximum length from an int' => [ 'code', fn () => 123456 ],
+		'Text above the maximum length by a combining character' => [ 'code', fn () => "abcde\u{301}" ],
+		'Text above the maximum length by a trailing space' => [ 'code', fn () => 'abcde ' ],
 
 		'Int from a non-integer string' => [ 'count', fn () => '1.5' ],
 		'Int from text' => [ 'count', fn () => 'abc' ],
@@ -173,6 +183,32 @@ describe('an invalid value', function () {
 	]);
 });
 
+describe('the length of a Text', function () {
+	it('is counted in characters, not bytes', function () {
+		$item = new Item();
+
+		expect(function () use ($item) { $item->code = 'éééééé'; })
+			->toThrow(Exception::class, 'Invalid value for property code: the value has 6 characters, the maximum is 5');
+	});
+
+	it('isn\'t checked for a Text without a length', function () {
+		$item = new Item();
+		$item->notes = str_repeat('é', 20000);
+		$item->commit();
+
+		expectState([ 'items' => [ [ 'id' => 1, 'notes' => str_repeat('é', 20000) ] ] ]);
+	});
+
+	it('counts every byte of a string that isn\'t UTF-8', function () {
+		$item = new Item();
+		$item->code = "caf\xE9!"; // latin1
+		expect($item->code)->toBe("caf\xE9!");
+
+		expect(function () use ($item) { $item->code = "caf\xE9!!"; })
+			->toThrow(Exception::class, 'Invalid value for property code: the value has 6 characters, the maximum is 5');
+	});
+});
+
 describe('defaults', function () {
 	it('are set on new objects, and stored', function () {
 		$item = new Item();
@@ -182,7 +218,7 @@ describe('defaults', function () {
 		$item->commit();
 
 		expectState([ 'items' => [ [
-			'id' => 1, 'title' => 'Untitled', 'notes' => null, 'count' => -3, 'stock' => 0, 'rank' => null, 'views' => null, 'bytes' => null, 'ratio' => 1.5,
+			'id' => 1, 'title' => 'Untitled', 'notes' => null, 'code' => null, 'count' => -3, 'stock' => 0, 'rank' => null, 'views' => null, 'bytes' => null, 'ratio' => 1.5,
 			'price' => '9.9900', 'amount' => null, 'active' => 1, 'hidden' => null, 'birthday' => null,
 			'starts_at' => null, 'created_at' => now(), 'modified_at' => now(), 'stamp' => now(), 'custom_stamp' => null,
 			'owner_ref' => null, 'subject_type' => null, 'subject_id' => null, 'target_class' => null, 'target_ref' => null,

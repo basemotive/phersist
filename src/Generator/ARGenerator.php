@@ -122,7 +122,9 @@ class ARGenerator {
 				// var_export() writes PHP_INT_MIN as -9223372036854775807-1
 				$result .= ' default '.(is_int($property->default) ? (string)$property->default : var_export($property->default, true));
 
-			if ($property->type == 'Decimal') {
+			if ($property->type == 'Text' && $property->length !== null) {
+				$result .= " max length {$property->length}";
+			} elseif ($property->type == 'Decimal') {
 				$result .= " decimal({$property->precision},{$property->scale})";
 			} elseif (($property->type == 'Date' || $property->type == 'DateTime') && $property->updateOn !== null) {
 				$result .= ' updates on '.$property->updateOn;
@@ -208,6 +210,8 @@ class ARGenerator {
 				// Special types
 				if ($property->type == 'Class') {
 					$metaprop['class'] = $property->class;
+				} elseif ($property->type == 'Text' && $property->length !== null) {
+					$metaprop['length'] = $property->length;
 				} elseif ($property->type == 'Int') {
 					$metaprop['signed'] = $property->signed;
 					$metaprop['size'] = $property->size;

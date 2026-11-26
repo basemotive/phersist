@@ -133,6 +133,8 @@ describe('types', function () {
 		'Decimal > with more decimals than the scale' => [ 'price', '>', '1.005', [ 2 ] ],
 		'Float <' => [ 'ratio', '<', 1, [ 1 ] ],
 		'Bool true' => [ 'hidden', '=', true, [ 2 ] ],
+		'Text = longer than the length of the column' => [ 'code', '=', 'abcdef', [] ],
+		'Text != longer than the length of the column' => [ 'code', '!=', 'abcdef', [ 1, 2, 3 ] ],
 		'Bool false' => [ 'hidden', '=', false, [ 1 ] ],
 		'Bool from \'0\'' => [ 'active', '=', '0', [ 2 ] ],
 		'Bool != true, also matching null' => [ 'hidden', '!=', true, [ 1, 3 ] ],

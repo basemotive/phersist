@@ -11,6 +11,8 @@ use PHersist\ActiveRecord;
  * @property ?string $role
  * @property ?string $userType
  * @property ?string $email
+ * @property ?string $login max length 64
+ * @property ?string $lastName max length 100
  * @property ?string $city
  * @property ?User $manager
  * @property ?string $stamp timestamp, date format: d-m-Y
@@ -47,6 +49,22 @@ class User extends ActiveRecord {
 						'fieldnames' => [
 							'email'
 						],
+						'required' => false
+					],
+					'login' => [
+						'type' => 'Text',
+						'fieldnames' => [
+							'login'
+						],
+						'length' => 64,
+						'required' => false
+					],
+					'lastName' => [
+						'type' => 'Text',
+						'fieldnames' => [
+							'last_name'
+						],
+						'length' => 100,
 						'required' => false
 					]
 				]

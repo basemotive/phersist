@@ -1,5 +1,5 @@
 <project database="main" tablestyle="SnakeCase" namespace="Fixture\Indexes">
-	<!-- Indexes from the XML: on properties and other columns, with prefix lengths, unique, in a dataset table -->
+	<!-- Indexes from the XML: on properties and other columns, with prefix lengths, on VARCHAR columns, unique, in a dataset table -->
 	<class name="SurveyInvitation">
 		<dataset autoload="true">
 			<property name="receiver" type="Class" class="User" required="true"/>
@@ -25,6 +25,8 @@
 			<property name="role"/>
 			<property name="userType"/>
 			<property name="email"/>
+			<property name="login" length="64"/>
+			<property name="lastName" length="100"/>
 		</dataset>
 		<dataset table="user_profiles">
 			<property name="city"/>
@@ -36,6 +38,9 @@
 		<!-- An index on the start of another index's columns is still created -->
 		<index name="email"><field property="email" length="64"/></index>
 		<index name="email_role"><field property="email" length="64"/><field property="role" length="10"/></index>
+		<!-- A Text with a length is a VARCHAR, which is indexed whole, or with a prefix length up to its length -->
+		<index name="login" unique="true"><field property="login"/></index>
+		<index name="last_name"><field property="lastName" length="20"/><field property="login"/></index>
 		<index name="active"><field fieldname="deleted"/><field fieldname="id"/></index>
 		<!-- In the dataset table; the index on manager_id doesn't start with it, so that one stays -->
 		<index name="city">

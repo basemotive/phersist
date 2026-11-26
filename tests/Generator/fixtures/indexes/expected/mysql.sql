@@ -24,12 +24,16 @@ CREATE TABLE `users` (
 	`role` TEXT NULL,
 	`user_type` TEXT NULL,
 	`email` TEXT NULL,
+	`login` VARCHAR(64) NULL,
+	`last_name` VARCHAR(100) NULL,
 	`deleted` INT UNSIGNED NOT NULL DEFAULT 0,
 	INDEX `role` (`role`(10)),
 	INDEX `user_type` (`user_type`(10)),
 	INDEX `email` (`email`(64)),
 	INDEX `email_role` (`email`(64), `role`(10)),
+	INDEX `last_name` (`last_name`(20), `login`),
 	INDEX `active` (`deleted`, `id`),
+	UNIQUE INDEX `login` (`login`),
 
 	PRIMARY KEY (`id`)
 ) ENGINE=InnoDB

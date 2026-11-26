@@ -20,6 +20,7 @@ final class Property {
 	 * @param list<string> $columns the column names; two for a DynamicClass (class name and id), one otherwise
 	 * @param string|int|float|bool|null $default the value for new objects, null if there is none;
 	 *   Decimal defaults are normalized strings
+	 * @param ?int $length for Text: the maximum number of characters, or null for text of any length
 	 * @param bool $signed for Int: whether the column is signed
 	 * @param string $size for Int: 'small', 'normal' or 'big' (see ARPropertyTypeInt::SIZES)
 	 * @param ?int $precision for Decimal: the total number of digits
@@ -37,6 +38,7 @@ final class Property {
 		public readonly bool $required,
 		public readonly array $columns,
 		public readonly string|int|float|bool|null $default,
+		public readonly ?int $length,
 		public readonly bool $signed,
 		public readonly string $size,
 		public readonly ?int $precision,
@@ -57,14 +59,22 @@ final class Property {
 	}
 
 	/**
-	 * Returns whether the property's column holds text of any length: a Text
-	 * property, or a TimestampText with a custom date format, which doesn't
-	 * fit a date and time column. An index on such a column needs a prefix
-	 * length in MySQL.
+	 * Returns whether the property's column holds text: a Text property, or a
+	 * TimestampText with a custom date format, which doesn't fit a date and
+	 * time column. An index on such a column can have a prefix length.
 	 */
 	public function storesText() : bool {
 		if ($this->type == 'TimestampText')
 			return $this->dateFormat !== null && $this->dateFormat != ARPropertyTypeTimestampText::DEFAULT_DATE_FORMAT;
 		return $this->type == 'Text';
+	}
+
+	/**
+	 * Returns whether the property's column holds text of any length: text
+	 * (see storesText()) that isn't a Text property with a length. An index
+	 * on such a column needs a prefix length in MySQL.
+	 */
+	public function storesUnboundedText() : bool {
+		return $this->storesText() && $this->length === null;
 	}
 }

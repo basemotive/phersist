@@ -29,7 +29,10 @@ enum ColumnType {
 	case Float;
 	/** A fixed-point number, with the column's precision and scale */
 	case Decimal;
+	/** Text of any length */
 	case Text;
+	/** Text of at most the column's length, in characters */
+	case VarChar;
 	case Date;
 	case DateTime;
 	/** A class name, short enough to index: of a DynamicClass, or a relation's or map's type column */

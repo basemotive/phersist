@@ -16,6 +16,7 @@ use PHersist\ReferenceRegistry;
 use PHersist\Types\ARPropertyTypeDecimal;
 use PHersist\Types\ARPropertyTypeFloat;
 use PHersist\Types\ARPropertyTypeInt;
+use PHersist\Types\ARPropertyTypeText;
 
 /**
  * Loads the model XML for the generators: checks it, and builds the model
@@ -240,7 +241,7 @@ class XMLLoader {
 	 * The type-specific attributes of a property, and which of them are required.
 	 */
 	private const PROPERTY_TYPE_ATTRIBUTES = [
-		'Text' => [ 'attributes' => [ 'default' ], 'required' => [] ],
+		'Text' => [ 'attributes' => [ 'default', 'length' ], 'required' => [] ],
 		'Int' => [ 'attributes' => [ 'default', 'signed', 'size' ], 'required' => [] ],
 		'Float' => [ 'attributes' => [ 'default' ], 'required' => [] ],
 		'Decimal' => [ 'attributes' => [ 'default', 'precision', 'scale' ], 'required' => [] ],
@@ -717,9 +718,10 @@ class XMLLoader {
 	 * - Each <field> names a property, or with fieldname a column that isn't
 	 *   one: the id column, or the softdelete column 'deleted'. A DynamicClass
 	 *   property stands for both its columns.
-	 * - A column that holds text of any length (see Property::storesText())
-	 *   needs a prefix length, which MySQL requires to index it; other columns
-	 *   can't have one.
+	 * - A column that holds text of any length (see Property::storesUnboundedText())
+	 *   needs a prefix length, which MySQL requires to index it. A Text
+	 *   property with a length can have one, up to that length; other
+	 *   columns can't.
 	 * - All columns are in one table of the class, and each is used once.
 	 * - The name is unique among the indexes of the table, isn't the name of
 	 *   an automatic index on a Class or DynamicClass property there, and
@@ -806,9 +808,11 @@ class XMLLoader {
 							: "and '{$fieldColumns[0]}' is an integer column");
 					elseif (!preg_match('/^[1-9][0-9]*$/D', $length))
 						$problems[] = "{$fieldAt}: {$fieldDescription} has an invalid length '{$length}': expected a positive integer, the number of characters to index";
+					elseif ($property->length !== null && (int)$length > $property->length)
+						$problems[] = "{$fieldAt}: {$fieldDescription} has length {$length}, which is more than the length {$property->length} of property '{$property->name}'";
 					else
 						$lengths[$fieldColumns[0]] = (int)$length;
-				} elseif ($property !== null && $property->storesText())
+				} elseif ($property !== null && $property->storesUnboundedText())
 					$problems[] = "{$fieldAt}: {$fieldDescription} needs a length attribute: property '{$property->name}' is stored as text,"
 						.' which MySQL only indexes with a prefix length, the number of characters to index';
 
@@ -877,6 +881,8 @@ class XMLLoader {
 		if ($type == 'Decimal')
 			[$precision, $scale] = self::getDecimalSize($element);
 
+		$length = $type == 'Text' ? self::getTextLength($element) : null;
+
 		$updateOn = null;
 		if ($element->hasAttribute('update_on')) {
 			$updateOn = $element->getAttribute('update_on');
@@ -902,7 +908,8 @@ class XMLLoader {
 			type: $type,
 			required: $required,
 			columns: self::getFieldNames($project, $element, $type),
-			default: self::getDefault($element, $type, $precision, $scale),
+			default: self::getDefault($element, $type, $length, $precision, $scale),
+			length: $length,
 			signed: self::getBool($element, 'signed', true),
 			size: self::getIntSize($element),
 			precision: $precision,
@@ -959,6 +966,23 @@ class XMLLoader {
 	}
 
 	/**
+	 * Reads the length of a Text property.
+	 *
+	 * @param DOMElement $property the property element in the XML tree
+	 * @return ?int the maximum number of characters, or null for text of any length
+	 * @throws \Exception if the length is not a valid length for a VARCHAR column
+	 */
+	private static function getTextLength(DOMElement $property) : ?int {
+		if (!$property->hasAttribute('length'))
+			return null;
+		$length = $property->getAttribute('length');
+		if (!preg_match('/^[1-9][0-9]{0,4}$/D', $length) || (int)$length > ARPropertyTypeText::MAX_LENGTH)
+			throw new \Exception("Invalid length '{$length}' for property '{$property->getAttribute('name')}': expected a whole number from 1 to "
+				.ARPropertyTypeText::MAX_LENGTH.', the maximum number of characters; leave it out for longer text');
+		return (int)$length;
+	}
+
+	/**
 	 * Reads the precision and scale for a Decimal property.
 	 *
 	 * @param DOMElement $property the property element in the XML tree
@@ -980,19 +1004,20 @@ class XMLLoader {
 	 *
 	 * @param DOMElement $property the property element in the XML tree
 	 * @param string $type the property type
+	 * @param ?int $length for Text: the maximum number of characters, if any
 	 * @param ?int $precision for Decimal: the precision
 	 * @param ?int $scale for Decimal: the scale
 	 * @return string|int|float|bool|null the default value, or null if there is none
 	 * @throws \Exception if the default is not a valid value for the type
 	 */
-	private static function getDefault(DOMElement $property, string $type, ?int $precision, ?int $scale) : string|int|float|bool|null {
+	private static function getDefault(DOMElement $property, string $type, ?int $length, ?int $precision, ?int $scale) : string|int|float|bool|null {
 		if (!$property->hasAttribute('default'))
 			return null;
 		$default = $property->getAttribute('default');
 
 		try {
 			if ($type == 'Text')
-				return $default;
+				return (new ARPropertyTypeText())->normalize($length !== null ? [ 'length' => $length ] : [], $default);
 
 			if ($type == 'Int')
 				return (new ARPropertyTypeInt())->normalize([ 'signed' => self::getBool($property, 'signed', true), 'size' => self::getIntSize($property) ], $default);

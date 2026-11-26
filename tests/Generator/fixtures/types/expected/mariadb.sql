@@ -4,6 +4,8 @@ CREATE TABLE `items` (
 
 	`title` TEXT NOT NULL DEFAULT ('It''s a \\ ''test'' */'),
 	`notes` TEXT NULL,
+	`code` VARCHAR(5) NOT NULL DEFAULT ('né-1'),
+	`label` VARCHAR(1000) NULL,
 	`count` INT NULL DEFAULT -3,
 	`stock` INT UNSIGNED NOT NULL DEFAULT 0,
 	`rank` SMALLINT UNSIGNED NULL DEFAULT 65535,

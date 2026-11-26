@@ -6,6 +6,8 @@
 		<dataset autoload="true">
 			<property name="title" required="true" default="It's a \ 'test' */"/>
 			<property name="notes"/>
+			<property name="code" length="5" required="true" default="né-1"/>
+			<property name="label" type="Text" length="1000"/>
 			<property name="count" type="Int" default="-3"/>
 			<property name="stock" type="Int" signed="false" required="true" default="0"/>
 			<property name="rank" type="Int" size="small" signed="false" default="65535"/>

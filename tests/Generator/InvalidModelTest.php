@@ -112,6 +112,79 @@ it('rejects the model with a readable error', function (string $xml, string $exp
 		Invalid default for property 'count': -1 is out of range for an unsigned INT column
 		ERROR,
 	],
+	'bad-text-length' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="code" length="0"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid length '0' for property 'code': expected a whole number from 1 to 16383, the maximum number of characters; leave it out for longer text
+		ERROR,
+	],
+	'bad-text-length-too-long' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="code" type="Text" length="16384"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid length '16384' for property 'code': expected a whole number from 1 to 16383, the maximum number of characters; leave it out for longer text
+		ERROR,
+	],
+	'bad-text-default-too-long' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="code" length="3" default="éééé"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid default for property 'code': the value has 4 characters, the maximum is 3
+		ERROR,
+	],
+	'text-length-on-another-type' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="count" type="Int" length="3"/>
+				</dataset>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid model XML:
+		- line 4: <property> 'count' of class 'Item' has attribute 'length', which a property of type Int can't have
+		ERROR,
+	],
+	'index-length-above-text-length' => [
+		<<<'XML'
+		<project database="main" tablestyle="SnakeCase">
+			<class name="Item">
+				<dataset>
+					<property name="code" length="10"/>
+				</dataset>
+				<index name="code"><field property="code" length="11"/></index>
+			</class>
+		</project>
+		XML,
+		<<<'ERROR'
+		Invalid model XML:
+		- line 6: <field property="code"> of <index> 'code' of class 'Item' has length 11, which is more than the length 10 of property 'code'
+		ERROR,
+	],
 	'bad-int-size' => [
 		<<<'XML'
 		<project database="main" tablestyle="SnakeCase">
